@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Database
+*.db
+*.sqlite3
+
+# AI Models
+models/
+
+# Output
+output/
+temp/
+
+# Media
+*.mp4
+*.avi
+*.wav
+*.mp3
+
+# Environment
+.env
+
+# OS
+Thumbs.db
+.DS_Store
