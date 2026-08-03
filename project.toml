@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "ai-content-studio"
+version = "0.1.0"
+description = "Offline AI Content Creation Studio"
+authors = ["Devendra Khare"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+PySide6 = "*"
+opencv-python = "*"
+numpy = "*"
+pillow = "*"
+moviepy = "*"
+ffmpeg-python = "*"
+sqlalchemy = "*"
+loguru = "*"
+rich = "*"
+python-dotenv = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
