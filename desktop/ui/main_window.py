@@ -12,6 +12,7 @@ from desktop.ui.docks.project_dock import ProjectDock
 from desktop.ui.docks.output_dock import OutputDock
 from desktop.ui.docks.log_dock import LogDock
 
+from desktop.ui.dashboard import Dashboard
 
 class MainWindow(QMainWindow):
 
@@ -26,11 +27,7 @@ class MainWindow(QMainWindow):
         build_toolbar(self)
         build_statusbar(self)
 
-        self.setCentralWidget(
-            QLabel(
-                "<h1>Welcome to AI Content Studio</h1>"
-            )
-        )
+        self.setCentralWidget(Dashboard())
 
         self.projectDock = ProjectDock(self)
         self.outputDock = OutputDock(self)
