@@ -1,0 +1,27 @@
+from backend.ocr.detector import OCRDetector
+from backend.ocr.manager import OCRManager
+
+
+class OCRPipeline:
+
+    def __init__(self):
+
+        self.detector = OCRDetector()
+
+        self.manager = OCRManager()
+
+    def process_page(
+        self,
+        pdf_page,
+        image,
+    ):
+
+        if not self.detector.needs_ocr(
+            pdf_page
+        ):
+
+            return pdf_page.get_text()
+
+        return self.manager.recognize(
+            image
+        )
