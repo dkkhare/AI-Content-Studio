@@ -1,0 +1,2 @@
+class OCRError(Exception):
+    pass
