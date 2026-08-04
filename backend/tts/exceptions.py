@@ -1,0 +1,2 @@
+class TTSError(Exception):
+    pass
