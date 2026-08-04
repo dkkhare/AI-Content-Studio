@@ -1,107 +1,38 @@
-"""
-Exceptions for the Text-to-Speech subsystem.
-"""
-
-
 class TTSError(Exception):
-    """
-    Base exception for all TTS-related errors.
-    """
-
+    """Base TTS exception."""
     pass
 
 
 class ModelNotInstalledError(TTSError):
-    """
-    Raised when the required TTS model is not installed.
-    """
-
-    pass
-
-
-class ModelDownloadError(TTSError):
-    """
-    Raised when downloading a model fails.
-    """
-
-    pass
-
-
-class ModelVerificationError(TTSError):
-    """
-    Raised when a downloaded model fails checksum verification.
-    """
-
+    """Model checkpoint missing."""
     pass
 
 
 class InvalidReferenceAudioError(TTSError):
-    """
-    Raised when the reference voice sample is invalid.
-    """
-
+    """Reference audio is invalid."""
     pass
 
 
-class UnsupportedAudioFormatError(TTSError):
-    """
-    Raised when the audio format is not supported.
-    """
-
+class AudioGenerationError(TTSError):
+    """Speech generation failed."""
     pass
 
 
-class AudioProcessingError(TTSError):
-    """
-    Raised when preprocessing or postprocessing audio fails.
-    """
-
+class AudioMergeError(TTSError):
+    """Audio merge failed."""
     pass
 
 
-class DeviceNotSupportedError(TTSError):
-    """
-    Raised when the selected execution device is unavailable.
-    """
-
+class PipelineError(TTSError):
+    """Pipeline execution failed."""
     pass
 
 
-class CUDAOutOfMemoryError(TTSError):
-    """
-    Raised when CUDA runs out of GPU memory.
-    """
-
+class SessionCancelledError(TTSError):
+    """Generation cancelled."""
     pass
 
 
-class SpeechGenerationError(TTSError):
-    """
-    Raised when speech synthesis fails.
-    """
-
-    pass
-
-
-class ChunkGenerationError(TTSError):
-    """
-    Raised when generation of an individual text chunk fails.
-    """
-
-    pass
-
-
-class ConfigurationError(TTSError):
-    """
-    Raised when the TTS configuration is invalid.
-    """
-
-    pass
-
-
-class EnvironmentError(TTSError):
-    """
-    Raised when required dependencies are missing.
-    """
-
+class QueueEmptyError(TTSError):
+    """Queue is empty."""
     pass
