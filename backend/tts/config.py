@@ -1,101 +1,38 @@
 from dataclasses import dataclass
-from pathlib import Path
 
 
 @dataclass
 class TTSConfig:
     """
-    Configuration for the Text-to-Speech subsystem.
+    Global TTS configuration.
     """
-
-    # --------------------------------------------------
-    # Provider
-    # --------------------------------------------------
 
     provider: str = "F5-TTS"
 
-    # --------------------------------------------------
-    # Device
-    # --------------------------------------------------
+    device: str = "cuda"
 
-    device: str = "auto"
+    model_directory: str = "models/f5tts"
 
-    use_fp16: bool = True
+    checkpoint_file: str = "model.safetensors"
 
-    # --------------------------------------------------
-    # Speech
-    # --------------------------------------------------
+    output_directory: str = "output/tts"
+
+    sample_rate: int = 24000
 
     speed: float = 1.0
 
     temperature: float = 0.8
 
-    max_sentence_length: int = 300
+    chunk_length: int = 300
 
-    sample_rate: int = 24000
-
-    output_format: str = "wav"
+    silence_between_chunks_ms: int = 150
 
     normalize_audio: bool = True
 
-    remove_silence: bool = False
-
-    # --------------------------------------------------
-    # Chunking
-    # --------------------------------------------------
-
-    chunk_length: int = 180
-
-    overlap_sentences: int = 1
-
-    # --------------------------------------------------
-    # Batch
-    # --------------------------------------------------
-
-    batch_size: int = 1
-
-    # --------------------------------------------------
-    # Model
-    # --------------------------------------------------
-
-    model_name: str = "F5-TTS"
-
-    model_directory: str = str(
-        Path("models") / "f5tts"
-    )
-
-    checkpoint_file: str = "model.safetensors"
-
-    config_file: str = "config.json"
-
-    # --------------------------------------------------
-    # Voice
-    # --------------------------------------------------
-
-    reference_audio: str = ""
-
-    speaker_cache: str = str(
-        Path("cache") / "speakers"
-    )
-
-    # --------------------------------------------------
-    # Output
-    # --------------------------------------------------
-
-    output_directory: str = str(
-        Path("output") / "tts"
-    )
-
-    keep_chunks: bool = False
-
-    # --------------------------------------------------
-    # Runtime
-    # --------------------------------------------------
-
-    enable_progress: bool = True
+    use_fp16: bool = True
 
     auto_download_model: bool = True
 
-    verify_checksum: bool = True
+    keep_chunk_files: bool = False
 
-    debug: bool = False
+    seed: int | None = None
