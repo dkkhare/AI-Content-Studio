@@ -1,0 +1,19 @@
+class PDFAnalyzer:
+
+    @staticmethod
+    def is_scanned(document):
+
+        total = len(document.pages)
+
+        if total == 0:
+            return True
+
+        empty = 0
+
+        for page in document.pages:
+
+            if len(page.text.strip()) < 10:
+
+                empty += 1
+
+        return empty > total * 0.7
