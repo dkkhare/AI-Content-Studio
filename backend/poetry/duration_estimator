@@ -1,0 +1,17 @@
+class DurationEstimator:
+    """
+    Estimates narration duration.
+
+    Default narration speed:
+        135 words/minute
+    """
+
+    WORDS_PER_MINUTE = 135
+
+    def estimate_seconds(self, text: str):
+
+        words = len(text.split())
+
+        minutes = words / self.WORDS_PER_MINUTE
+
+        return int(minutes * 60)
