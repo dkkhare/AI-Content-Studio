@@ -1,0 +1,6 @@
+PyMuPDF
+pdfplumber
+pdf2image
+pillow
+pytesseract
+rapidocr
