@@ -255,3 +255,260 @@ class TTSProgressDialog(QDialog):
     def stop_timer(self):
 
         self.timer.stop()
+    # --------------------------------------------------
+    # Controller
+    # --------------------------------------------------
+
+    def set_controller(self, controller):
+
+        self.controller = controller
+
+        self.cancel_button.clicked.connect(
+            controller.cancel
+        )
+
+        self.timer.timeout.connect(
+            self._update_elapsed
+        )
+
+        controller.generation_started.connect(
+            self.on_started
+        )
+
+        controller.generation_progress.connect(
+            self.on_progress
+        )
+
+        controller.generation_finished.connect(
+            self.on_finished
+        )
+
+        controller.generation_failed.connect(
+            self.on_failed
+        )
+
+        controller.generation_cancelled.connect(
+            self.on_cancelled
+        )
+
+        controller.log_message.connect(
+            self.append_log
+        )
+
+    # --------------------------------------------------
+    # Elapsed Timer
+    # --------------------------------------------------
+
+    def _update_elapsed(self):
+
+        if self.start_time is None:
+
+            return
+
+        elapsed = datetime.now() - self.start_time
+
+        seconds = int(
+            elapsed.total_seconds()
+        )
+
+        minutes = seconds // 60
+
+        seconds = seconds % 60
+
+        self.elapsed_value.setText(
+
+            f"{minutes:02}:{seconds:02}"
+
+        )
+
+    # --------------------------------------------------
+    # Log
+    # --------------------------------------------------
+
+    def append_log(self, message):
+
+        self.log_view.append(message)
+
+    # --------------------------------------------------
+    # Started
+    # --------------------------------------------------
+
+    def on_started(self):
+
+        self.status_label.setText(
+            "Generating narration..."
+        )
+
+        self.progress_bar.setValue(0)
+
+        self.start_timer()
+
+    # --------------------------------------------------
+    # Progress
+    # --------------------------------------------------
+
+    def on_progress(self, progress):
+
+        self.progress_bar.setValue(
+
+            progress.percent
+
+        )
+
+        self.stage_value.setText(
+
+            progress.stage
+
+        )
+
+        self.chunk_value.setText(
+
+            f"{progress.current_chunk} / "
+
+            f"{progress.total_chunks}"
+
+        )
+
+        self.current_text.setPlainText(
+
+            progress.current_text
+
+        )
+
+        if progress.remaining_seconds:
+
+            remaining = int(
+                progress.remaining_seconds
+            )
+
+            m = remaining // 60
+
+            s = remaining % 60
+
+            self.remaining_value.setText(
+
+                f"{m:02}:{s:02}"
+
+            )
+
+    # --------------------------------------------------
+    # Finished
+    # --------------------------------------------------
+
+    def on_finished(self, session):
+
+        self.stop_timer()
+
+        self.progress_bar.setValue(100)
+
+        self.status_label.setText(
+            "Narration generated successfully."
+        )
+
+        self.append_log(
+            "Generation completed."
+        )
+
+        self.cancel_button.setText(
+            "Close"
+        )
+
+        try:
+
+            self.cancel_button.clicked.disconnect()
+
+        except Exception:
+
+            pass
+
+        self.cancel_button.clicked.connect(
+            self.accept
+        )
+
+    # --------------------------------------------------
+    # Failed
+    # --------------------------------------------------
+
+    def on_failed(self, message):
+
+        self.stop_timer()
+
+        self.status_label.setText(
+            "Generation failed."
+        )
+
+        self.append_log(message)
+
+        self.cancel_button.setText(
+            "Close"
+        )
+
+        try:
+
+            self.cancel_button.clicked.disconnect()
+
+        except Exception:
+
+            pass
+
+        self.cancel_button.clicked.connect(
+            self.reject
+        )
+
+    # --------------------------------------------------
+    # Cancelled
+    # --------------------------------------------------
+
+    def on_cancelled(self):
+
+        self.stop_timer()
+
+        self.status_label.setText(
+            "Generation cancelled."
+        )
+
+        self.append_log(
+            "Operation cancelled."
+        )
+
+        self.cancel_button.setText(
+            "Close"
+        )
+
+        try:
+
+            self.cancel_button.clicked.disconnect()
+
+        except Exception:
+
+            pass
+
+        self.cancel_button.clicked.connect(
+            self.reject
+        )
+
+    # --------------------------------------------------
+    # Reset
+    # --------------------------------------------------
+
+    def reset(self):
+
+        self.progress_bar.setValue(0)
+
+        self.stage_value.setText("-")
+
+        self.chunk_value.setText("0 / 0")
+
+        self.elapsed_value.setText("00:00")
+
+        self.remaining_value.setText("--:--")
+
+        self.current_text.clear()
+
+        self.log_view.clear()
+
+        self.status_label.setText("Preparing...")
+
+        self.cancel_button.setText("Cancel")
+
+        self.start_time = None
