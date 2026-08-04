@@ -4,3 +4,10 @@ pdf2image
 pillow
 pytesseract
 rapidocr
+torch
+torchaudio
+transformers
+accelerate
+pydub
+soundfile
+numpy
