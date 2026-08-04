@@ -11,3 +11,7 @@ accelerate
 pydub
 soundfile
 numpy
+black
+ruff
+mypy
+pytest
