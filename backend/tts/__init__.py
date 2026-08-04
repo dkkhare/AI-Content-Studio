@@ -1,15 +1,17 @@
+from .config import TTSConfig
 from .manager import TTSManager
 from .generator import TTSGenerator
-from .audio_merger import AudioMerger
 from .pipeline import TTSPipeline
 from .queue import TTSQueue
 from .session import TTSSession
+from .audio_merger import AudioMerger
 
 __all__ = [
+    "TTSConfig",
     "TTSManager",
     "TTSGenerator",
-    "AudioMerger",
     "TTSPipeline",
     "TTSQueue",
     "TTSSession",
+    "AudioMerger",
 ]
