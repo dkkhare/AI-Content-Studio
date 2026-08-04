@@ -200,3 +200,210 @@ class TTSWorker(QObject):
         )
 
         return path
+    # --------------------------------------------------
+    # Run
+    # --------------------------------------------------
+
+    @Slot()
+    def run(self):
+        """
+        Execute narration generation.
+        """
+
+        self.reset()
+
+        self._running = True
+
+        self.started.emit()
+
+        try:
+
+            self.log.emit(
+                "Initializing TTS pipeline..."
+            )
+
+            self.pipeline.initialize()
+
+            self.ensure_output_directory()
+
+            self.log.emit(
+                "Creating session..."
+            )
+
+            self.session = self.pipeline.create_session(
+
+                reference_audio=self.reference_audio,
+
+                reference_text=self.reference_text,
+
+                text=self.text,
+
+            )
+
+            self.log.emit(
+                "Preparing text..."
+            )
+
+            chunks = self.create_chunks(
+                self.text
+            )
+
+            if not chunks:
+
+                raise RuntimeError(
+                    "No text chunks generated."
+                )
+
+            self.log.emit(
+
+                f"{len(chunks)} chunk(s) prepared."
+
+            )
+
+            self.session.total_chunks = len(
+                chunks
+            )
+
+            self.log.emit(
+                "Generating narration..."
+            )
+
+            self.pipeline.run(
+
+                session=self.session,
+
+                chunks=chunks,
+
+                progress_callback=self.progress_callback,
+
+            )
+
+            if self._cancel_requested:
+
+                self.session.cancel()
+
+                self.cancelled.emit()
+
+                return
+
+            self.log.emit(
+                "Generation completed."
+            )
+
+            self.finished.emit(
+                self.session
+            )
+
+        except Exception as exc:
+
+            if self.session:
+
+                self.session.fail(
+                    str(exc)
+                )
+
+            if self._cancel_requested:
+
+                self.cancelled.emit()
+
+            else:
+
+                self.failed.emit(
+                    str(exc)
+                )
+
+        finally:
+
+            try:
+
+                self.pipeline.shutdown()
+
+            except Exception:
+
+                pass
+
+            self._running = False
+
+    # --------------------------------------------------
+    # Status
+    # --------------------------------------------------
+
+    def session_id(self):
+
+        if self.session:
+
+            return self.session.id
+
+        return None
+
+    def output_file(self):
+
+        if self.session:
+
+            return self.session.output_file
+
+        return ""
+
+    def progress_percent(self):
+
+        if self.session:
+
+            return self.session.progress
+
+        return 0
+
+    # --------------------------------------------------
+    # Cleanup
+    # --------------------------------------------------
+
+    def cleanup(self):
+
+        if self.session:
+
+            try:
+
+                self.pipeline.cleanup_chunks(
+                    self.session
+                )
+
+            except Exception:
+
+                pass
+
+    # --------------------------------------------------
+    # Information
+    # --------------------------------------------------
+
+    def statistics(self):
+
+        return self.pipeline.statistics()
+
+    def is_finished(self):
+
+        if self.session is None:
+
+            return False
+
+        return self.session.is_finished
+
+    def is_running(self):
+
+        return self._running
+
+    # --------------------------------------------------
+    # Reset
+    # --------------------------------------------------
+
+    def clear(self):
+
+        self.cleanup()
+
+        self.reset()
+
+        self.reference_audio = ""
+
+        self.reference_text = ""
+
+        self.text = ""
+
+        self.output_directory = ""
