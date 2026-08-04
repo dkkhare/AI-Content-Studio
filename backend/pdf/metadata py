@@ -1,0 +1,11 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class PDFMetadata:
+    title: str = ""
+    author: str = ""
+    subject: str = ""
+    creator: str = ""
+    producer: str = ""
+    page_count: int = 0
