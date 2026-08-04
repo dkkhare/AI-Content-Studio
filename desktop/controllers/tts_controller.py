@@ -180,3 +180,186 @@ class TTSController(QObject):
     def thread_instance(self):
 
         return self.thread
+    # --------------------------------------------------
+    # Cancel
+    # --------------------------------------------------
+
+    def cancel(self):
+
+        if self.worker and self._running:
+
+            self.worker.request_cancel()
+
+    # --------------------------------------------------
+    # Slots
+    # --------------------------------------------------
+
+    def _on_started(self):
+
+        self.generation_started.emit()
+
+    def _on_progress(self, progress):
+
+        self.generation_progress.emit(progress)
+
+    def _on_finished(self, session):
+
+        self._running = False
+
+        self.generation_finished.emit(session)
+
+    def _on_failed(self, message):
+
+        self._running = False
+
+        self.generation_failed.emit(message)
+
+    def _on_cancelled(self):
+
+        self._running = False
+
+        self.generation_cancelled.emit()
+
+    # --------------------------------------------------
+    # Session Information
+    # --------------------------------------------------
+
+    def session(self):
+
+        if self.worker:
+
+            return self.worker.session
+
+        return None
+
+    def session_id(self):
+
+        if self.worker:
+
+            return self.worker.session_id()
+
+        return None
+
+    def output_file(self):
+
+        if self.worker:
+
+            return self.worker.output_file()
+
+        return ""
+
+    def progress_percent(self):
+
+        if self.worker:
+
+            return self.worker.progress_percent()
+
+        return 0
+
+    # --------------------------------------------------
+    # Statistics
+    # --------------------------------------------------
+
+    def statistics(self):
+
+        if self.worker:
+
+            return self.worker.statistics()
+
+        return {}
+
+    # --------------------------------------------------
+    # Cleanup
+    # --------------------------------------------------
+
+    def cleanup(self):
+
+        if self.worker:
+
+            try:
+
+                self.worker.cleanup()
+
+            except Exception:
+
+                pass
+
+    def reset(self):
+
+        self.cleanup()
+
+        self.worker = None
+
+        self.thread = None
+
+        self._running = False
+
+    # --------------------------------------------------
+    # Wait
+    # --------------------------------------------------
+
+    def wait(self, timeout=30000):
+
+        if self.thread:
+
+            return self.thread.wait(timeout)
+
+        return True
+
+    # --------------------------------------------------
+    # Convenience
+    # --------------------------------------------------
+
+    def is_finished(self):
+
+        if self.worker:
+
+            return self.worker.is_finished()
+
+        return False
+
+    def has_session(self):
+
+        return self.session() is not None
+
+    def ready(self):
+
+        return not self._running
+
+    # --------------------------------------------------
+    # Output
+    # --------------------------------------------------
+
+    def output_exists(self):
+
+        output = self.output_file()
+
+        if not output:
+
+            return False
+
+        return Path(output).exists()
+
+    def output_duration(self):
+
+        session = self.session()
+
+        if session:
+
+            return session.duration
+
+        return 0.0
+
+    # --------------------------------------------------
+    # Destructor
+    # --------------------------------------------------
+
+    def shutdown(self):
+
+        if self._running:
+
+            self.cancel()
+
+            self.wait()
+
+        self.reset()
