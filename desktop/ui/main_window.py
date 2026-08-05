@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
 from desktop.project.project_controller import (
@@ -18,9 +19,17 @@ from desktop.ui.menu_bar import build_menu
 from desktop.ui.tool_bar import build_toolbar
 from desktop.ui.status_bar import build_statusbar
 
-from desktop.ui.docks.project_dock import ProjectDock
-from desktop.ui.docks.output_dock import OutputDock
-from desktop.ui.docks.log_dock import LogDock
+from desktop.ui.docks.project_dock import (
+    ProjectDock,
+)
+
+from desktop.ui.docks.output_dock import (
+    OutputDock,
+)
+
+from desktop.ui.docks.log_dock import (
+    LogDock,
+)
 
 from desktop.ui.dashboard import Dashboard
 from desktop.ui.workspace import Workspace
@@ -48,7 +57,7 @@ class MainWindow(QMainWindow):
         self.project_controller = None
 
         # --------------------------------------------------
-        # Menu / Toolbar / Statusbar
+        # Menu / Toolbar / Status Bar
         # --------------------------------------------------
 
         build_menu(self)
@@ -78,7 +87,7 @@ class MainWindow(QMainWindow):
         )
 
         # --------------------------------------------------
-        # Dashboard Connections
+        # Dashboard Signals
         # --------------------------------------------------
 
         self.dashboard.newProjectRequested.connect(
@@ -120,6 +129,14 @@ class MainWindow(QMainWindow):
             self.logDock,
         )
 
+        # --------------------------------------------------
+        # Initialize UI
+        # --------------------------------------------------
+
+        self.refresh_recent_projects_menu()
+
+        self.update_action_states()
+
         self.log(
             "AI Content Studio started."
         )
@@ -160,21 +177,27 @@ class MainWindow(QMainWindow):
 
     def save_project(self):
 
-        if self.project_controller:
+        if self.project_controller is None:
 
-            self.project_controller.save_project()
+            return
 
-            self.log(
+        self.project_controller.save_project()
 
-                "Project saved."
+        self.log(
 
-            )
+            "Project saved."
+
+        )
+
+        self.update_action_states()
 
     def auto_save_project(self):
 
-        if self.project_controller:
+        if self.project_controller is None:
 
-            self.project_controller.auto_save()
+            return
+
+        self.project_controller.auto_save()
 
     # --------------------------------------------------
     # Logging
@@ -214,6 +237,8 @@ class MainWindow(QMainWindow):
 
         self.update_project_title()
 
+        self.update_action_states()
+
         self.log(
 
             "Dashboard opened."
@@ -241,6 +266,8 @@ class MainWindow(QMainWindow):
         )
 
         self.update_project_title()
+
+        self.update_action_states()
 
         self.log(
 
@@ -272,7 +299,25 @@ class MainWindow(QMainWindow):
 
         )
 
-    def restore
+    def restore_ui_state(self):
+
+        self.ui_state.restore_main_window(
+
+            self
+
+        )
+
+        self.ui_state.restore_workspace(
+
+            self.workspace
+
+        )
+
+        self.ui_state.restore_narration(
+
+            self.narration_panel()
+
+        )
     # --------------------------------------------------
     # Project Actions
     # --------------------------------------------------
@@ -284,9 +329,7 @@ class MainWindow(QMainWindow):
             return
 
         result = ProjectDialogs.new_project(
-
             self
-
         )
 
         if result is None:
@@ -296,27 +339,22 @@ class MainWindow(QMainWindow):
         name, directory = result
 
         project = self.project_controller.create_project(
-
             name,
-
             directory,
-
         )
 
         self.add_recent_project(
-
             str(project.root)
-
         )
 
         self.show_workspace()
 
         self.update_project_title()
 
+        self.update_action_states()
+
         self.log(
-
             f"Project created: {project.name}"
-
         )
 
     def open_project(self):
@@ -326,9 +364,7 @@ class MainWindow(QMainWindow):
             return
 
         directory = ProjectDialogs.open_project(
-
             self
-
         )
 
         if directory is None:
@@ -336,25 +372,21 @@ class MainWindow(QMainWindow):
             return
 
         project = self.project_controller.open_project(
-
             directory
-
         )
 
         self.add_recent_project(
-
             str(project.root)
-
         )
 
         self.show_workspace()
 
         self.update_project_title()
 
+        self.update_action_states()
+
         self.log(
-
             f"Project opened: {project.name}"
-
         )
 
     def save_project_as(self):
@@ -364,9 +396,7 @@ class MainWindow(QMainWindow):
             return
 
         directory = ProjectDialogs.save_project_as(
-
             self
-
         )
 
         if directory is None:
@@ -374,17 +404,15 @@ class MainWindow(QMainWindow):
             return
 
         self.project_controller.save_project_as(
-
             directory
-
         )
 
         self.update_project_title()
 
+        self.update_action_states()
+
         self.log(
-
             "Project saved as."
-
         )
 
     def close_project(self):
@@ -401,10 +429,10 @@ class MainWindow(QMainWindow):
 
         self.update_project_title()
 
+        self.update_action_states()
+
         self.log(
-
             "Project closed."
-
         )
 
     # --------------------------------------------------
@@ -416,21 +444,117 @@ class MainWindow(QMainWindow):
         if self.has_project():
 
             self.setWindowTitle(
-
                 f"AI Content Studio - {self.project().name}"
-
             )
 
         else:
 
             self.setWindowTitle(
-
                 "AI Content Studio"
-
             )
     # --------------------------------------------------
     # Recent Projects
     # --------------------------------------------------
+
+    def refresh_recent_projects_menu(self):
+
+        if not hasattr(
+            self,
+            "recent_projects_menu",
+        ):
+            return
+
+        self.recent_projects_menu.clear()
+
+        projects = self.recent_projects_list()
+
+        if not projects:
+
+            action = QAction(
+
+                "No Recent Projects",
+
+                self,
+
+            )
+
+            action.setEnabled(False)
+
+            self.recent_projects_menu.addAction(
+                action
+            )
+
+            return
+
+        for project in projects:
+
+            action = QAction(
+
+                project,
+
+                self,
+
+            )
+
+            action.triggered.connect(
+
+                lambda checked=False, p=project:
+
+                self._open_recent_project(p)
+
+            )
+
+            self.recent_projects_menu.addAction(
+                action
+            )
+
+    def _open_recent_project(
+
+        self,
+
+        project_path,
+
+    ):
+
+        if self.project_controller is None:
+
+            return
+
+        try:
+
+            project = self.project_controller.open_project(
+
+                project_path
+
+            )
+
+        except Exception as exc:
+
+            self.log(
+
+                str(exc)
+
+            )
+
+            return
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            f"Opened recent project: {project.name}"
+
+        )
 
     def add_recent_project(
 
@@ -446,10 +570,11 @@ class MainWindow(QMainWindow):
 
         )
 
+        self.refresh_recent_projects_menu()
+
     def recent_projects_list(self):
 
         return self.recent_projects.projects()
-
     # --------------------------------------------------
     # Workspace Helpers
     # --------------------------------------------------
@@ -495,6 +620,49 @@ class MainWindow(QMainWindow):
         self.workspace.open_export_tab()
 
     # --------------------------------------------------
+    # Action State
+    # --------------------------------------------------
+
+    def update_action_states(self):
+
+        has_project = self.has_project()
+
+        if hasattr(
+            self,
+            "action_save_project",
+        ):
+
+            self.action_save_project.setEnabled(
+                has_project
+            )
+
+        if hasattr(
+            self,
+            "action_save_project_as",
+        ):
+
+            self.action_save_project_as.setEnabled(
+                has_project
+            )
+
+        if hasattr(
+            self,
+            "action_close_project",
+        ):
+
+            self.action_close_project.setEnabled(
+                has_project
+            )
+
+        if hasattr(
+            self,
+            "toolbar_save",
+        ):
+
+            self.toolbar_save.setEnabled(
+                has_project
+            )
+    # --------------------------------------------------
     # Close Event
     # --------------------------------------------------
 
@@ -506,8 +674,32 @@ class MainWindow(QMainWindow):
 
     ):
 
-        self.auto_save_project()
+        try:
 
-        self.save_ui_state()
+            self.auto_save_project()
 
-        super().closeEvent(event)
+        except Exception as exc:
+
+            self.log(
+
+                f"Auto-save failed: {exc}"
+
+            )
+
+        try:
+
+            self.save_ui_state()
+
+        except Exception as exc:
+
+            self.log(
+
+                f"Failed to save UI state: {exc}"
+
+            )
+
+        super().closeEvent(
+
+            event
+
+        )
