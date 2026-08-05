@@ -20,24 +20,50 @@ class ProjectController(QObject):
 
         self.project_path = None
 
+    # --------------------------------------------------
+    # Project Operations
+    # --------------------------------------------------
+
     def new_project(self):
 
         self.project_path = None
 
     def open_project(self, path: Path):
 
-        self.project_path = path
+        self.project_path = Path(path)
 
-        self.projectOpened.emit(path)
+        self.projectOpened.emit(
+
+            self.project_path
+
+        )
 
     def save_project(self):
 
-        if self.project_path:
+        if self.project_path is None:
 
-            self.projectSaved.emit(self.project_path)
+            return
+
+        self.projectSaved.emit(
+
+            self.project_path
+
+        )
 
     def close_project(self):
 
         self.project_path = None
 
         self.projectClosed.emit()
+
+    # --------------------------------------------------
+    # Helpers
+    # --------------------------------------------------
+
+    def has_project(self):
+
+        return self.project_path is not None
+
+    def current_project(self):
+
+        return self.project_path
