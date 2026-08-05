@@ -7,9 +7,14 @@ from PySide6.QtWidgets import (
 )
 
 from desktop.ui.workflow_panel import WorkflowPanel
-
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QWidget
 
 class Dashboard(QWidget):
+
+    newProjectRequested = Signal()
+
+    openProjectRequested = Signal()
 
     def __init__(self):
 
