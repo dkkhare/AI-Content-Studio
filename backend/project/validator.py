@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from pathlib import Path
 
 from backend.project.exceptions import (
@@ -10,7 +13,25 @@ class ProjectValidator:
     Validates AI Content Studio projects.
     """
 
-    REQUIRED = [
+    REQUIRED_DIRECTORIES = [
+
+        "pdf",
+
+        "ocr",
+
+        "tts",
+
+        "translation",
+
+        "video",
+
+        "export",
+
+        "cache",
+
+    ]
+
+    REQUIRED_FILES = [
 
         "project.json",
 
@@ -31,18 +52,56 @@ class ProjectValidator:
 
             raise InvalidProjectError(
 
-                "Project folder does not exist."
+                "Project directory does not exist."
 
             )
 
-        for file in cls.REQUIRED:
+        if not root.is_dir():
 
-            if not (root / file).exists():
+            raise InvalidProjectError(
+
+                "Invalid project directory."
+
+            )
+
+        for filename in cls.REQUIRED_FILES:
+
+            if not (root / filename).exists():
 
                 raise InvalidProjectError(
 
-                    f"Missing {file}"
+                    f"Missing {filename}"
 
                 )
+
+        for directory in cls.REQUIRED_DIRECTORIES:
+
+            if not (root / directory).exists():
+
+                raise InvalidProjectError(
+
+                    f"Missing directory: {directory}"
+
+                )
+
+        try:
+
+            json.loads(
+
+                (root / "project.json").read_text(
+
+                    encoding="utf-8"
+
+                )
+
+            )
+
+        except Exception as exc:
+
+            raise InvalidProjectError(
+
+                f"Invalid project.json ({exc})"
+
+            )
 
         return True
