@@ -101,29 +101,27 @@ class AudioPlayer(QObject):
     # ------------------------------------------
     # Playback
     # ------------------------------------------
+        
     def play(
     self,
     filename,
-    ):
+):
 
     path = Path(filename)
 
     if not path.exists():
-
         raise AudioPlayerError(
             f"Audio file not found: {filename}"
         )
 
     if self.current_file != str(path):
-
         self.current_file = str(path)
-
         self.player.setSource(
             QUrl.fromLocalFile(str(path))
         )
 
     self.player.play()
-# ------------------------------------------
+    # ------------------------------------------
 
     def pause(self):
 
