@@ -67,3 +67,22 @@ class ProjectController(QObject):
     def current_project(self):
 
         return self.project_path
+    # --------------------------------------------------
+    # Helpers
+    # --------------------------------------------------
+
+    def has_project(self):
+
+        return self.project_path is not None
+
+    def current_project(self):
+
+        return self.project_path
+
+    def project_name(self):
+
+        if self.project_path is None:
+
+            return None
+
+        return self.project_path.name
