@@ -122,7 +122,7 @@ class AudioPlayer(QObject):
 
         
         
-      if self.current_file != str(path):
+        if self.current_file != str(path):
         self.current_file = str(path)
     
         self.player.setSource(
