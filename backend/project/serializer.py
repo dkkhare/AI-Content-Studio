@@ -7,20 +7,29 @@ from backend.project.project import Project
 
 
 class ProjectSerializer:
-    """
-    Handles loading and saving project metadata.
-    """
 
-    @staticmethod
-    def save(project: Project):
+    FORMAT_VERSION = "1.0"
+
+    @classmethod
+    def save(
+
+        cls,
+
+        project: Project,
+
+    ):
 
         project.touch()
+
+        data = project.to_dict()
+
+        data["format_version"] = cls.FORMAT_VERSION
 
         project.project_file.write_text(
 
             json.dumps(
 
-                project.to_dict(),
+                data,
 
                 indent=4,
 
@@ -32,8 +41,16 @@ class ProjectSerializer:
 
         )
 
-    @staticmethod
-    def load(root: Path) -> Project:
+    @classmethod
+    def load(
+
+        cls,
+
+        root,
+
+    ) -> Project:
+
+        root = Path(root)
 
         data = json.loads(
 
@@ -42,6 +59,14 @@ class ProjectSerializer:
                 encoding="utf-8"
 
             )
+
+        )
+
+        data.pop(
+
+            "format_version",
+
+            None,
 
         )
 
