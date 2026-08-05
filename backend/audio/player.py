@@ -104,7 +104,7 @@ class AudioPlayer(QObject):
     def play(
     self,
     filename,
-):
+    ):
 
     path = Path(filename)
 
@@ -123,8 +123,7 @@ class AudioPlayer(QObject):
         )
 
     self.player.play()
-
-    # ------------------------------------------
+# ------------------------------------------
 
     def pause(self):
 
