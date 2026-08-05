@@ -128,7 +128,7 @@ class AudioPlayer(QObject):
              QUrl.fromLocalFile(str(path))
            )
 
-         self.player.play()
+          self.player.play()
 
     # ------------------------------------------
 
