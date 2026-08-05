@@ -215,3 +215,173 @@ class AudioPlayer(QObject):
     def source(self):
 
         return self.current_file
+    # ------------------------------------------
+    # Seek
+    # ------------------------------------------
+
+    def seek(self, position: int):
+
+        position = max(0, min(position, self.duration()))
+
+        self.player.setPosition(position)
+
+    # ------------------------------------------
+
+    def forward(self, milliseconds: int = 5000):
+
+        self.seek(
+
+            self.current_position() + milliseconds
+
+        )
+
+    # ------------------------------------------
+
+    def rewind(self, milliseconds: int = 5000):
+
+        self.seek(
+
+            self.current_position() - milliseconds
+
+        )
+    # ------------------------------------------
+    # Internal Slots
+    # ------------------------------------------
+
+    def _position_changed(self, position: int):
+
+        duration = self.player.duration()
+
+        percent = 0
+
+        if duration > 0:
+
+            percent = int(
+
+                position * 100 / duration
+
+            )
+
+        progress = PlaybackProgress(
+
+            position=position,
+
+            duration=duration,
+
+            percent=percent,
+
+            state=self.state.value,
+
+        )
+
+        self.positionChanged.emit(progress)
+    def _duration_changed(self, duration: int):
+
+        self.durationChanged.emit(duration)
+    def _playback_state_changed(self, state):
+
+        if state == QMediaPlayer.PlayingState:
+
+            self.state = PlaybackState.PLAYING
+
+            self.started.emit()
+
+        elif state == QMediaPlayer.PausedState:
+
+            self.state = PlaybackState.PAUSED
+
+            self.paused.emit()
+
+        else:
+
+            self.state = PlaybackState.STOPPED
+
+            self.stopped.emit()
+
+        self.stateChanged.emit(
+
+            self.state.value
+
+        )
+    def _media_status_changed(self, status):
+
+        if status == QMediaPlayer.EndOfMedia:
+
+            self.state = PlaybackState.STOPPED
+
+            self.finished.emit()
+
+            self.stateChanged.emit(
+
+                self.state.value
+
+            )
+    def _error_occurred(
+
+        self,
+
+        error,
+
+        message,
+
+    ):
+
+        if error == QMediaPlayer.NoError:
+
+            return
+
+        self.state = PlaybackState.ERROR
+
+        self.errorOccurred.emit(message)
+
+        self.stateChanged.emit(
+
+            self.state.value
+
+        )
+    # ------------------------------------------
+    # Status
+    # ------------------------------------------
+
+    def is_playing(self):
+
+        return (
+
+            self.state == PlaybackState.PLAYING
+
+        )
+
+    def is_paused(self):
+
+        return (
+
+            self.state == PlaybackState.PAUSED
+
+        )
+
+    def is_stopped(self):
+
+        return (
+
+            self.state == PlaybackState.STOPPED
+
+        )
+    # ------------------------------------------
+    # Cleanup
+    # ------------------------------------------
+
+    def reset(self):
+
+        self.stop()
+
+        self.current_file = None
+
+        self.state = PlaybackState.STOPPED
+
+    def close(self):
+
+        self.reset()
+
+        self.player.deleteLater()
+
+        self.audio_output.deleteLater()
