@@ -775,3 +775,218 @@ def _generation_finished(self, session):
                 str(exc),
 
             )
+
+    # --------------------------------------------------
+    # Drag & Drop
+    # --------------------------------------------------
+
+    def enable_drag_drop(self):
+
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+
+        if event.mimeData().hasUrls():
+
+            event.acceptProposedAction()
+
+        else:
+
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+
+        if event.mimeData().hasUrls():
+
+            event.acceptProposedAction()
+
+        else:
+
+            event.ignore()
+
+    def dropEvent(self, event):
+
+        urls = event.mimeData().urls()
+
+        if not urls:
+
+            return
+
+        file = urls[0].toLocalFile()
+
+        if not file:
+
+            return
+
+        suffix = Path(file).suffix.lower()
+
+        if suffix not in (
+
+            ".wav",
+
+            ".mp3",
+
+            ".flac",
+
+            ".ogg",
+
+        ):
+
+            QMessageBox.warning(
+
+                self,
+
+                "Reference Audio",
+
+                "Unsupported audio file."
+
+            )
+
+            return
+
+        self.reference_audio = file
+
+        self.reference_audio_edit.setText(file)
+
+        event.acceptProposedAction()
+    # --------------------------------------------------
+    # Keyboard Shortcuts
+    # --------------------------------------------------
+
+    def keyPressEvent(self, event):
+
+        if event.modifiers() == Qt.ControlModifier:
+
+            if event.key() == Qt.Key_Return:
+
+                self.generate_narration()
+
+                return
+
+            if event.key() == Qt.Key_O:
+
+                self.browse_reference_audio()
+
+                return
+
+            if event.key() == Qt.Key_P:
+
+                self.play_output()
+
+                return
+
+        if event.key() == Qt.Key_Escape:
+
+            self.cancel_generation()
+
+            return
+
+        super().keyPressEvent(event)
+    # --------------------------------------------------
+    # Session Restore
+    # --------------------------------------------------
+
+    def save_state(self):
+
+        return {
+
+            "reference_audio": self.reference_audio,
+
+            "reference_text": self.reference_text.toPlainText(),
+
+            "narration": self.narration_text.toPlainText(),
+
+            "voice": self.selected_voice(),
+
+            "output_directory": self.output_directory,
+
+        }
+
+    def restore_state(self, state):
+
+        if not state:
+
+            return
+
+        self.reference_audio = state.get(
+
+            "reference_audio",
+
+            "",
+
+        )
+
+        self.reference_audio_edit.setText(
+
+            self.reference_audio
+
+        )
+
+        self.reference_text.setPlainText(
+
+            state.get(
+
+                "reference_text",
+
+                "",
+
+            )
+
+        )
+
+        self.narration_text.setPlainText(
+
+            state.get(
+
+                "narration",
+
+                "",
+
+            )
+
+        )
+
+        self.output_directory = state.get(
+
+            "output_directory",
+
+            self.output_directory,
+
+        )
+
+        voice = state.get(
+
+            "voice",
+
+            "",
+
+        )
+
+        index = self.voice_combo.findText(
+
+            voice
+
+        )
+
+        if index >= 0:
+
+            self.voice_combo.setCurrentIndex(
+
+                index
+
+            )
+    # --------------------------------------------------
+    # Clear
+    # --------------------------------------------------
+
+    def clear(self):
+
+        self.reference_audio = ""
+
+        self.reference_audio_edit.clear()
+
+        self.reference_text.clear()
+
+        self.narration_text.clear()
+
+        self.voice_combo.setCurrentIndex(-1)
