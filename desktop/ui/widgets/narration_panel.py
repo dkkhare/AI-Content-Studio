@@ -61,6 +61,10 @@ class NarrationPanel(QWidget):
         self._build_ui()
 
         self._connect_controller()
+        
+        self.enable_drag_drop()
+
+        self.refresh_voice_profiles()
     # --------------------------------------------------
     # UI
     # --------------------------------------------------
