@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+afrom PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
@@ -151,26 +151,17 @@ class MainWindow(QMainWindow):
 
         self.project_controller = controller
 
-    def project(self):
+    controller.projectOpened.connect(
+        self.on_project_opened
+    )
 
-        if self.project_controller:
+    controller.projectClosed.connect(
+        self.on_project_closed
+    )
 
-            return self.project_controller.current
-
-        return None
-
-    def has_project(self):
-
-        return (
-
-            self.project_controller is not None
-
-            and
-
-            self.project_controller.has_project()
-
-        )
-
+    controller.projectSaved.connect(
+        self.on_project_saved
+    )
     # --------------------------------------------------
     # Project Operations
     # --------------------------------------------------
@@ -703,3 +694,43 @@ class MainWindow(QMainWindow):
             event
 
         )
+# --------------------------------------------------
+# Controller Signals
+# --------------------------------------------------
+
+def on_project_opened(
+    self,
+    project,
+):
+
+    self.update_project_title()
+
+    self.update_action_states()
+
+    self.refresh_recent_projects_menu()
+
+    self.statusBar().showMessage(
+
+        f"Opened: {project.name}"
+
+    )
+
+def on_project_saved(self):
+
+    self.statusBar().showMessage(
+
+        "Project saved"
+
+    )
+
+def on_project_closed(self):
+
+    self.update_project_title()
+
+    self.update_action_states()
+
+    self.statusBar().showMessage(
+
+        "Project closed"
+
+    )
