@@ -23,6 +23,7 @@ class ProjectManager:
     def __init__(self):
 
         self.project = None
+
     # --------------------------------------------------
     # Properties
     # --------------------------------------------------
@@ -35,6 +36,7 @@ class ProjectManager:
     def has_project(self):
 
         return self.project is not None
+
     # --------------------------------------------------
     # Create
     # --------------------------------------------------
@@ -52,36 +54,28 @@ class ProjectManager:
         root = Path(root)
 
         if root.exists() and (
-
             root / "project.json"
-
         ).exists():
 
             raise ProjectExistsError(
-
                 "Project already exists."
-
             )
 
         project = Project(
-
             name=name,
-
             root=root,
-
         )
 
         project.create_directories()
 
         ProjectSerializer.save(
-
             project
-
         )
 
         self.project = project
 
         return project
+
     # --------------------------------------------------
     # Open
     # --------------------------------------------------
@@ -98,9 +92,18 @@ class ProjectManager:
 
         ProjectValidator.validate(root)
 
-        self.project = ProjectSerializer.load(root)
+        project = ProjectSerializer.load(root)
+
+        if not project.is_version_supported():
+
+            raise RuntimeError(
+                f"Unsupported project version: {project.version}"
+            )
+
+        self.project = project
 
         return self.project
+
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
@@ -112,12 +115,11 @@ class ProjectManager:
             return False
 
         ProjectSerializer.save(
-
             self.project
-
         )
 
         return True
+
     # --------------------------------------------------
     # Save As
     # --------------------------------------------------
@@ -141,6 +143,7 @@ class ProjectManager:
         self.save()
 
         return True
+
     # --------------------------------------------------
     # Close
     # --------------------------------------------------
@@ -148,6 +151,7 @@ class ProjectManager:
     def close(self):
 
         self.project = None
+
     # --------------------------------------------------
     # Auto Save
     # --------------------------------------------------
@@ -165,6 +169,7 @@ class ProjectManager:
         self.save()
 
         return True
+
     # --------------------------------------------------
     # Status
     # --------------------------------------------------
@@ -192,6 +197,7 @@ class ProjectManager:
             return None
 
         return self.project.project_file
+
     # --------------------------------------------------
     # Helpers
     # --------------------------------------------------
@@ -217,9 +223,49 @@ class ProjectManager:
             return None
 
         self.project = ProjectSerializer.load(
-
             self.project.root
-
         )
 
         return self.project
+
+    # --------------------------------------------------
+    # Validation
+    # --------------------------------------------------
+
+    def validate(self):
+
+        if not self.has_project():
+
+            return False
+
+        return ProjectValidator.validate(
+            self.project.root
+        )
+
+    # --------------------------------------------------
+    # Information
+    # --------------------------------------------------
+
+    def project_metadata(self):
+
+        if not self.has_project():
+
+            return {}
+
+        return self.project.metadata
+
+    def project_version(self):
+
+        if not self.has_project():
+
+            return ""
+
+        return self.project.version
+
+    def is_supported(self):
+
+        if not self.has_project():
+
+            return False
+
+        return self.project.is_version_supported()
