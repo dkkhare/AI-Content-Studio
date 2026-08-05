@@ -2,6 +2,10 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from desktop.project.project_controller import (
+    ProjectController,
+)
+
 from desktop.settings import UIState
 from desktop.themes.theme_manager import ThemeManager
 from desktop.ui.main_window import MainWindow
@@ -17,11 +21,21 @@ class AIContentStudio:
 
         self.window = MainWindow()
 
-        self.ui_state = UIState()
+        # ------------------------------------------
+        # Project Controller
+        # ------------------------------------------
+
+        self.project_controller = ProjectController()
+
+        self.window.set_project_controller(
+            self.project_controller
+        )
 
         # ------------------------------------------
-        # Restore previous application state
+        # UI State
         # ------------------------------------------
+
+        self.ui_state = UIState()
 
         self.ui_state.restore_main_window(
             self.window
@@ -42,7 +56,7 @@ class AIContentStudio:
         exit_code = self.qt.exec()
 
         # ------------------------------------------
-        # Save application state before exit
+        # Save UI State
         # ------------------------------------------
 
         self.ui_state.save_workspace(
@@ -56,5 +70,11 @@ class AIContentStudio:
         self.ui_state.save_main_window(
             self.window
         )
+
+        # ------------------------------------------
+        # Auto Save Project
+        # ------------------------------------------
+
+        self.project_controller.auto_save()
 
         return exit_code
