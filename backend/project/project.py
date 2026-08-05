@@ -264,3 +264,35 @@ class Project:
             ),
 
         )
+    # --------------------------------------------------
+    # Version
+    # --------------------------------------------------
+
+    def is_version_supported(self) -> bool:
+
+        return self.version.startswith("1.")
+
+    # --------------------------------------------------
+    # Metadata
+    # --------------------------------------------------
+
+    @property
+    def metadata(self):
+
+        return {
+
+            "name": self.name,
+
+            "author": self.author,
+
+            "language": self.language,
+
+            "voice": self.voice,
+
+            "version": self.version,
+
+            "created": self.created,
+
+            "modified": self.modified,
+
+        }
