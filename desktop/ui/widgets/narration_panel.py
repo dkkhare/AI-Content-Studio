@@ -431,18 +431,23 @@ class NarrationPanel(QWidget):
 
     # --------------------------------------------------
 
-    def _generation_finished(self, session):
+def _generation_finished(self, session):
 
-        self.generate_button.setEnabled(True)
+    self.generate_button.setEnabled(True)
 
-        self.cancel_button.setEnabled(False)
+    self.cancel_button.setEnabled(False)
 
-        if session:
+    if session:
 
-            self.narration_finished.emit(
-                session.output_file
-            )
+        self.add_recent_output(
+            session.output_file
+        )
 
+        self.refresh_voice_profiles()
+
+        self.narration_finished.emit(
+            session.output_file
+        )
     # --------------------------------------------------
 
     def _generation_failed(self, message):
@@ -512,3 +517,261 @@ class NarrationPanel(QWidget):
     def output_path(self):
 
         return self.output_directory
+    # --------------------------------------------------
+    # Playback
+    # --------------------------------------------------
+
+    def play_output(self):
+
+        output = self.controller.output_file()
+
+        if not output:
+
+            QMessageBox.information(
+
+                self,
+
+                "Playback",
+
+                "No generated narration available."
+
+            )
+
+            return
+
+        if not Path(output).exists():
+
+            QMessageBox.warning(
+
+                self,
+
+                "Playback",
+
+                "Generated audio file not found."
+
+            )
+
+            return
+
+        try:
+
+            from backend.audio.player import AudioPlayer
+
+        except ImportError:
+
+            QMessageBox.warning(
+
+                self,
+
+                "Playback",
+
+                "AudioPlayer is not available."
+
+            )
+
+            return
+
+        if not hasattr(self, "_audio_player"):
+
+            self._audio_player = AudioPlayer()
+
+        self._audio_player.play(output)
+
+    # --------------------------------------------------
+
+    def stop_playback(self):
+
+        if hasattr(self, "_audio_player"):
+
+            self._audio_player.stop()
+
+    # --------------------------------------------------
+    # Output Folder
+    # --------------------------------------------------
+
+    def open_output_folder(self):
+
+        directory = Path(self.output_directory)
+
+        directory.mkdir(
+
+            parents=True,
+
+            exist_ok=True,
+
+        )
+
+        try:
+
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+
+            QDesktopServices.openUrl(
+
+                QUrl.fromLocalFile(
+
+                    str(directory)
+
+                )
+
+            )
+
+        except Exception as exc:
+
+            QMessageBox.warning(
+
+                self,
+
+                "Output Folder",
+
+                str(exc),
+
+            )
+    # --------------------------------------------------
+    # Recent Outputs
+    # --------------------------------------------------
+
+    def add_recent_output(
+
+        self,
+
+        filename,
+
+    ):
+
+        if not hasattr(
+
+            self,
+
+            "_recent_outputs",
+
+        ):
+
+            self._recent_outputs = []
+
+        if filename in self._recent_outputs:
+
+            self._recent_outputs.remove(
+
+                filename
+
+            )
+
+        self._recent_outputs.insert(
+
+            0,
+
+            filename,
+
+        )
+
+        self._recent_outputs = (
+
+            self._recent_outputs[:10]
+
+        )
+
+    def recent_outputs(self):
+
+        if not hasattr(
+
+            self,
+
+            "_recent_outputs",
+
+        ):
+
+            self._recent_outputs = []
+
+        return list(
+
+            self._recent_outputs
+
+        )
+    # --------------------------------------------------
+    # Voice Profiles
+    # --------------------------------------------------
+
+    def refresh_voice_profiles(self):
+
+        manager = getattr(
+
+            self.controller,
+
+            "manager",
+
+            None,
+
+        )
+
+        self.voice_combo.clear()
+
+        if manager is None:
+
+            return
+
+        try:
+
+            profiles = (
+
+                manager.available_speakers()
+
+            )
+
+        except Exception:
+
+            profiles = []
+
+        for profile in profiles:
+
+            self.voice_combo.addItem(
+
+                profile
+
+            )
+
+    def selected_voice_profile(self):
+
+        return self.voice_combo.currentText()
+
+    def apply_selected_profile(self):
+
+        profile = (
+
+            self.selected_voice_profile()
+
+        )
+
+        if not profile:
+
+            return
+
+        manager = getattr(
+
+            self.controller,
+
+            "manager",
+
+            None,
+
+        )
+
+        if manager is None:
+
+            return
+
+        try:
+
+            manager.load_speaker(profile)
+
+        except Exception as exc:
+
+            QMessageBox.warning(
+
+                self,
+
+                "Voice Profile",
+
+                str(exc),
+
+            )
