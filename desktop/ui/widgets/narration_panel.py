@@ -226,3 +226,289 @@ class NarrationPanel(QWidget):
         )
 
         layout.addLayout(row)
+    # --------------------------------------------------
+    # Connections
+    # --------------------------------------------------
+
+    def _connect_controller(self):
+
+        self.browse_button.clicked.connect(
+            self.browse_reference_audio
+        )
+
+        self.generate_button.clicked.connect(
+            self.generate_narration
+        )
+
+        self.cancel_button.clicked.connect(
+            self.cancel_generation
+        )
+
+        self.controller.generation_started.connect(
+            self._generation_started
+        )
+
+        self.controller.generation_finished.connect(
+            self._generation_finished
+        )
+
+        self.controller.generation_failed.connect(
+            self._generation_failed
+        )
+
+        self.controller.generation_cancelled.connect(
+            self._generation_cancelled
+        )
+
+    # --------------------------------------------------
+    # Browse Reference Audio
+    # --------------------------------------------------
+
+    def browse_reference_audio(self):
+
+        filename, _ = QFileDialog.getOpenFileName(
+
+            self,
+
+            "Select Reference Audio",
+
+            "",
+
+            "Audio Files (*.wav *.mp3 *.flac)"
+
+        )
+
+        if not filename:
+
+            return
+
+        self.reference_audio = filename
+
+        self.reference_audio_edit.setText(
+            filename
+        )
+
+    # --------------------------------------------------
+    # Validation
+    # --------------------------------------------------
+
+    def validate_inputs(self):
+
+        if not self.reference_audio:
+
+            QMessageBox.warning(
+
+                self,
+
+                "Reference Audio",
+
+                "Please select a reference audio."
+
+            )
+
+            return False
+
+        if not Path(
+            self.reference_audio
+        ).exists():
+
+            QMessageBox.warning(
+
+                self,
+
+                "Reference Audio",
+
+                "Selected reference audio does not exist."
+
+            )
+
+            return False
+
+        if not self.reference_text.toPlainText().strip():
+
+            QMessageBox.warning(
+
+                self,
+
+                "Reference Text",
+
+                "Reference transcript cannot be empty."
+
+            )
+
+            return False
+
+        if not self.narration_text.toPlainText().strip():
+
+            QMessageBox.warning(
+
+                self,
+
+                "Narration",
+
+                "Narration text cannot be empty."
+
+            )
+
+            return False
+
+        return True
+
+    # --------------------------------------------------
+    # Progress Dialog
+    # --------------------------------------------------
+
+    def _create_progress_dialog(self):
+
+        self.progress_dialog = TTSProgressDialog(
+            self
+        )
+
+        self.progress_dialog.set_controller(
+            self.controller
+        )
+
+    # --------------------------------------------------
+    # Generate
+    # --------------------------------------------------
+
+    def generate_narration(self):
+
+        if not self.validate_inputs():
+
+            return
+
+        if self.controller.is_running():
+
+            QMessageBox.information(
+
+                self,
+
+                "Narration",
+
+                "Narration generation is already running."
+
+            )
+
+            return
+
+        self._create_progress_dialog()
+
+        self.controller.generate(
+
+            reference_audio=self.reference_audio,
+
+            reference_text=self.reference_text.toPlainText(),
+
+            text=self.narration_text.toPlainText(),
+
+            output_directory=self.output_directory,
+
+        )
+
+        self.progress_dialog.show()
+
+    # --------------------------------------------------
+    # Cancel
+    # --------------------------------------------------
+
+    def cancel_generation(self):
+
+        if self.controller.is_running():
+
+            self.controller.cancel()
+    # --------------------------------------------------
+    # Controller Events
+    # --------------------------------------------------
+
+    def _generation_started(self):
+
+        self.generate_button.setEnabled(False)
+
+        self.cancel_button.setEnabled(True)
+
+        self.narration_started.emit()
+
+    # --------------------------------------------------
+
+    def _generation_finished(self, session):
+
+        self.generate_button.setEnabled(True)
+
+        self.cancel_button.setEnabled(False)
+
+        if session:
+
+            self.narration_finished.emit(
+                session.output_file
+            )
+
+    # --------------------------------------------------
+
+    def _generation_failed(self, message):
+
+        self.generate_button.setEnabled(True)
+
+        self.cancel_button.setEnabled(False)
+
+        QMessageBox.critical(
+
+            self,
+
+            "Narration Failed",
+
+            message,
+
+        )
+
+        self.narration_failed.emit(message)
+
+    # --------------------------------------------------
+
+    def _generation_cancelled(self):
+
+        self.generate_button.setEnabled(True)
+
+        self.cancel_button.setEnabled(False)
+
+        QMessageBox.information(
+
+            self,
+
+            "Narration",
+
+            "Narration generation cancelled."
+
+        )
+    # --------------------------------------------------
+    # Voice Profiles
+    # --------------------------------------------------
+
+    def load_voice_profiles(self, profiles):
+
+        self.voice_combo.clear()
+
+        for profile in profiles:
+
+            self.voice_combo.addItem(profile)
+
+    # --------------------------------------------------
+
+    def selected_voice(self):
+
+        return self.voice_combo.currentText()
+
+    # --------------------------------------------------
+    # Output Directory
+    # --------------------------------------------------
+
+    def set_output_directory(
+        self,
+        directory,
+    ):
+
+        self.output_directory = directory
+
+    def output_path(self):
+
+        return self.output_directory
