@@ -102,10 +102,7 @@ class AudioPlayer(QObject):
     # Playback
     # ------------------------------------------
         
-    def play(
-    self,
-    filename,
-):
+    def play(self,filename):
 
     path = Path(filename)
 
