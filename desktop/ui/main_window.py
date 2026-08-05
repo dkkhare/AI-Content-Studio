@@ -1,6 +1,10 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow
 
+from desktop.project.project_controller import (
+    ProjectController,
+)
+
 from desktop.settings import (
     UIState,
     RecentProjects,
@@ -27,6 +31,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("AI Content Studio")
 
         self.resize(1600, 900)
+
+        # --------------------------------------------------
+        # Project Controller
+        # --------------------------------------------------
+
+        self.project_controller = None
 
         build_menu(self)
 
@@ -94,6 +104,45 @@ class MainWindow(QMainWindow):
         self.log(
             "AI Content Studio started."
         )
+
+    # --------------------------------------------------
+    # Project Controller
+    # --------------------------------------------------
+
+    def set_project_controller(
+        self,
+        controller: ProjectController,
+    ):
+
+        self.project_controller = controller
+
+    def project(self):
+
+        if self.project_controller:
+
+            return self.project_controller.current
+
+        return None
+
+    def has_project(self):
+
+        return (
+            self.project_controller is not None
+            and
+            self.project_controller.has_project()
+        )
+
+    def save_project(self):
+
+        if self.project_controller:
+
+            self.project_controller.save_project()
+
+    def auto_save_project(self):
+
+        if self.project_controller:
+
+            self.project_controller.auto_save()
 
     # --------------------------------------------------
     # Logging
@@ -170,77 +219,4 @@ class MainWindow(QMainWindow):
             self.workspace
         )
 
-        self.ui_state.restore_narration(
-            self.narration_panel()
-        )
-
-    # --------------------------------------------------
-    # Recent Projects
-    # --------------------------------------------------
-
-    def add_recent_project(
-        self,
-        project_path,
-    ):
-
-        self.recent_projects.add(
-            project_path
-        )
-
-    def recent_projects_list(self):
-
-        return self.recent_projects.projects()
-
-    # --------------------------------------------------
-    # Workspace Helpers
-    # --------------------------------------------------
-
-    def narration_panel(self):
-
-        return self.workspace.narration()
-
-    def open_pdf_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_pdf_tab()
-
-    def open_ocr_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_ocr_tab()
-
-    def open_narration_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_narration_tab()
-
-    def open_translation_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_translation_tab()
-
-    def open_video_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_video_tab()
-
-    def open_export_workspace(self):
-
-        self.show_workspace()
-
-        self.workspace.open_export_tab()
-
-    # --------------------------------------------------
-    # Close Event
-    # --------------------------------------------------
-
-    def closeEvent(self, event):
-
-        self.save_ui_state()
-
-        super().closeEvent(event)
+        self.ui_state.restore_narration
