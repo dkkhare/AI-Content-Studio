@@ -1,6 +1,11 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow
 
+from desktop.settings import (
+    UIState,
+    RecentProjects,
+)
+
 from desktop.ui.menu_bar import build_menu
 from desktop.ui.tool_bar import build_toolbar
 from desktop.ui.status_bar import build_statusbar
@@ -29,9 +34,17 @@ class MainWindow(QMainWindow):
 
         build_statusbar(self)
 
-        # ------------------------------------------
+        # --------------------------------------------------
+        # Settings
+        # --------------------------------------------------
+
+        self.ui_state = UIState()
+
+        self.recent_projects = RecentProjects()
+
+        # --------------------------------------------------
         # Central Widgets
-        # ------------------------------------------
+        # --------------------------------------------------
 
         self.dashboard = Dashboard()
 
@@ -41,9 +54,9 @@ class MainWindow(QMainWindow):
             self.dashboard
         )
 
-        # ------------------------------------------
-        # Connect Dashboard
-        # ------------------------------------------
+        # --------------------------------------------------
+        # Dashboard Connections
+        # --------------------------------------------------
 
         self.dashboard.newProjectRequested.connect(
             self.show_workspace
@@ -53,9 +66,9 @@ class MainWindow(QMainWindow):
             self.show_workspace
         )
 
-        # ------------------------------------------
+        # --------------------------------------------------
         # Docks
-        # ------------------------------------------
+        # --------------------------------------------------
 
         self.projectDock = ProjectDock(self)
 
@@ -64,33 +77,22 @@ class MainWindow(QMainWindow):
         self.logDock = LogDock(self)
 
         self.addDockWidget(
-
             Qt.LeftDockWidgetArea,
-
             self.projectDock,
-
         )
 
         self.addDockWidget(
-
             Qt.RightDockWidgetArea,
-
             self.outputDock,
-
         )
 
         self.addDockWidget(
-
             Qt.BottomDockWidgetArea,
-
             self.logDock,
-
         )
 
         self.log(
-
             "AI Content Studio started."
-
         )
 
     # --------------------------------------------------
@@ -98,61 +100,99 @@ class MainWindow(QMainWindow):
     # --------------------------------------------------
 
     def log(
-
         self,
-
         message,
-
     ):
 
         self.logDock.log(message)
 
     # --------------------------------------------------
-    # Workspace
+    # Dashboard / Workspace
     # --------------------------------------------------
 
     def show_dashboard(self):
 
         self.setCentralWidget(
-
             self.dashboard
-
         )
 
         self.statusBar().showMessage(
-
             "Dashboard"
-
         )
 
         self.log(
-
             "Dashboard opened."
-
         )
 
     def show_workspace(self):
 
         self.setCentralWidget(
-
             self.workspace
-
         )
 
         self.statusBar().showMessage(
-
             "Workspace"
+        )
 
+        self.ui_state.restore_workspace(
+            self.workspace
         )
 
         self.log(
-
             "Workspace opened."
-
         )
 
     # --------------------------------------------------
-    # Helpers
+    # UI State
+    # --------------------------------------------------
+
+    def save_ui_state(self):
+
+        self.ui_state.save_workspace(
+            self.workspace
+        )
+
+        self.ui_state.save_narration(
+            self.narration_panel()
+        )
+
+        self.ui_state.save_main_window(
+            self
+        )
+
+    def restore_ui_state(self):
+
+        self.ui_state.restore_main_window(
+            self
+        )
+
+        self.ui_state.restore_workspace(
+            self.workspace
+        )
+
+        self.ui_state.restore_narration(
+            self.narration_panel()
+        )
+
+    # --------------------------------------------------
+    # Recent Projects
+    # --------------------------------------------------
+
+    def add_recent_project(
+        self,
+        project_path,
+    ):
+
+        self.recent_projects.add(
+            project_path
+        )
+
+    def recent_projects_list(self):
+
+        return self.recent_projects.projects()
+
+    # --------------------------------------------------
+    # Workspace Helpers
     # --------------------------------------------------
 
     def narration_panel(self):
@@ -194,3 +234,13 @@ class MainWindow(QMainWindow):
         self.show_workspace()
 
         self.workspace.open_export_tab()
+
+    # --------------------------------------------------
+    # Close Event
+    # --------------------------------------------------
+
+    def closeEvent(self, event):
+
+        self.save_ui_state()
+
+        super().closeEvent(event)
