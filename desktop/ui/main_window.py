@@ -662,3 +662,151 @@ class MainWindow(QMainWindow):
             self.exportAction.setEnabled(
                 has_project
             )
+    # --------------------------------------------------
+    # Logging
+    # --------------------------------------------------
+
+    def log(
+        self,
+        message: str,
+    ):
+
+        try:
+
+            if hasattr(
+                self,
+                "logDock",
+            ):
+
+                self.logDock.append(
+                    message
+                )
+
+
+        except Exception:
+
+            pass
+
+
+    # --------------------------------------------------
+    # Error Handling
+    # --------------------------------------------------
+
+    def show_error(
+        self,
+        title: str,
+        error: Exception,
+    ):
+
+        from PySide6.QtWidgets import QMessageBox
+
+
+        QMessageBox.critical(
+            self,
+            title,
+            str(error),
+        )
+
+
+    # --------------------------------------------------
+    # Application Close
+    # --------------------------------------------------
+
+    def closeEvent(
+        self,
+        event,
+    ):
+
+        try:
+
+            if self.project_controller:
+
+                if (
+                    hasattr(
+                        self.project_controller,
+                        "has_unsaved_changes",
+                    )
+                    and
+                    self.project_controller.has_unsaved_changes()
+                ):
+
+                    result = ProjectDialogs.confirm_close(
+                        self
+                    )
+
+                    if not result:
+
+                        event.ignore()
+
+                        return
+
+
+                self.project_controller.close()
+
+
+            self.save_ui_state()
+
+
+            event.accept()
+
+
+        except Exception as exc:
+
+            self.log(
+                f"Close failed: {exc}"
+            )
+
+            event.accept()
+
+
+    # --------------------------------------------------
+    # Utility Methods
+    # --------------------------------------------------
+
+    def current_project(
+        self,
+    ):
+
+        if self.project_controller:
+
+            return (
+                self.project_controller.project
+            )
+
+        return None
+
+
+    def has_project(
+        self,
+    ) -> bool:
+
+        return (
+            self.project_controller
+            is not None
+        )
+
+
+    def refresh_project_ui(
+        self,
+    ):
+
+        """
+        Central UI refresh method.
+
+        Milestone 10.5 improvement:
+        Avoid repeated calls to:
+        - update_project_title()
+        - update_action_states()
+        - refresh_recent_projects_menu()
+        """
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.refresh_recent_projects_menu()
+
+
+    # --------------------------------------------------
+    # End of MainWindow
+    # --------------------------------------------------
