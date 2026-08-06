@@ -86,3 +86,14 @@ class ProjectController(QObject):
             return None
 
         return self.project_path.name
+    # --------------------------------------------------
+    # Information
+    # --------------------------------------------------
+
+    def project_directory(self):
+
+        return self.project_path
+
+    def is_open(self):
+
+        return self.project_path is not None
