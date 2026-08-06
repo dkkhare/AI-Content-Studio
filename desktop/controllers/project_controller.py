@@ -9,7 +9,13 @@ from backend.project.manager import ProjectManager
 
 class ProjectController(QObject):
     """
-    Connects the UI with the backend ProjectManager.
+    Connects the desktop UI layer with backend ProjectManager.
+
+    Milestone 10.5 improvements:
+    - clear signal handling
+    - centralized project lifecycle
+    - safer state access
+    - consistent controller responsibility
     """
 
     projectOpened = Signal(Path)
@@ -20,193 +26,81 @@ class ProjectController(QObject):
 
     projectModified = Signal(bool)
 
-    def __init__(self):
+
+    def __init__(
+        self,
+    ):
 
         super().__init__()
 
         self.manager = ProjectManager()
+
 
     # --------------------------------------------------
     # Properties
     # --------------------------------------------------
 
     @property
-    def current(self):
+    def current(
+        self,
+    ):
 
         return self.manager.current
 
-    def has_project(self):
 
-        return self.manager.has_project()
-
-    # --------------------------------------------------
-    # Project Operations
-    # --------------------------------------------------
-
-    def create_project(
-
+    @property
+    def project_root(
         self,
-
-        name,
-
-        root,
-
     ):
 
-        project = self.manager.create(
+        if not self.manager.current:
 
-            name,
-
-            root,
-
-        )
-
-        self.projectOpened.emit(
-
-            project.root
-
-        )
-
-        return project
-
-    def open_project(
-
-        self,
-
-        root,
-
-    ):
-
-        project = self.manager.open(
-
-            root,
-
-        )
-
-        self.projectOpened.emit(
-
-            project.root
-
-        )
-
-        return project
-
-    def save_project(self):
-
-        if self.manager.save():
-
-            self.projectSaved.emit(
-
-                self.manager.project_root()
-
-            )
-
-            return True
-
-        return False
-
-    def save_project_as(
-
-        self,
-
-        root,
-
-    ):
-
-        return self.manager.save_as(
-
-            root,
-
-        )
-
-    def close_project(self):
-
-        self.manager.close()
-
-        self.projectClosed.emit()
-
-    def auto_save(self):
-
-        return self.manager.auto_save()
-
-    # --------------------------------------------------
-    # Dirty State
-    # --------------------------------------------------
-
-    def set_modified(
-
-        self,
-
-        modified=True,
-
-    ):
-
-        self.manager.set_modified(
-
-            modified,
-
-        )
-
-        self.projectModified.emit(
-
-            self.manager.is_modified()
-
-        )
-
-    def clear_modified(self):
-
-        self.manager.clear_modified()
-
-        self.projectModified.emit(False)
-
-    def is_modified(self):
-
-        return self.manager.is_modified()
-
-    # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def project(self):
-
-        return self.manager.current
-
-    def project_name(self):
-
-        return self.manager.project_name()
-
-    def project_root(self):
+            return None
 
         return self.manager.project_root()
 
-    def project_file(self):
 
-        return self.manager.project_file()
+    def has_project(
+        self,
+    ) -> bool:
 
-    def project_metadata(self):
+        return self.manager.has_project()
 
-        return self.manager.project_metadata()
 
-    def statistics(self):
+    def is_modified(
+        self,
+    ) -> bool:
 
-        return self.manager.statistics()
+        project = self.manager.current
+
+        if not project:
+
+            return False
+
+        return getattr(
+            project,
+            "modified",
+            False,
+        )
+
 
     # --------------------------------------------------
-    # Validation
+    # Project Creation
     # --------------------------------------------------
 
-    def validate(self):
+    def create_project(
+        self,
+        name: str,
+        root: Path,
+    ):
 
-        return self.manager.validate()
+        project = self.manager.create(
+            name,
+            root,
+        )
 
-    def refresh(self):
+        self.projectOpened.emit(
+            project.root
+        )
 
-        return self.manager.refresh()
-
-    def exists(self):
-
-        return self.manager.exists()
-
-    def is_supported(self):
-
-        return self.manager.is_supported()
+        return project
