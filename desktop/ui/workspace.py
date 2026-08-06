@@ -370,3 +370,80 @@ class Workspace(QWidget):
     ):
 
         self.set_current_tab(5)
+    # --------------------------------------------------
+    # Cleanup
+    # --------------------------------------------------
+
+    def clear(
+        self,
+    ):
+        """
+        Clear project-specific UI state.
+        """
+
+        self._busy = False
+
+        self.current_project = None
+
+        if self.narration_panel:
+
+            if hasattr(
+                self.narration_panel,
+                "clear",
+            ):
+
+                try:
+
+                    self.narration_panel.clear()
+
+                except Exception:
+
+                    pass
+
+        self.set_current_tab(0)
+
+    # --------------------------------------------------
+    # Information
+    # --------------------------------------------------
+
+    def has_project(
+        self,
+    ) -> bool:
+
+        return self.current_project is not None
+
+    def project(
+        self,
+    ):
+
+        return self.current_project
+
+    def tab_count(
+        self,
+    ) -> int:
+
+        return self.tabs.count()
+
+    # --------------------------------------------------
+    # Disposal
+    # --------------------------------------------------
+
+    def dispose(
+        self,
+    ):
+
+        self.clear()
+
+        self.tabs = None
+
+        self.pdf_page = None
+
+        self.ocr_page = None
+
+        self.translation_page = None
+
+        self.video_page = None
+
+        self.export_page = None
+
+        self.narration_panel = None
