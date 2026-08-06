@@ -35,6 +35,29 @@ class Project:
     output_directory: str = "output"
 
     auto_save: bool = True
+
+    # --------------------------------------------------
+    # Generated Assets
+    # --------------------------------------------------
+
+    ocr_file: str = ""
+
+    translation_file: str = ""
+
+    narration_file: str = ""
+
+    audiobook_file: str = ""
+
+    podcast_file: str = ""
+
+    video_file: str = ""
+
+    subtitle_file: str = ""
+
+    cover_image: str = ""
+
+    thumbnail: str = ""
+
     # --------------------------------------------------
     # Directories
     # --------------------------------------------------
@@ -73,6 +96,7 @@ class Project:
     def cache_dir(self) -> Path:
 
         return self.root / "cache"
+
     # --------------------------------------------------
     # Files
     # --------------------------------------------------
@@ -86,6 +110,7 @@ class Project:
     def metadata_file(self) -> Path:
 
         return self.root / "metadata.json"
+
     # --------------------------------------------------
     # Utilities
     # --------------------------------------------------
@@ -129,6 +154,47 @@ class Project:
                 exist_ok=True,
 
             )
+
+    # --------------------------------------------------
+    # Asset Helpers
+    # --------------------------------------------------
+
+    def has_pdf(self):
+
+        return bool(self.pdf_file)
+
+    def has_ocr(self):
+
+        return bool(self.ocr_file)
+
+    def has_translation(self):
+
+        return bool(self.translation_file)
+
+    def has_narration(self):
+
+        return bool(self.narration_file)
+
+    def has_audiobook(self):
+
+        return bool(self.audiobook_file)
+
+    def has_podcast(self):
+
+        return bool(self.podcast_file)
+
+    def has_video(self):
+
+        return bool(self.video_file)
+
+    def has_subtitles(self):
+
+        return bool(self.subtitle_file)
+
+    def has_cover(self):
+
+        return bool(self.cover_image)
+
     # --------------------------------------------------
     # Serialization
     # --------------------------------------------------
@@ -151,6 +217,24 @@ class Project:
 
             "pdf_file": self.pdf_file,
 
+            "ocr_file": self.ocr_file,
+
+            "translation_file": self.translation_file,
+
+            "narration_file": self.narration_file,
+
+            "audiobook_file": self.audiobook_file,
+
+            "podcast_file": self.podcast_file,
+
+            "video_file": self.video_file,
+
+            "subtitle_file": self.subtitle_file,
+
+            "cover_image": self.cover_image,
+
+            "thumbnail": self.thumbnail,
+
             "language": self.language,
 
             "voice": self.voice,
@@ -160,6 +244,7 @@ class Project:
             "auto_save": self.auto_save,
 
         }
+
     @classmethod
     def from_dict(
 
@@ -231,6 +316,78 @@ class Project:
 
             ),
 
+            ocr_file=data.get(
+
+                "ocr_file",
+
+                "",
+
+            ),
+
+            translation_file=data.get(
+
+                "translation_file",
+
+                "",
+
+            ),
+
+            narration_file=data.get(
+
+                "narration_file",
+
+                "",
+
+            ),
+
+            audiobook_file=data.get(
+
+                "audiobook_file",
+
+                "",
+
+            ),
+
+            podcast_file=data.get(
+
+                "podcast_file",
+
+                "",
+
+            ),
+
+            video_file=data.get(
+
+                "video_file",
+
+                "",
+
+            ),
+
+            subtitle_file=data.get(
+
+                "subtitle_file",
+
+                "",
+
+            ),
+
+            cover_image=data.get(
+
+                "cover_image",
+
+                "",
+
+            ),
+
+            thumbnail=data.get(
+
+                "thumbnail",
+
+                "",
+
+            ),
+
             language=data.get(
 
                 "language",
@@ -264,6 +421,7 @@ class Project:
             ),
 
         )
+
     # --------------------------------------------------
     # Version
     # --------------------------------------------------
