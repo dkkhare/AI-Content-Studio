@@ -14,11 +14,15 @@ class ProjectController(QObject):
 
     projectSaved = Signal(Path)
 
+    projectModified = Signal(bool)
+
     def __init__(self):
 
         super().__init__()
 
         self.project_path = None
+
+        self.modified = False
 
     # --------------------------------------------------
     # Project Operations
@@ -28,9 +32,13 @@ class ProjectController(QObject):
 
         self.project_path = None
 
+        self.modified = False
+
     def open_project(self, path: Path):
 
         self.project_path = Path(path)
+
+        self.modified = False
 
         self.projectOpened.emit(
 
@@ -44,6 +52,8 @@ class ProjectController(QObject):
 
             return
 
+        self.clear_modified()
+
         self.projectSaved.emit(
 
             self.project_path
@@ -54,19 +64,10 @@ class ProjectController(QObject):
 
         self.project_path = None
 
+        self.modified = False
+
         self.projectClosed.emit()
 
-    # --------------------------------------------------
-    # Helpers
-    # --------------------------------------------------
-
-    def has_project(self):
-
-        return self.project_path is not None
-
-    def current_project(self):
-
-        return self.project_path
     # --------------------------------------------------
     # Helpers
     # --------------------------------------------------
@@ -86,6 +87,7 @@ class ProjectController(QObject):
             return None
 
         return self.project_path.name
+
     # --------------------------------------------------
     # Information
     # --------------------------------------------------
@@ -97,3 +99,37 @@ class ProjectController(QObject):
     def is_open(self):
 
         return self.project_path is not None
+
+    # --------------------------------------------------
+    # Dirty State
+    # --------------------------------------------------
+
+    def is_modified(self):
+
+        return self.modified
+
+    def set_modified(
+
+        self,
+
+        modified=True,
+
+    ):
+
+        modified = bool(modified)
+
+        if self.modified == modified:
+
+            return
+
+        self.modified = modified
+
+        self.projectModified.emit(
+
+            modified
+
+        )
+
+    def clear_modified(self):
+
+        self.set_modified(False)
