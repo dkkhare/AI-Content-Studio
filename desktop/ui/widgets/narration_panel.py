@@ -823,14 +823,12 @@ class NarrationPanel(QWidget):
 
         self.voice_combo.clear()
 
+        profiles = self.controller.available_voices()
+        
 
-        manager = getattr(
-            self.controller,
-            "manager",
-            None,
+        self.load_voice_profiles(
+            profiles
         )
-
-
         if manager is None:
 
             return
