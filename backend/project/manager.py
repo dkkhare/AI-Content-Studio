@@ -24,6 +24,8 @@ class ProjectManager:
 
         self.project = None
 
+        self.modified = False
+
     # --------------------------------------------------
     # Properties
     # --------------------------------------------------
@@ -74,6 +76,8 @@ class ProjectManager:
 
         self.project = project
 
+        self.modified = False
+
         return project
 
     # --------------------------------------------------
@@ -102,6 +106,8 @@ class ProjectManager:
 
         self.project = project
 
+        self.modified = False
+
         return self.project
 
     # --------------------------------------------------
@@ -117,6 +123,8 @@ class ProjectManager:
         ProjectSerializer.save(
             self.project
         )
+
+        self.clear_modified()
 
         return True
 
@@ -151,6 +159,8 @@ class ProjectManager:
     def close(self):
 
         self.project = None
+
+        self.modified = False
 
     # --------------------------------------------------
     # Auto Save
@@ -229,6 +239,32 @@ class ProjectManager:
         return self.project
 
     # --------------------------------------------------
+    # Dirty State
+    # --------------------------------------------------
+
+    def is_modified(self):
+
+        return self.modified
+
+    def set_modified(
+
+        self,
+
+        modified=True,
+
+    ):
+
+        self.modified = bool(modified)
+
+        if self.modified:
+
+            self.touch()
+
+    def clear_modified(self):
+
+        self.modified = False
+
+    # --------------------------------------------------
     # Validation
     # --------------------------------------------------
 
@@ -269,3 +305,45 @@ class ProjectManager:
             return False
 
         return self.project.is_version_supported()
+
+    # --------------------------------------------------
+    # Statistics
+    # --------------------------------------------------
+
+    def statistics(self):
+
+        if not self.has_project():
+
+            return {}
+
+        return {
+
+            "name": self.project.name,
+
+            "version": self.project.version,
+
+            "language": self.project.language,
+
+            "author": self.project.author,
+
+            "modified": self.modified,
+
+            "has_pdf": self.project.has_pdf(),
+
+            "has_ocr": self.project.has_ocr(),
+
+            "has_translation": self.project.has_translation(),
+
+            "has_narration": self.project.has_narration(),
+
+            "has_audiobook": self.project.has_audiobook(),
+
+            "has_podcast": self.project.has_podcast(),
+
+            "has_video": self.project.has_video(),
+
+            "has_subtitles": self.project.has_subtitles(),
+
+            "has_cover": self.project.has_cover(),
+
+        }
