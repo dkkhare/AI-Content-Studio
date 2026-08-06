@@ -153,6 +153,11 @@ class MainWindow(QMainWindow):
     ):
 
         self.project_controller = controller
+        controller.projectModified.connect(
+
+    self.on_project_modified
+
+)
 
         controller.projectOpened.connect(
 
@@ -179,6 +184,15 @@ class MainWindow(QMainWindow):
             )
 
         )
+      def on_project_modified(
+
+          self,
+
+          modified,
+
+      b):
+
+    self.update_project_title()
     # --------------------------------------------------
     # Project Operations
     # --------------------------------------------------
