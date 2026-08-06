@@ -144,24 +144,41 @@ class MainWindow(QMainWindow):
     # Project Controller
     # --------------------------------------------------
 
-    def set_project_controller(
+        def set_project_controller(
+
         self,
+
         controller: ProjectController,
+
     ):
 
         self.project_controller = controller
 
-    controller.projectOpened.connect(
-        self.on_project_opened
-    )
+        controller.projectOpened.connect(
 
-    controller.projectClosed.connect(
-        self.on_project_closed
-    )
+            lambda _:
 
-    controller.projectSaved.connect(
-        self.on_project_saved
-    )
+            self._project_changed()
+
+        )
+
+        controller.projectClosed.connect(
+
+            self._project_changed
+
+        )
+
+        controller.projectSaved.connect(
+
+            lambda _:
+
+            self.statusBar().showMessage(
+
+                "Project saved"
+
+            )
+
+        )
     # --------------------------------------------------
     # Project Operations
     # --------------------------------------------------
@@ -235,6 +252,7 @@ class MainWindow(QMainWindow):
             "Dashboard opened."
 
         )
+         self.update_action_states()
 
     def show_workspace(self):
 
@@ -265,7 +283,8 @@ class MainWindow(QMainWindow):
             "Workspace opened."
 
         )
-
+         
+        self.update_action_states()
     # --------------------------------------------------
     # UI State
     # --------------------------------------------------
@@ -430,18 +449,30 @@ class MainWindow(QMainWindow):
     # Window Title
     # --------------------------------------------------
 
-    def update_project_title(self):
+        def update_project_title(self):
 
-        if self.has_project():
+        if (
+
+            self.project_controller
+
+            and
+
+            self.project_controller.has_project()
+
+        ):
 
             self.setWindowTitle(
-                f"AI Content Studio - {self.project().name}"
+
+                f"AI Content Studio - {self.project_controller.project_name()}"
+
             )
 
         else:
 
             self.setWindowTitle(
+
                 "AI Content Studio"
+
             )
     # --------------------------------------------------
     # Recent Projects
@@ -734,3 +765,10 @@ def on_project_closed(self):
         "Project closed"
 
     )
+    def _project_changed(self):
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.refresh_recent_projects_menu()
