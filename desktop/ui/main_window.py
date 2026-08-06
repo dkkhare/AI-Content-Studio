@@ -754,17 +754,29 @@ def on_project_saved(self):
 
     )
 
-def on_project_closed(self):
+        def close_project(self):
 
-    self.update_project_title()
+        if self.project_controller is None:
 
-    self.update_action_states()
+            return
 
-    self.statusBar().showMessage(
+        if self.project_controller.has_project():
 
-        "Project closed"
+            self.auto_save_project()
 
-    )
+            self.project_controller.close_project()
+
+        self.show_dashboard()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            "Project closed."
+
+        )
     def _project_changed(self):
 
         self.update_project_title()
