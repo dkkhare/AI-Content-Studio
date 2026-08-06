@@ -1,186 +1,265 @@
+from __future__ import annotations
+
 from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenuBar
 
 
-def build_menu(window):
+def build_menu(
+    window,
+):
+    """
+    Build application menu.
 
-    menu = window.menuBar()
+    Menu actions delegate work to MainWindow.
+    No business logic should exist here.
+    """
+
+    menu_bar = QMenuBar(
+        window
+    )
+
+    window.setMenuBar(
+        menu_bar
+    )
+
 
     # --------------------------------------------------
-    # Menus
+    # File Menu
     # --------------------------------------------------
 
-    file_menu = menu.addMenu("&File")
+    file_menu = menu_bar.addMenu(
+        "File"
+    )
 
-    project_menu = menu.addMenu("&Project")
 
-    ai_menu = menu.addMenu("&AI")
+    # New Project
 
-    tools_menu = menu.addMenu("&Tools")
-
-    help_menu = menu.addMenu("&Help")
-
-    # --------------------------------------------------
-    # File Actions
-    # --------------------------------------------------
-
-    new_project_action = QAction(
-
+    new_action = QAction(
         "New Project",
-
         window,
-
     )
 
-    open_project_action = QAction(
+    new_action.triggered.connect(
+        window.new_project
+    )
 
+
+    file_menu.addAction(
+        new_action
+    )
+
+
+    # Open Project
+
+    open_action = QAction(
         "Open Project",
-
         window,
-
     )
 
-    save_project_action = QAction(
-
-        "Save Project",
-
-        window,
-
+    open_action.triggered.connect(
+        window.open_project
     )
+
+
+    file_menu.addAction(
+        open_action
+    )
+
+
+    file_menu.addSeparator()
+
+
+    # Save
+
+    save_action = QAction(
+        "Save",
+        window,
+    )
+
+    save_action.triggered.connect(
+        window.save_project
+    )
+
+
+    window.saveAction = (
+        save_action
+    )
+
+
+    file_menu.addAction(
+        save_action
+    )
+    # --------------------------------------------------
+    # Save As
+    # --------------------------------------------------
 
     save_as_action = QAction(
-
-        "Save Project As...",
-
+        "Save As",
         window,
-
     )
 
-    close_project_action = QAction(
-
-        "Close Project",
-
-        window,
-
+    save_as_action.triggered.connect(
+        window.save_project_as
     )
 
-    exit_action = QAction(
 
-        "Exit",
-
-        window,
-
-    )
-
-    file_menu.addAction(
-
-        new_project_action
-
-    )
-
-    file_menu.addAction(
-
-        open_project_action
-
-    )
-
-    file_menu.addSeparator()
-
-    file_menu.addAction(
-
-        save_project_action
-
-    )
-
-    file_menu.addAction(
-
+    window.saveAsAction = (
         save_as_action
-
     )
 
-    file_menu.addSeparator()
 
     file_menu.addAction(
-
-        close_project_action
-
+        save_as_action
     )
 
+
     file_menu.addSeparator()
+
+
+    # --------------------------------------------------
+    # Close Project
+    # --------------------------------------------------
+
+    close_action = QAction(
+        "Close Project",
+        window,
+    )
+
+    close_action.triggered.connect(
+        window.close_project
+    )
+
+
+    window.closeProjectAction = (
+        close_action
+    )
+
+
+    file_menu.addAction(
+        close_action
+    )
+
+
+    file_menu.addSeparator()
+
 
     # --------------------------------------------------
     # Recent Projects
     # --------------------------------------------------
 
-    recent_projects_menu = file_menu.addMenu(
-
+    recent_menu = file_menu.addMenu(
         "Recent Projects"
-
     )
+
+
+    window.recentProjectsMenu = (
+        recent_menu
+    )
+
 
     file_menu.addSeparator()
 
-    file_menu.addAction(
-
-        exit_action
-
-    )
 
     # --------------------------------------------------
-    # Connections
+    # Exit
     # --------------------------------------------------
 
-    new_project_action.triggered.connect(
-
-        window.new_project
-
-    )
-
-    open_project_action.triggered.connect(
-
-        window.open_project
-
-    )
-
-    save_project_action.triggered.connect(
-
-        window.save_project
-
-    )
-
-    save_as_action.triggered.connect(
-
-        window.save_project_as
-
-    )
-
-    close_project_action.triggered.connect(
-
-        window.close_project
-
+    exit_action = QAction(
+        "Exit",
+        window,
     )
 
     exit_action.triggered.connect(
-
         window.close
-
     )
 
+
+    file_menu.addAction(
+        exit_action
+    )
+
+
     # --------------------------------------------------
-    # Store References
+    # Edit Menu
     # --------------------------------------------------
 
-    window.file_menu = file_menu
+    edit_menu = menu_bar.addMenu(
+        "Edit"
+    )
 
-    window.recent_projects_menu = recent_projects_menu
 
-    window.action_new_project = new_project_action
+    refresh_action = QAction(
+        "Refresh",
+        window,
+    )
 
-    window.action_open_project = open_project_action
+    refresh_action.triggered.connect(
+        window.refresh_project_ui
+    )
 
-    window.action_save_project = save_project_action
 
-    window.action_save_project_as = save_as_action
+    edit_menu.addAction(
+        refresh_action
+    )
 
-    window.action_close_project = close_project_action
 
-    window.action_exit = exit_action
+    # --------------------------------------------------
+    # View Menu
+    # --------------------------------------------------
+
+    view_menu = menu_bar.addMenu(
+        "View"
+    )
+
+
+    dashboard_action = QAction(
+        "Dashboard",
+        window,
+    )
+
+    dashboard_action.triggered.connect(
+        window.show_dashboard
+    )
+
+
+    view_menu.addAction(
+        dashboard_action
+    )
+
+
+    workspace_action = QAction(
+        "Workspace",
+        window,
+    )
+
+    workspace_action.triggered.connect(
+        window.show_workspace
+    )
+
+
+    view_menu.addAction(
+        workspace_action
+    )
+
+
+    # --------------------------------------------------
+    # Help Menu
+    # --------------------------------------------------
+
+    help_menu = menu_bar.addMenu(
+        "Help"
+    )
+
+
+    about_action = QAction(
+        "About AI Content Studio",
+        window,
+    )
+
+
+    help_menu.addAction(
+        about_action
+    )
+
+
+    return menu_bar
