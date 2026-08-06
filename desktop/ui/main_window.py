@@ -337,3 +337,157 @@ class MainWindow(QMainWindow):
         if self.project_controller is None:
 
             return
+
+        )
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            f"Project created: {project.name}"
+
+        )
+
+    def open_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        directory = ProjectDialogs.open_project(
+
+            self
+
+        )
+
+        if directory is None:
+
+            return
+
+        project = self.project_controller.open_project(
+
+            directory
+
+        )
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            f"Project opened: {project.name}"
+
+        )
+
+    def save_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        if self.project_controller.save_project():
+
+            self.statusBar().showMessage(
+
+                "Project saved."
+
+            )
+
+            self.update_project_title()
+
+            self.update_action_states()
+
+    def save_project_as(self):
+
+        if self.project_controller is None:
+
+            return
+
+        directory = ProjectDialogs.save_project_as(
+
+            self
+
+        )
+
+        if directory is None:
+
+            return
+
+        if self.project_controller.save_project_as(
+
+            directory
+
+        ):
+
+            self.add_recent_project(
+
+                str(directory)
+
+            )
+
+            self.update_project_title()
+
+            self.update_action_states()
+
+            self.statusBar().showMessage(
+
+                "Project saved."
+
+            )
+
+            self.log(
+
+                "Project saved as."
+
+            )
+
+    def close_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        if self.project_controller.has_project():
+
+            self.auto_save_project()
+
+            self.project_controller.close_project()
+
+        self.show_dashboard()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            "Project closed."
+
+        )
+
+    def auto_save_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        self.project_controller.auto_save()
