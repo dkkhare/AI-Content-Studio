@@ -784,3 +784,14 @@ def on_project_saved(self):
         self.update_action_states()
 
         self.refresh_recent_projects_menu()
+    # --------------------------------------------------
+    # Current Project
+    # --------------------------------------------------
+
+    def current_project_directory(self):
+
+        if self.project_controller is None:
+
+            return None
+
+        return self.project_controller.project_directory()
