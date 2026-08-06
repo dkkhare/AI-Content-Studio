@@ -106,3 +106,248 @@ class MainWindow(QMainWindow):
         self.log(
             "AI Content Studio started."
         )
+    # --------------------------------------------------
+    # Project Controller
+    # --------------------------------------------------
+
+    def set_project_controller(
+
+        self,
+
+        controller: ProjectController,
+
+    ):
+
+        self.project_controller = controller
+
+        controller.projectOpened.connect(
+
+            self._on_project_opened
+
+        )
+
+        controller.projectClosed.connect(
+
+            self._on_project_closed
+
+        )
+
+        controller.projectSaved.connect(
+
+            self._on_project_saved
+
+        )
+
+        controller.projectModified.connect(
+
+            self._on_project_modified
+
+        )
+
+    # --------------------------------------------------
+    # Controller Slots
+    # --------------------------------------------------
+
+    def _on_project_opened(
+
+        self,
+
+        root,
+
+    ):
+
+        self.add_recent_project(
+
+            str(root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.statusBar().showMessage(
+
+            "Project opened."
+
+        )
+
+        self.log(
+
+            "Project opened."
+
+        )
+
+    def _on_project_closed(self):
+
+        self.show_dashboard()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.statusBar().showMessage(
+
+            "Project closed."
+
+        )
+
+        self.log(
+
+            "Project closed."
+
+        )
+
+    def _on_project_saved(
+
+        self,
+
+        path,
+
+    ):
+
+        self.update_project_title()
+
+        self.statusBar().showMessage(
+
+            "Project saved."
+
+        )
+
+        self.log(
+
+            "Project saved."
+
+        )
+
+    def _on_project_modified(
+
+        self,
+
+        modified,
+
+    ):
+
+        self.update_project_title()
+
+    # --------------------------------------------------
+    # Logging
+    # --------------------------------------------------
+
+    def log(
+
+        self,
+
+        message,
+
+    ):
+
+        self.logDock.log(
+
+            message
+
+        )
+
+    # --------------------------------------------------
+    # Dashboard / Workspace
+    # --------------------------------------------------
+
+    def show_dashboard(self):
+
+        self.setCentralWidget(
+
+            self.dashboard
+
+        )
+
+        self.statusBar().showMessage(
+
+            "Dashboard"
+
+        )
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            "Dashboard opened."
+
+        )
+
+    def show_workspace(self):
+
+        self.setCentralWidget(
+
+            self.workspace
+
+        )
+
+        self.statusBar().showMessage(
+
+            "Workspace"
+
+        )
+
+        self.ui_state.restore_workspace(
+
+            self.workspace
+
+        )
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            "Workspace opened."
+
+        )
+
+    # --------------------------------------------------
+    # UI State
+    # --------------------------------------------------
+
+    def save_ui_state(self):
+
+        self.ui_state.save_workspace(
+
+            self.workspace
+
+        )
+
+        self.ui_state.save_narration(
+
+            self.narration_panel()
+
+        )
+
+        self.ui_state.save_main_window(
+
+            self
+
+        )
+
+    def restore_ui_state(self):
+
+        self.ui_state.restore_main_window(
+
+            self
+
+        )
+
+        self.ui_state.restore_workspace(
+
+            self.workspace
+
+        )
+
+        self.ui_state.restore_narration(
+
+            self.narration_panel()
+
+        )
