@@ -434,3 +434,231 @@ class MainWindow(QMainWindow):
             self.log(
                 f"Save As failed: {exc}"
             )
+    # --------------------------------------------------
+    # Recent Projects
+    # --------------------------------------------------
+
+    def add_recent_project(
+        self,
+        path: str,
+    ):
+
+        if not path:
+            return
+
+        self.recent_projects.add(
+            path
+        )
+
+        self.refresh_recent_projects_menu()
+
+
+    def refresh_recent_projects_menu(
+        self,
+    ):
+
+        try:
+
+            if hasattr(
+                self,
+                "recentProjectsMenu"
+            ):
+
+                self.recentProjectsMenu.clear()
+
+                projects = (
+                    self.recent_projects.get_all()
+                )
+
+                for project in projects:
+
+                    action = QAction(
+                        project,
+                        self,
+                    )
+
+                    action.triggered.connect(
+                        lambda checked=False,
+                        p=project:
+                        self.open_project(p)
+                    )
+
+                    self.recentProjectsMenu.addAction(
+                        action
+                    )
+
+
+        except Exception as exc:
+
+            self.log(
+                f"Recent projects refresh failed: {exc}"
+            )
+
+
+    # --------------------------------------------------
+    # UI State Management
+    # --------------------------------------------------
+
+    def restore_ui_state(
+        self,
+    ):
+
+        try:
+
+            geometry = (
+                self.ui_state.window_geometry()
+            )
+
+            if geometry:
+
+                self.restoreGeometry(
+                    geometry
+                )
+
+
+            state = (
+                self.ui_state.window_state()
+            )
+
+            if state:
+
+                self.restoreState(
+                    state
+                )
+
+
+        except Exception as exc:
+
+            self.log(
+                f"UI restore failed: {exc}"
+            )
+
+
+    def save_ui_state(
+        self,
+    ):
+
+        try:
+
+            self.ui_state.set_window_geometry(
+                self.saveGeometry()
+            )
+
+            self.ui_state.set_window_state(
+                self.saveState()
+            )
+
+
+            self.ui_state.save()
+
+
+        except Exception as exc:
+
+            self.log(
+                f"UI state save failed: {exc}"
+            )
+
+
+    # --------------------------------------------------
+    # Window Title
+    # --------------------------------------------------
+
+    def update_project_title(
+        self,
+    ):
+
+        title = (
+            "AI Content Studio"
+        )
+
+
+        if self.project_controller:
+
+            project = (
+                self.project_controller.project
+            )
+
+
+            if project:
+
+                name = getattr(
+                    project,
+                    "name",
+                    None,
+                )
+
+
+                if name:
+
+                    title = (
+                        f"{name} - "
+                        "AI Content Studio"
+                    )
+
+
+                if getattr(
+                    project,
+                    "is_modified",
+                    False,
+                ):
+
+                    title += " *"
+
+
+        self.setWindowTitle(
+            title
+        )
+
+
+    # --------------------------------------------------
+    # Action State Management
+    # --------------------------------------------------
+
+    def update_action_states(
+        self,
+    ):
+
+        has_project = (
+            self.project_controller
+            is not None
+        )
+
+
+        if hasattr(
+            self,
+            "saveAction",
+        ):
+
+            self.saveAction.setEnabled(
+                has_project
+            )
+
+
+        if hasattr(
+            self,
+            "saveAsAction",
+        ):
+
+            self.saveAsAction.setEnabled(
+                has_project
+            )
+
+
+        if hasattr(
+            self,
+            "closeProjectAction",
+        ):
+
+            self.closeProjectAction.setEnabled(
+                has_project
+            )
+
+
+        if hasattr(
+            self,
+            "exportAction",
+        ):
+
+            self.exportAction.setEnabled(
+                has_project
+            )
