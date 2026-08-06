@@ -1,106 +1,139 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
+
 
 from backend.project.manager import ProjectManager
 
 
 class ProjectController(QObject):
-    """
-    Connects the desktop UI layer with backend ProjectManager.
 
-    Milestone 10.5 improvements:
-    - clear signal handling
-    - centralized project lifecycle
-    - safer state access
-    - consistent controller responsibility
-    """
-
-    projectOpened = Signal(Path)
+    projectOpened = Signal(object)
 
     projectClosed = Signal()
 
-    projectSaved = Signal(Path)
+    projectSaved = Signal()
 
-    projectModified = Signal(bool)
+    projectModified = Signal()
 
 
     def __init__(
         self,
+        parent=None,
     ):
 
-        super().__init__()
-
-        self.manager = ProjectManager()
-
-
-    # --------------------------------------------------
-    # Properties
-    # --------------------------------------------------
-
-    @property
-    def current(
-        self,
-    ):
-
-        return self.manager.current
-
-
-    @property
-    def project_root(
-        self,
-    ):
-
-        if not self.manager.current:
-
-            return None
-
-        return self.manager.project_root()
-
-
-    def has_project(
-        self,
-    ) -> bool:
-
-        return self.manager.has_project()
-
-
-    def is_modified(
-        self,
-    ) -> bool:
-
-        project = self.manager.current
-
-        if not project:
-
-            return False
-
-        return getattr(
-            project,
-            "modified",
-            False,
+        super().__init__(
+            parent
         )
 
+        self.project = None
+
+        self.project_manager = (
+            ProjectManager()
+        )
+
+        self.project_path = None
+
+        self.modified = False
+
 
     # --------------------------------------------------
-    # Project Creation
+    # Factory Methods
     # --------------------------------------------------
 
-    def create_project(
-        self,
-        name: str,
-        root: Path,
+    @classmethod
+    def create(
+        cls,
+        path,
+        parent=None,
     ):
 
-        project = self.manager.create(
-            name,
-            root,
+        controller = cls(
+            parent
         )
+
+        controller.project_path = (
+            Path(path)
+        )
+
+        controller.project = (
+            controller.project_manager.create_project(
+                controller.project_path
+            )
+        )
+
+        return controller
+
+
+    @classmethod
+    def open(
+        cls,
+        path,
+        parent=None,
+    ):
+
+        controller = cls(
+            parent
+        )
+
+        controller.project_path = (
+            Path(path)
+        )
+
+        controller.project = (
+            controller.project_manager.load_project(
+                controller.project_path
+            )
+        )
+
+        return controller
+
+
+    # --------------------------------------------------
+    # Lifecycle
+    # --------------------------------------------------
+
+    def open_project(
+        self,
+    ):
+
+        if not self.project:
+
+            raise RuntimeError(
+                "No project loaded"
+            )
+
+
+        self.modified = False
 
         self.projectOpened.emit(
-            project.root
+            self.project_path
         )
 
-        return project
+
+    def close(
+        self,
+    ):
+
+        self.project = None
+
+        self.project_path = None
+
+        self.modified = False
+
+        self.projectClosed.emit()
+
+
+    # --------------------------------------------------
+    # State
+    # --------------------------------------------------
+
+    def mark_modified(
+        self,
+    ):
+
+        if not self.modified:
+
+            self.modified = True
+
+            self.projectModified.emit()
