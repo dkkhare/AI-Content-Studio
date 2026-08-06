@@ -351,3 +351,331 @@ class MainWindow(QMainWindow):
             self.narration_panel()
 
         )
+    # --------------------------------------------------
+    # Project Actions
+    # --------------------------------------------------
+
+    def new_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        result = ProjectDialogs.new_project(
+
+            self
+
+        )
+
+        if result is None:
+
+            return
+
+        name, directory = result
+
+        project = self.project_controller.create_project(
+
+            name,
+
+            directory,
+
+        )
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            f"Project created: {project.name}"
+
+        )
+
+    def open_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        directory = ProjectDialogs.open_project(
+
+            self
+
+        )
+
+        if directory is None:
+
+            return
+
+        project = self.project_controller.open_project(
+
+            directory
+
+        )
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.log(
+
+            f"Project opened: {project.name}"
+
+        )
+
+    def save_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        if self.project_controller.save_project():
+
+            self.statusBar().showMessage(
+
+                "Project saved."
+
+            )
+
+            self.update_project_title()
+
+            self.update_action_states()
+
+    def save_project_as(self):
+
+        if self.project_controller is None:
+
+            return
+
+        directory = ProjectDialogs.save_project_as(
+
+            self
+
+        )
+
+        if directory is None:
+
+            return
+
+        if self.project_controller.save_project_as(
+
+            directory
+
+        ):
+
+            self.update_project_title()
+
+            self.log(
+
+                "Project saved as."
+
+            )
+
+    def close_project(self):
+
+        if self.project_controller is None:
+
+            return
+
+        if self.project_controller.has_project():
+
+            self.auto_save_project()
+
+            self.project_controller.close_project()
+
+    def auto_save_project(self):
+
+        if self.project_controller:
+
+            self.project_controller.auto_save()
+
+    # --------------------------------------------------
+    # Window Title
+    # --------------------------------------------------
+
+    def update_project_title(self):
+
+        title = "AI Content Studio"
+
+        if (
+
+            self.project_controller
+
+            and
+
+            self.project_controller.has_project()
+
+        ):
+
+            title += (
+
+                " - "
+
+                + self.project_controller.project_name()
+
+            )
+
+            if self.project_controller.is_modified():
+
+                title += " *"
+
+        self.setWindowTitle(
+
+            title
+
+        )
+    # --------------------------------------------------
+    # Recent Projects
+    # --------------------------------------------------
+
+    def refresh_recent_projects_menu(self):
+
+        if not hasattr(
+
+            self,
+
+            "recent_projects_menu",
+
+        ):
+
+            return
+
+        self.recent_projects_menu.clear()
+
+        projects = self.recent_projects.projects()
+
+        if not projects:
+
+            action = QAction(
+
+                "No Recent Projects",
+
+                self,
+
+            )
+
+            action.setEnabled(False)
+
+            self.recent_projects_menu.addAction(
+
+                action
+
+            )
+
+            return
+
+        for project in projects:
+
+            action = QAction(
+
+                project,
+
+                self,
+
+            )
+
+            action.triggered.connect(
+
+                lambda checked=False, p=project:
+
+                self._open_recent_project(
+
+                    p
+
+                )
+
+            )
+
+            self.recent_projects_menu.addAction(
+
+                action
+
+            )
+
+    def _open_recent_project(
+
+        self,
+
+        project_path,
+
+    ):
+
+        if self.project_controller is None:
+
+            return
+
+        try:
+
+            project = self.project_controller.open_project(
+
+                project_path
+
+            )
+
+        except Exception as exc:
+
+            self.log(
+
+                str(exc)
+
+            )
+
+            return
+
+        self.add_recent_project(
+
+            str(project.root)
+
+        )
+
+        self.show_workspace()
+
+    def add_recent_project(
+
+        self,
+
+        project_path,
+
+    ):
+
+        self.recent_projects.add(
+
+            project_path
+
+        )
+
+        self.refresh_recent_projects_menu()
+
+    def recent_projects_list(self):
+
+        return self.recent_projects.projects()
+
+    # --------------------------------------------------
+    # Workspace Helpers
+    # --------------------------------------------------
+
+    def narration_panel(self):
+
+        return self.workspace.narration()
+
+    def open_pdf_workspace(self):
+
+        self.show_workspace()
+
+       
