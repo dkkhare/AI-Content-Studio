@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 from backend.tts.adapters import F5TTSAdapter
 from backend.tts.audio_merger import AudioMerger
@@ -13,15 +13,17 @@ from backend.tts.session import TTSSession
 
 class TTSPipeline:
     """
-    End-to-end TTS generation pipeline.
+    End-to-end Text-to-Speech pipeline.
 
     Responsibilities
     ----------------
-    • Manage sessions
-    • Generate speech
-    • Merge audio
-    • Update progress
-    • Manage queue
+    • Session management
+    • Queue management
+    • Speech generation
+    • Audio merging
+    • Progress reporting
+    • Voice profile management
+    • Cleanup
     """
 
     def __init__(
@@ -41,32 +43,62 @@ class TTSPipeline:
         self.adapter = F5TTSAdapter()
 
         self.generator = TTSGenerator(
-
             adapter=self.adapter,
-
             output_directory=self.output_directory,
-
         )
 
         self.merger = AudioMerger()
 
         self.queue = TTSQueue()
 
+        self.current_voice = ""
+
+        self.current_language = "en"
+
+        self.initialized = False
+
+        self.initialize()
     # --------------------------------------------------
     # Session
     # --------------------------------------------------
 
     def create_session(
-
         self,
-
         reference_audio,
-
         reference_text,
-
         text,
-
+        output_directory=None,
+        voice_name="",
+        language="en",
     ):
+
+        if output_directory:
+
+            self.output_directory = Path(
+                output_directory
+            )
+
+            self.output_directory.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            if hasattr(
+                self.generator,
+                "output_directory",
+            ):
+
+                self.generator.output_directory = (
+                    self.output_directory
+                )
+
+        self.current_voice = (
+            voice_name or ""
+        )
+
+        self.current_language = (
+            language or "en"
+        )
 
         session = TTSSession(
 
@@ -82,7 +114,22 @@ class TTSPipeline:
 
         )
 
-        self.queue.enqueue(session)
+        # Optional fields for newer versions
+        if hasattr(session, "voice_name"):
+
+            session.voice_name = (
+                self.current_voice
+            )
+
+        if hasattr(session, "language"):
+
+            session.language = (
+                self.current_language
+            )
+
+        self.queue.enqueue(
+            session
+        )
 
         return session
 
@@ -91,20 +138,36 @@ class TTSPipeline:
     # --------------------------------------------------
 
     def run(
-
         self,
-
         session: TTSSession,
-
-        chunks,
-
+        chunks: Optional[List[str]] = None,
         progress_callback: Optional[
             Callable[[TTSProgress], None]
         ] = None,
-
     ):
 
         session.start()
+
+        # --------------------------------------
+        # Build chunks automatically if needed
+        # --------------------------------------
+
+        if chunks is None:
+
+            if hasattr(
+                self.generator,
+                "split_text",
+            ):
+
+                chunks = self.generator.split_text(
+                    session.input_text
+                )
+
+            else:
+
+                chunks = [
+                    session.input_text
+                ]
 
         generated = self.generator.generate(
 
@@ -118,17 +181,24 @@ class TTSPipeline:
 
         )
 
+        # --------------------------------------
+        # Store generated chunks
+        # --------------------------------------
+
         for wav in generated:
 
-            session.add_chunk(wav)
+            session.add_chunk(
+                wav
+            )
 
         output_file = (
-
             self.output_directory
-
             / f"{session.id}.wav"
-
         )
+
+        # --------------------------------------
+        # Merge audio
+        # --------------------------------------
 
         self.merger.merge(
 
@@ -142,156 +212,286 @@ class TTSPipeline:
             output_file
         )
 
-        session.duration = self.merger.duration(
-            output_file
-        )
+        try:
+
+            session.duration = (
+                self.merger.duration(
+                    output_file
+                )
+            )
+
+        except Exception:
+
+            session.duration = 0.0
 
         session.complete()
 
         self.queue.finish_current()
 
         return session
-
     # --------------------------------------------------
-    # Process Queue
+    # Voice Profiles
     # --------------------------------------------------
 
-    def process_queue(
-
+    def available_speakers(
         self,
-
-        chunk_provider,
-
-        progress_callback=None,
-
     ):
 
-        while not self.queue.is_empty():
+        try:
 
-            session = self.queue.dequeue()
+            if hasattr(
+                self.adapter,
+                "available_speakers",
+            ):
 
-            if session is None:
+                return self.adapter.available_speakers()
 
-                break
+        except Exception:
 
-            chunks = chunk_provider(
+            pass
 
-                session.input_text
+        return []
 
-            )
 
-            self.run(
 
-                session,
-
-                chunks,
-
-                progress_callback,
-
-            )
-
-    # --------------------------------------------------
-    # Cancel
-    # --------------------------------------------------
-
-    def cancel(
-
+    def load_speaker(
         self,
-
-        session_id,
-
+        speaker_name: str,
     ):
 
-        session = self.queue.find(
-            session_id
-        )
+        self.current_voice = speaker_name
 
-        if session:
+        try:
 
-            session.cancel()
+            if hasattr(
+                self.adapter,
+                "load_speaker",
+            ):
 
-            return True
+                self.adapter.load_speaker(
+                    speaker_name
+                )
 
-        return False
+        except Exception:
+
+            pass
+
+
 
     # --------------------------------------------------
-    # Queue
+    # Queue Information
     # --------------------------------------------------
 
-    def pending_sessions(self):
+    def pending_sessions(
+        self,
+    ):
 
         return self.queue.pending()
 
-    def running_sessions(self):
+
+
+    def running_sessions(
+        self,
+    ):
 
         return self.queue.running()
 
-    def completed_sessions(self):
+
+
+    def completed_sessions(
+        self,
+    ):
 
         return self.queue.completed()
+
+
 
     # --------------------------------------------------
     # Cleanup
     # --------------------------------------------------
 
     def cleanup_chunks(
-
         self,
-
         session: TTSSession,
-
     ):
 
-        self.merger.cleanup(
+        try:
 
-            session.generated_chunks
+            self.merger.cleanup(
+                session.generated_chunks
+            )
 
-        )
+        except Exception:
+
+            pass
+
+
+
+    def cleanup(
+        self,
+    ):
+
+        try:
+
+            if hasattr(
+                self.generator,
+                "cleanup",
+            ):
+
+                self.generator.cleanup()
+
+        except Exception:
+
+            pass
+
+        try:
+
+            if hasattr(
+                self.merger,
+                "cleanup_all",
+            ):
+
+                self.merger.cleanup_all()
+
+        except Exception:
+
+            pass
+    # --------------------------------------------------
+    # Adapter Lifecycle
+    # --------------------------------------------------
+
+    def initialize(
+        self,
+    ):
+
+        if self.initialized:
+
+            return
+
+        try:
+
+            self.adapter.initialize()
+
+        finally:
+
+            self.initialized = True
+
+
+
+    def shutdown(
+        self,
+    ):
+
+        try:
+
+            self.adapter.shutdown()
+
+        except Exception:
+
+            pass
+
+        self.initialized = False
+
+
 
     # --------------------------------------------------
-    # Adapter
+    # Statistics
     # --------------------------------------------------
 
-    def initialize(self):
+    def statistics(
+        self,
+    ):
 
-        self.adapter.initialize()
+        stats = {
 
-    def shutdown(self):
+            "initialized": self.initialized,
 
-        self.adapter.shutdown()
+            "voice": self.current_voice,
 
-    # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def statistics(self):
-
-        return {
+            "language": self.current_language,
 
             "queued": self.queue.size(),
 
-            "completed":
+            "completed": len(
+                self.queue.completed()
+            ),
 
-                len(
+            "failed": len(
+                self.queue.failed()
+            ),
 
-                    self.queue.completed()
-
-                ),
-
-            "failed":
-
-                len(
-
-                    self.queue.failed()
-
-                ),
-
-            "history":
-
-                len(
-
-                    self.queue.history()
-
-                ),
+            "history": len(
+                self.queue.history()
+            ),
 
         }
+
+        try:
+
+            if hasattr(
+                self.adapter,
+                "statistics",
+            ):
+
+                adapter_stats = (
+                    self.adapter.statistics()
+                )
+
+                if isinstance(
+                    adapter_stats,
+                    dict,
+                ):
+
+                    stats.update(
+                        adapter_stats
+                    )
+
+        except Exception:
+
+            pass
+
+        return stats
+
+
+
+    # --------------------------------------------------
+    # Debug
+    # --------------------------------------------------
+
+    def debug_info(
+        self,
+    ):
+
+        return {
+
+            "output_directory": str(
+                self.output_directory
+            ),
+
+            "voice": self.current_voice,
+
+            "language": self.current_language,
+
+            "initialized": self.initialized,
+
+            "queue_size": self.queue.size(),
+
+        }
+
+
+
+    # --------------------------------------------------
+    # Destructor
+    # --------------------------------------------------
+
+    def __del__(
+        self,
+    ):
+
+        try:
+
+            self.shutdown()
+
+        except Exception:
+
+            pass
