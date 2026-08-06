@@ -678,4 +678,164 @@ class MainWindow(QMainWindow):
 
         self.show_workspace()
 
-       
+        self.workspace.open_pdf_tab()
+
+    def open_ocr_workspace(self):
+
+        self.show_workspace()
+
+        self.workspace.open_ocr_tab()
+
+    def open_narration_workspace(self):
+
+        self.show_workspace()
+
+        self.workspace.open_narration_tab()
+
+    def open_translation_workspace(self):
+
+        self.show_workspace()
+
+        self.workspace.open_translation_tab()
+
+    def open_video_workspace(self):
+
+        self.show_workspace()
+
+        self.workspace.open_video_tab()
+
+    def open_export_workspace(self):
+
+        self.show_workspace()
+
+        self.workspace.open_export_tab()
+
+    # --------------------------------------------------
+    # Action State
+    # --------------------------------------------------
+
+    def has_project(self):
+
+        return (
+
+            self.project_controller is not None
+
+            and
+
+            self.project_controller.has_project()
+
+        )
+
+    def update_action_states(self):
+
+        has_project = self.has_project()
+
+        if hasattr(
+
+            self,
+
+            "action_save_project",
+
+        ):
+
+            self.action_save_project.setEnabled(
+
+                has_project
+
+            )
+
+        if hasattr(
+
+            self,
+
+            "action_save_project_as",
+
+        ):
+
+            self.action_save_project_as.setEnabled(
+
+                has_project
+
+            )
+
+        if hasattr(
+
+            self,
+
+            "action_close_project",
+
+        ):
+
+            self.action_close_project.setEnabled(
+
+                has_project
+
+            )
+
+        if hasattr(
+
+            self,
+
+            "toolbar_save",
+
+        ):
+
+            self.toolbar_save.setEnabled(
+
+                has_project
+
+            )
+
+    # --------------------------------------------------
+    # Current Project
+    # --------------------------------------------------
+
+    def current_project_directory(self):
+
+        if self.project_controller is None:
+
+            return None
+
+        return self.project_controller.project_root()
+
+    # --------------------------------------------------
+    # Close Event
+    # --------------------------------------------------
+
+    def closeEvent(
+
+        self,
+
+        event,
+
+    ):
+
+        try:
+
+            self.auto_save_project()
+
+        except Exception as exc:
+
+            self.log(
+
+                f"Auto-save failed: {exc}"
+
+            )
+
+        try:
+
+            self.save_ui_state()
+
+        except Exception as exc:
+
+            self.log(
+
+                f"Failed to save UI state: {exc}"
+
+            )
+
+        super().closeEvent(
+
+            event
+
+        )
