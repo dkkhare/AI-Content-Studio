@@ -1,30 +1,61 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import (
+    dataclass,
+    field,
+)
+
 from datetime import datetime
+
 from pathlib import Path
+
 
 
 @dataclass
 class Project:
+    """
+    Core project data model.
+
+    Stores:
+    - project metadata
+    - source files
+    - generated assets
+    - processing state
+
+    Persistence is handled by ProjectSerializer.
+    Validation is handled by ProjectValidator.
+    """
+
 
     name: str
 
     root: Path
 
+
     version: str = "1.0"
 
+
     created: str = field(
-        default_factory=lambda: datetime.now().isoformat()
+        default_factory=lambda:
+        datetime.now().isoformat()
     )
 
+
     modified: str = field(
-        default_factory=lambda: datetime.now().isoformat()
+        default_factory=lambda:
+        datetime.now().isoformat()
     )
+
 
     description: str = ""
 
+
     author: str = ""
+
+
+    # --------------------------------------------------
+    # Source Content
+    # --------------------------------------------------
 
     pdf_file: str = ""
 
@@ -32,9 +63,25 @@ class Project:
 
     voice: str = ""
 
+
     output_directory: str = "output"
 
+
     auto_save: bool = True
+
+
+    # --------------------------------------------------
+    # Processing State
+    # --------------------------------------------------
+
+    status: str = "created"
+
+
+    progress: int = 0
+
+
+    error_message: str = ""
+
 
     # --------------------------------------------------
     # Generated Assets
@@ -57,400 +104,463 @@ class Project:
     cover_image: str = ""
 
     thumbnail: str = ""
-
     # --------------------------------------------------
-    # Directories
-    # --------------------------------------------------
-
-    @property
-    def pdf_dir(self) -> Path:
-
-        return self.root / "pdf"
-
-    @property
-    def ocr_dir(self) -> Path:
-
-        return self.root / "ocr"
-
-    @property
-    def tts_dir(self) -> Path:
-
-        return self.root / "tts"
-
-    @property
-    def translation_dir(self) -> Path:
-
-        return self.root / "translation"
-
-    @property
-    def video_dir(self) -> Path:
-
-        return self.root / "video"
-
-    @property
-    def export_dir(self) -> Path:
-
-        return self.root / "export"
-
-    @property
-    def cache_dir(self) -> Path:
-
-        return self.root / "cache"
-
-    # --------------------------------------------------
-    # Files
+    # Path Helpers
     # --------------------------------------------------
 
-    @property
-    def project_file(self) -> Path:
+    def project_path(
+        self,
+    ) -> Path:
 
-        return self.root / "project.json"
+        return self.root
 
-    @property
-    def metadata_file(self) -> Path:
 
-        return self.root / "metadata.json"
+
+    def output_path(
+        self,
+    ) -> Path:
+
+        return (
+            self.root
+            /
+            self.output_directory
+        )
+
+
+
+    def asset_path(
+        self,
+        filename: str,
+    ) -> Path:
+
+        return (
+            self.output_path()
+            /
+            filename
+        )
+
+
 
     # --------------------------------------------------
-    # Utilities
+    # Metadata Updates
     # --------------------------------------------------
 
-    def touch(self):
+    def touch(
+        self,
+    ):
 
-        self.modified = datetime.now().isoformat()
+        self.modified = (
+            datetime.now()
+            .isoformat()
+        )
 
-    def exists(self) -> bool:
 
-        return self.project_file.exists()
 
-    def create_directories(self):
+    def update_metadata(
+        self,
+        **kwargs,
+    ):
 
-        directories = [
+        for key, value in kwargs.items():
 
-            self.root,
+            if hasattr(
+                self,
+                key,
+            ):
 
-            self.pdf_dir,
+                setattr(
+                    self,
+                    key,
+                    value,
+                )
 
-            self.ocr_dir,
 
-            self.tts_dir,
+        self.touch()
 
-            self.translation_dir,
 
-            self.video_dir,
 
-            self.export_dir,
+    # --------------------------------------------------
+    # Processing State
+    # --------------------------------------------------
 
-            self.cache_dir,
+    def set_status(
+        self,
+        status: str,
+    ):
 
+        self.status = status
+
+        self.touch()
+
+
+
+    def set_progress(
+        self,
+        value: int,
+    ):
+
+        self.progress = max(
+            0,
+            min(
+                100,
+                value,
+            ),
+        )
+
+
+        self.touch()
+
+
+
+    def set_error(
+        self,
+        message: str,
+    ):
+
+        self.error_message = message
+
+        self.status = "error"
+
+        self.touch()
+
+
+
+    def clear_error(
+        self,
+    ):
+
+        self.error_message = ""
+
+        self.touch()
+    # --------------------------------------------------
+    # Asset Management
+    # --------------------------------------------------
+
+    def add_output_file(
+        self,
+        file_type: str,
+        file_path: str,
+    ):
+
+        """
+        Register generated pipeline output.
+
+        Example:
+        add_output_file(
+            "video_file",
+            "output/video.mp4"
+        )
+        """
+
+        allowed_assets = [
+            "ocr_file",
+            "translation_file",
+            "narration_file",
+            "audiobook_file",
+            "podcast_file",
+            "video_file",
+            "subtitle_file",
+            "cover_image",
+            "thumbnail",
         ]
 
-        for directory in directories:
 
-            directory.mkdir(
+        if file_type not in allowed_assets:
 
-                parents=True,
-
-                exist_ok=True,
-
+            raise ValueError(
+                f"Unsupported asset type: {file_type}"
             )
 
+
+        setattr(
+            self,
+            file_type,
+            file_path,
+        )
+
+
+        self.touch()
+
+
+
+    def get_output_files(
+        self,
+    ) -> dict:
+
+        assets = {}
+
+        fields = [
+            "ocr_file",
+            "translation_file",
+            "narration_file",
+            "audiobook_file",
+            "podcast_file",
+            "video_file",
+            "subtitle_file",
+            "cover_image",
+            "thumbnail",
+        ]
+
+
+        for field_name in fields:
+
+            value = getattr(
+                self,
+                field_name,
+            )
+
+
+            if value:
+
+                assets[field_name] = value
+
+
+        return assets
+
+
+
     # --------------------------------------------------
-    # Asset Helpers
+    # Pipeline Helpers
     # --------------------------------------------------
 
-    def has_pdf(self):
+    def start_processing(
+        self,
+        task: str,
+    ):
 
-        return bool(self.pdf_file)
+        self.status = (
+            f"processing:{task}"
+        )
 
-    def has_ocr(self):
+        self.progress = 0
 
-        return bool(self.ocr_file)
+        self.error_message = ""
 
-    def has_translation(self):
+        self.touch()
 
-        return bool(self.translation_file)
 
-    def has_narration(self):
 
-        return bool(self.narration_file)
+    def complete_processing(
+        self,
+    ):
 
-    def has_audiobook(self):
+        self.status = "completed"
 
-        return bool(self.audiobook_file)
+        self.progress = 100
 
-    def has_podcast(self):
+        self.touch()
 
-        return bool(self.podcast_file)
 
-    def has_video(self):
 
-        return bool(self.video_file)
+    def reset_processing(
+        self,
+    ):
 
-    def has_subtitles(self):
+        self.status = "created"
 
-        return bool(self.subtitle_file)
+        self.progress = 0
 
-    def has_cover(self):
+        self.error_message = ""
 
-        return bool(self.cover_image)
+        self.touch()
+
+
 
     # --------------------------------------------------
-    # Serialization
+    # Project Lifecycle
     # --------------------------------------------------
 
-    def to_dict(self):
+    def is_ready(
+        self,
+    ) -> bool:
 
-        return {
+        return (
+            self.root.exists()
+            and self.root.is_dir()
+        )
 
-            "name": self.name,
 
-            "version": self.version,
 
-            "created": self.created,
+    def delete_output_files(
+        self,
+    ):
 
-            "modified": self.modified,
+        for file_path in (
+            self.get_output_files()
+            .values()
+        ):
 
-            "description": self.description,
+            path = Path(
+                file_path
+            )
 
-            "author": self.author,
 
-            "pdf_file": self.pdf_file,
+            if path.exists():
 
-            "ocr_file": self.ocr_file,
+                path.unlink()
 
-            "translation_file": self.translation_file,
 
-            "narration_file": self.narration_file,
 
-            "audiobook_file": self.audiobook_file,
+        self.touch()
+    # --------------------------------------------------
+    # Project Initialization
+    # --------------------------------------------------
 
-            "podcast_file": self.podcast_file,
+    def initialize(
+        self,
+    ):
 
-            "video_file": self.video_file,
+        self.root.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-            "subtitle_file": self.subtitle_file,
 
-            "cover_image": self.cover_image,
+        self.output_path().mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-            "thumbnail": self.thumbnail,
 
-            "language": self.language,
+        self.touch()
 
-            "voice": self.voice,
 
-            "output_directory": self.output_directory,
+        return self
 
-            "auto_save": self.auto_save,
 
-        }
+
+    # --------------------------------------------------
+    # Asset Registration
+    # --------------------------------------------------
+
+    def register_asset(
+        self,
+        asset_name: str,
+        file_path: str,
+    ):
+
+        if hasattr(
+            self,
+            asset_name,
+        ):
+
+            setattr(
+                self,
+                asset_name,
+                file_path,
+            )
+
+
+            self.touch()
+
+
+
+    def get_asset(
+        self,
+        asset_name: str,
+    ):
+
+        if hasattr(
+            self,
+            asset_name,
+        ):
+
+            return getattr(
+                self,
+                asset_name,
+            )
+
+
+        return None
+
+
+
+    # --------------------------------------------------
+    # File Checks
+    # --------------------------------------------------
+
+    def asset_exists(
+        self,
+        asset_name: str,
+    ) -> bool:
+
+        file_path = self.get_asset(
+            asset_name
+        )
+
+
+        if not file_path:
+
+            return False
+
+
+        return Path(
+            file_path
+        ).exists()
+
+
+
+    # --------------------------------------------------
+    # Serialization Helpers
+    # --------------------------------------------------
+
+    def to_dict(
+        self,
+    ) -> dict:
+
+        data = {}
+
+
+        for key, value in self.__dict__.items():
+
+            if isinstance(
+                value,
+                Path,
+            ):
+
+                data[key] = str(
+                    value
+                )
+
+            else:
+
+                data[key] = value
+
+
+        return data
+
+
 
     @classmethod
     def from_dict(
-
         cls,
-
-        root,
-
-        data,
-
+        data: dict,
     ):
 
+        if "root" in data:
+
+            data["root"] = Path(
+                data["root"]
+            )
+
+
         return cls(
-
-            name=data.get(
-
-                "name",
-
-                "",
-
-            ),
-
-            root=Path(root),
-
-            version=data.get(
-
-                "version",
-
-                "1.0",
-
-            ),
-
-            created=data.get(
-
-                "created",
-
-                datetime.now().isoformat(),
-
-            ),
-
-            modified=data.get(
-
-                "modified",
-
-                datetime.now().isoformat(),
-
-            ),
-
-            description=data.get(
-
-                "description",
-
-                "",
-
-            ),
-
-            author=data.get(
-
-                "author",
-
-                "",
-
-            ),
-
-            pdf_file=data.get(
-
-                "pdf_file",
-
-                "",
-
-            ),
-
-            ocr_file=data.get(
-
-                "ocr_file",
-
-                "",
-
-            ),
-
-            translation_file=data.get(
-
-                "translation_file",
-
-                "",
-
-            ),
-
-            narration_file=data.get(
-
-                "narration_file",
-
-                "",
-
-            ),
-
-            audiobook_file=data.get(
-
-                "audiobook_file",
-
-                "",
-
-            ),
-
-            podcast_file=data.get(
-
-                "podcast_file",
-
-                "",
-
-            ),
-
-            video_file=data.get(
-
-                "video_file",
-
-                "",
-
-            ),
-
-            subtitle_file=data.get(
-
-                "subtitle_file",
-
-                "",
-
-            ),
-
-            cover_image=data.get(
-
-                "cover_image",
-
-                "",
-
-            ),
-
-            thumbnail=data.get(
-
-                "thumbnail",
-
-                "",
-
-            ),
-
-            language=data.get(
-
-                "language",
-
-                "en",
-
-            ),
-
-            voice=data.get(
-
-                "voice",
-
-                "",
-
-            ),
-
-            output_directory=data.get(
-
-                "output_directory",
-
-                "output",
-
-            ),
-
-            auto_save=data.get(
-
-                "auto_save",
-
-                True,
-
-            ),
-
+            **data
         )
 
-    # --------------------------------------------------
-    # Version
-    # --------------------------------------------------
 
-    def is_version_supported(self) -> bool:
-
-        return self.version.startswith("1.")
 
     # --------------------------------------------------
-    # Metadata
+    # Debug
     # --------------------------------------------------
 
-    @property
-    def metadata(self):
+    def __repr__(
+        self,
+    ):
 
-        return {
-
-            "name": self.name,
-
-            "author": self.author,
-
-            "language": self.language,
-
-            "voice": self.voice,
-
-            "version": self.version,
-
-            "created": self.created,
-
-            "modified": self.modified,
-
-        }
+        return (
+            f"<Project "
+            f"name={self.name!r} "
+            f"root={str(self.root)!r} "
+            f"status={self.status!r}>"
+        )
