@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
     # Project Controller
     # --------------------------------------------------
 
-        def set_project_controller(
+    def set_project_controller(
 
         self,
 
@@ -465,30 +465,32 @@ class MainWindow(QMainWindow):
 
         def update_project_title(self):
 
-        if (
+    title = "AI Content Studio"
 
-            self.project_controller
+    if (
 
-            and
+        self.project_controller
 
-            self.project_controller.has_project()
+        and
 
-        ):
+        self.project_controller.has_project()
 
-            self.setWindowTitle(
+    ):
 
-                f"AI Content Studio - {self.project_controller.project_name()}"
+        title += (
 
-            )
+            " - "
 
-        else:
+            + self.project_controller.project_name()
 
-            self.setWindowTitle(
+        )
 
-                "AI Content Studio"
+        if self.project_controller.is_modified():
 
-            )
-    # --------------------------------------------------
+            title += " *"
+
+    self.setWindowTitle(title)
+    #0 --------------------------------------------------
     # Recent Projects
     # --------------------------------------------------
 
