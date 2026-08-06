@@ -16,13 +16,12 @@ class TTSController(QObject):
     """
     Controls background TTS generation.
 
-    Creates the worker thread, forwards progress to the UI,
-    and exposes a simple API for starting and stopping
-    narration generation.
+    Creates the worker thread, forwards progress
+    to the UI and manages the worker lifecycle.
     """
 
     # --------------------------------------------------
-    # Signals forwarded to UI
+    # Signals
     # --------------------------------------------------
 
     generation_started = Signal()
@@ -49,6 +48,10 @@ class TTSController(QObject):
 
         self._running = False
 
+        self._last_session = None
+
+        self._last_output = ""
+
     # --------------------------------------------------
     # Thread creation
     # --------------------------------------------------
@@ -59,7 +62,9 @@ class TTSController(QObject):
 
         self.worker = TTSWorker()
 
-        self.worker.moveToThread(self.thread)
+        self.worker.moveToThread(
+            self.thread
+        )
 
         # ---------- Thread ----------
 
@@ -114,9 +119,8 @@ class TTSController(QObject):
         self.thread.finished.connect(
             self.worker.deleteLater
         )
-
     # --------------------------------------------------
-    # Start generation
+    # Start Generation
     # --------------------------------------------------
 
     def generate(
@@ -141,11 +145,31 @@ class TTSController(QObject):
 
             )
 
+        if not text.strip():
+
+            raise ValueError(
+
+                "Text cannot be empty."
+
+            )
+
         output_directory = str(
 
             Path(output_directory)
 
         )
+
+        Path(output_directory).mkdir(
+
+            parents=True,
+
+            exist_ok=True,
+
+        )
+
+        self._last_session = None
+
+        self._last_output = ""
 
         self._create_worker()
 
@@ -173,6 +197,10 @@ class TTSController(QObject):
 
         return self._running
 
+    def ready(self):
+
+        return not self._running
+
     def worker_instance(self):
 
         return self.worker
@@ -180,46 +208,96 @@ class TTSController(QObject):
     def thread_instance(self):
 
         return self.thread
+
     # --------------------------------------------------
     # Cancel
     # --------------------------------------------------
 
     def cancel(self):
 
-        if self.worker and self._running:
+        if not self._running:
+
+            return
+
+        if self.worker:
 
             self.worker.request_cancel()
-
     # --------------------------------------------------
-    # Slots
+    # Worker Slots
     # --------------------------------------------------
 
     def _on_started(self):
 
+        self.log_message.emit(
+            "TTS generation started."
+        )
+
         self.generation_started.emit()
 
-    def _on_progress(self, progress):
+    def _on_progress(
+        self,
+        progress,
+    ):
 
-        self.generation_progress.emit(progress)
+        self.generation_progress.emit(
+            progress
+        )
 
-    def _on_finished(self, session):
+    def _on_finished(
+        self,
+        session,
+    ):
 
         self._running = False
 
-        self.generation_finished.emit(session)
+        self._last_session = session
 
-    def _on_failed(self, message):
+        try:
+
+            if session is not None:
+
+                self._last_output = getattr(
+                    session,
+                    "output_file",
+                    "",
+                )
+
+        except Exception:
+
+            self._last_output = ""
+
+        self.log_message.emit(
+            "TTS generation completed."
+        )
+
+        self.generation_finished.emit(
+            session
+        )
+
+    def _on_failed(
+        self,
+        message,
+    ):
 
         self._running = False
 
-        self.generation_failed.emit(message)
+        self.log_message.emit(
+            f"TTS generation failed: {message}"
+        )
+
+        self.generation_failed.emit(
+            message
+        )
 
     def _on_cancelled(self):
 
         self._running = False
 
-        self.generation_cancelled.emit()
+        self.log_message.emit(
+            "TTS generation cancelled."
+        )
 
+        self.generation_cancelled.emit()
     # --------------------------------------------------
     # Session Information
     # --------------------------------------------------
@@ -230,21 +308,43 @@ class TTSController(QObject):
 
             return self.worker.session
 
-        return None
+        return self._last_session
 
     def session_id(self):
 
+        session = self.session()
+
+        if session and hasattr(session, "id"):
+
+            return session.id
+
         if self.worker:
 
-            return self.worker.session_id()
+            try:
+
+                return self.worker.session_id()
+
+            except Exception:
+
+                pass
 
         return None
 
     def output_file(self):
 
+        if self._last_output:
+
+            return self._last_output
+
         if self.worker:
 
-            return self.worker.output_file()
+            try:
+
+                return self.worker.output_file()
+
+            except Exception:
+
+                pass
 
         return ""
 
@@ -252,7 +352,13 @@ class TTSController(QObject):
 
         if self.worker:
 
-            return self.worker.progress_percent()
+            try:
+
+                return self.worker.progress_percent()
+
+            except Exception:
+
+                pass
 
         return 0
 
@@ -264,7 +370,13 @@ class TTSController(QObject):
 
         if self.worker:
 
-            return self.worker.statistics()
+            try:
+
+                return self.worker.statistics()
+
+            except Exception:
+
+                pass
 
         return {}
 
@@ -314,17 +426,19 @@ class TTSController(QObject):
 
         if self.worker:
 
-            return self.worker.is_finished()
+            try:
 
-        return False
+                return self.worker.is_finished()
+
+            except Exception:
+
+                pass
+
+        return not self._running
 
     def has_session(self):
 
         return self.session() is not None
-
-    def ready(self):
-
-        return not self._running
 
     # --------------------------------------------------
     # Output
@@ -344,7 +458,7 @@ class TTSController(QObject):
 
         session = self.session()
 
-        if session:
+        if session and hasattr(session, "duration"):
 
             return session.duration
 
