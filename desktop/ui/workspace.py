@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtCore import Signal
 
 from PySide6.QtWidgets import (
@@ -16,38 +17,26 @@ class Workspace(QWidget):
     """
     Main production workspace.
 
-    Handles the editor area after a project
-    has been opened.
-
-    Responsibilities:
-    - Host production tools
-    - Manage tabs
-    - Refresh project views
-
-    Business operations are handled by
-    ProjectController/backend services.
+    Hosts all production tabs while business
+    logic remains inside controllers.
     """
 
     projectOpened = Signal(str)
 
     projectClosed = Signal()
 
+    tabChanged = Signal(int)
 
     def __init__(
         self,
         parent=None,
     ):
 
-        super().__init__(
-            parent
-        )
-
+        super().__init__(parent)
 
         self.current_project = None
 
-
         self.tabs = None
-
 
         self.pdf_page = None
 
@@ -61,9 +50,9 @@ class Workspace(QWidget):
 
         self.narration_panel = None
 
+        self._busy = False
 
         self._build_ui()
-
 
     # --------------------------------------------------
     # UI Construction
@@ -73,22 +62,30 @@ class Workspace(QWidget):
         self,
     ):
 
-        layout = QVBoxLayout(
-            self
-        )
+        layout = QVBoxLayout(self)
 
+        layout.setContentsMargins(
+            8,
+            8,
+            8,
+            8,
+        )
 
         self.tabs = QTabWidget()
 
+        self.tabs.setDocumentMode(True)
+
+        self.tabs.setMovable(False)
+
+        self.tabs.currentChanged.connect(
+            self.tabChanged.emit
+        )
 
         layout.addWidget(
             self.tabs
         )
 
-
         self._create_tabs()
-
-
     # --------------------------------------------------
     # Tabs
     # --------------------------------------------------
@@ -108,6 +105,7 @@ class Workspace(QWidget):
         self._create_video_tab()
 
         self._create_export_tab()
+
     # --------------------------------------------------
     # Tab Creation
     # --------------------------------------------------
@@ -121,15 +119,16 @@ class Workspace(QWidget):
             "PDF processing workspace."
         )
 
-        self.pdf_page.setWordWrap(
-            True
+        self.pdf_page.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
         )
+
+        self.pdf_page.setWordWrap(True)
 
         self.tabs.addTab(
             self.pdf_page,
             "PDF",
         )
-
 
     def _create_ocr_tab(
         self,
@@ -140,15 +139,16 @@ class Workspace(QWidget):
             "OCR processing tools."
         )
 
-        self.ocr_page.setWordWrap(
-            True
+        self.ocr_page.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
         )
+
+        self.ocr_page.setWordWrap(True)
 
         self.tabs.addTab(
             self.ocr_page,
             "OCR",
         )
-
 
     def _create_narration_tab(
         self,
@@ -161,7 +161,6 @@ class Workspace(QWidget):
             "Narration",
         )
 
-
     def _create_translation_tab(
         self,
     ):
@@ -171,15 +170,16 @@ class Workspace(QWidget):
             "Translation tools."
         )
 
-        self.translation_page.setWordWrap(
-            True
+        self.translation_page.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
         )
+
+        self.translation_page.setWordWrap(True)
 
         self.tabs.addTab(
             self.translation_page,
             "Translation",
         )
-
 
     def _create_video_tab(
         self,
@@ -190,15 +190,16 @@ class Workspace(QWidget):
             "Video generation tools."
         )
 
-        self.video_page.setWordWrap(
-            True
+        self.video_page.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
         )
+
+        self.video_page.setWordWrap(True)
 
         self.tabs.addTab(
             self.video_page,
             "Video",
         )
-
 
     def _create_export_tab(
         self,
@@ -209,9 +210,11 @@ class Workspace(QWidget):
             "Export and publishing tools."
         )
 
-        self.export_page.setWordWrap(
-            True
+        self.export_page.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
         )
+
+        self.export_page.setWordWrap(True)
 
         self.tabs.addTab(
             self.export_page,
@@ -225,24 +228,21 @@ class Workspace(QWidget):
         self,
         project,
     ):
-
         """
         Load project into workspace.
-
-        Project data handling remains outside
-        this widget.
         """
 
         self.current_project = project
 
+        self._busy = False
 
         self.refresh()
 
+        self.open_pdf_tab()
 
         self.projectOpened.emit(
             str(project)
         )
-
 
     def close_project(
         self,
@@ -250,12 +250,11 @@ class Workspace(QWidget):
 
         self.current_project = None
 
+        self._busy = False
 
         self.clear()
 
-
         self.projectClosed.emit()
-
 
     # --------------------------------------------------
     # Refresh
@@ -265,10 +264,6 @@ class Workspace(QWidget):
         self,
     ):
 
-        """
-        Refresh all child widgets.
-        """
-
         if self.narration_panel:
 
             if hasattr(
@@ -276,9 +271,34 @@ class Workspace(QWidget):
                 "refresh",
             ):
 
-                self.narration_panel.refresh()
+                try:
 
+                    self.narration_panel.refresh()
 
+                except Exception:
+
+                    pass
+
+    # --------------------------------------------------
+    # Workspace State
+    # --------------------------------------------------
+
+    def set_busy(
+        self,
+        busy: bool,
+    ):
+
+        self._busy = busy
+
+        self.tabs.setEnabled(
+            not busy
+        )
+
+    def is_busy(
+        self,
+    ) -> bool:
+
+        return self._busy
 
     # --------------------------------------------------
     # Tab Helpers
@@ -290,13 +310,11 @@ class Workspace(QWidget):
 
         return self.narration_panel
 
-
     def current_tab(
         self,
     ) -> int:
 
         return self.tabs.currentIndex()
-
 
     def set_current_tab(
         self,
@@ -309,88 +327,46 @@ class Workspace(QWidget):
                 index
             )
 
+    def current_tab_name(
+        self,
+    ) -> str:
+
+        return self.tabs.tabText(
+            self.tabs.currentIndex()
+        )
 
     def open_pdf_tab(
         self,
     ):
 
-        self.set_current_tab(
-            0
-        )
-
+        self.set_current_tab(0)
 
     def open_ocr_tab(
         self,
     ):
 
-        self.set_current_tab(
-            1
-        )
-
+        self.set_current_tab(1)
 
     def open_narration_tab(
         self,
     ):
 
-        self.set_current_tab(
-            2
-        )
-
+        self.set_current_tab(2)
 
     def open_translation_tab(
         self,
     ):
 
-        self.set_current_tab(
-            3
-        )
-
+        self.set_current_tab(3)
 
     def open_video_tab(
         self,
     ):
 
-        self.set_current_tab(
-            4
-        )
-
+        self.set_current_tab(4)
 
     def open_export_tab(
         self,
     ):
 
-        self.set_current_tab(
-            5
-        )
-
-
-    # --------------------------------------------------
-    # Cleanup
-    # --------------------------------------------------
-
-    def clear(
-        self,
-    ):
-
-        """
-        Clear project-specific UI state.
-        """
-
-        if self.narration_panel:
-
-            if hasattr(
-                self.narration_panel,
-                "clear",
-            ):
-
-                self.narration_panel.clear()
-
-
-
-    def dispose(
-        self,
-    ):
-
-        self.clear()
-
-        self.current_project = None
+        self.set_current_tab(5)
