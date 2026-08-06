@@ -18,20 +18,14 @@ class TTSWorker(QObject):
     """
     Background worker for narration generation.
 
-    This object lives inside a QThread.
-
-    Responsibilities
-
-    • Run the TTSPipeline
-    • Emit progress updates
-    • Support cancellation
-    • Report completion
-    • Report errors
+    Lives inside a QThread and executes the
+    backend TTSPipeline while forwarding
+    progress updates to the UI.
     """
 
-    # -----------------------------------------
+    # --------------------------------------------------
     # Signals
-    # -----------------------------------------
+    # --------------------------------------------------
 
     started = Signal()
 
@@ -45,11 +39,11 @@ class TTSWorker(QObject):
 
     log = Signal(str)
 
-    # -----------------------------------------
+    # --------------------------------------------------
 
-    def __init__(self):
+    def __init__(self, parent=None):
 
-        super().__init__()
+        super().__init__(parent)
 
         self.pipeline = TTSPipeline()
 
@@ -59,54 +53,65 @@ class TTSWorker(QObject):
 
         self._running = False
 
-        self.reference_audio = ""
+        self.reference_audio: str = ""
 
-        self.reference_text = ""
+        self.reference_text: str = ""
 
-        self.text = ""
+        self.text: str = ""
 
-        self.output_directory = ""
+        self.output_directory: Optional[Path] = None
 
+        self.voice_name: str = ""
+
+        self.language: str = "en"
+
+    # --------------------------------------------------
+    # Properties
+    # --------------------------------------------------
+
+    @property
+    def running(self) -> bool:
+
+        return self._running
+
+    @property
+    def cancel_requested(self) -> bool:
+
+        return self._cancel_requested
     # -----------------------------------------
     # Configure
     # -----------------------------------------
 
     def configure(
-
         self,
-
         reference_audio,
-
         reference_text,
-
         text,
-
         output_directory,
-
+        voice_name: str = "",
+        language: str = "en",
     ):
 
-        self.reference_audio = reference_audio
+        self.reference_audio = str(
+            reference_audio
+        )
 
-        self.reference_text = reference_text
+        self.reference_text = (
+            reference_text or ""
+        )
 
-        self.text = text
+        self.text = text or ""
 
-        self.output_directory = output_directory
+        self.output_directory = str(
+            output_directory
+        )
+
+        self.voice_name = voice_name
+
+        self.language = language
 
     # -----------------------------------------
-
-    @property
-    def running(self):
-
-        return self._running
-
-    # -----------------------------------------
-
-    @property
-    def cancel_requested(self):
-
-        return self._cancel_requested
-
+    # Reset
     # -----------------------------------------
 
     def reset(self):
@@ -118,292 +123,176 @@ class TTSWorker(QObject):
         self.session = None
 
     # -----------------------------------------
+    # Cancel
+    # -----------------------------------------
 
     def request_cancel(self):
 
+        if self._cancel_requested:
+            return
+
         self.log.emit(
-
-            "Cancellation requested."
-
+            "Cancellation requested..."
         )
 
         self._cancel_requested = True
 
+        if (
+            self.session is not None
+            and hasattr(
+                self.session,
+                "cancel",
+            )
+        ):
+            try:
+                self.session.cancel()
+            except Exception:
+                pass
     # -----------------------------------------
-    # Progress callback
+    # Progress Callback
     # -----------------------------------------
 
     def progress_callback(
-
         self,
-
         progress: TTSProgress,
-
     ):
 
         if self._cancel_requested:
 
             raise RuntimeError(
-
-                "Generation cancelled."
-
+                "TTS generation cancelled."
             )
 
-        self.progress.emit(progress)
+
+        self.progress.emit(
+            progress
+        )
+
 
     # -----------------------------------------
-    # Utilities
+    # Output Directory
     # -----------------------------------------
 
-    def create_chunks(
-
+    def ensure_output_directory(
         self,
+    ) -> Path:
 
-        text,
+        output = Path(
+            self.output_directory
+        )
 
+        output.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        return output
+
+
+    # -----------------------------------------
+    # Logging
+    # -----------------------------------------
+
+    def write_log(
+        self,
+        message: str,
     ):
 
-        manager = self.pipeline.generator
+        self.log.emit(
+            message
+        )
 
-        if hasattr(
-
-            manager,
-
-            "create_chunks",
-
-        ):
-
-            return manager.create_chunks(text)
-
-        return [
-
-            text
-
-        ]
 
     # -----------------------------------------
+    # Validation
+    # -----------------------------------------
 
-    def ensure_output_directory(self):
+    def validate_inputs(
+        self,
+    ):
 
-        path = Path(
+        if not self.text.strip():
 
-            self.output_directory
+            raise ValueError(
+                "Input text is empty."
+            )
 
-        )
 
-        path.mkdir(
+        if not self.output_directory:
 
-            parents=True,
+            raise ValueError(
+                "Output directory not configured."
+            )
 
-            exist_ok=True,
 
-        )
-
-        return path
+        self.ensure_output_directory()
     # --------------------------------------------------
-    # Run
+    # Worker Execution
     # --------------------------------------------------
 
     @Slot()
     def run(self):
-        """
-        Execute narration generation.
-        """
 
-        self.reset()
+        if self._running:
+
+            return
 
         self._running = True
+
+        self._cancel_requested = False
 
         self.started.emit()
 
         try:
 
-            self.log.emit(
-                "Initializing TTS pipeline..."
-            )
+            self.validate_inputs()
 
-            self.pipeline.initialize()
-
-            self.ensure_output_directory()
-
-            self.log.emit(
-                "Creating session..."
+            self.write_log(
+                "Starting TTS generation..."
             )
 
             self.session = self.pipeline.create_session(
-
                 reference_audio=self.reference_audio,
-
                 reference_text=self.reference_text,
-
                 text=self.text,
-
+                output_directory=self.output_directory,
+                voice_name=self.voice_name,
+                language=self.language,
             )
 
-            self.log.emit(
-                "Preparing text..."
-            )
-
-            chunks = self.create_chunks(
-                self.text
-            )
-
-            if not chunks:
-
-                raise RuntimeError(
-                    "No text chunks generated."
-                )
-
-            self.log.emit(
-
-                f"{len(chunks)} chunk(s) prepared."
-
-            )
-
-            self.session.total_chunks = len(
-                chunks
-            )
-
-            self.log.emit(
-                "Generating narration..."
-            )
-
-            self.pipeline.run(
-
-                session=self.session,
-
-                chunks=chunks,
-
+            result = self.pipeline.run(
+                self.session,
                 progress_callback=self.progress_callback,
-
             )
 
             if self._cancel_requested:
 
-                self.session.cancel()
+                self.write_log(
+                    "TTS generation cancelled."
+                )
 
                 self.cancelled.emit()
 
                 return
 
-            self.log.emit(
-                "Generation completed."
+            self.write_log(
+                "TTS generation completed."
             )
 
             self.finished.emit(
-                self.session
+                result
             )
 
         except Exception as exc:
 
-            if self.session:
+            self.write_log(
+                f"TTS failed: {exc}"
+            )
 
-                self.session.fail(
-                    str(exc)
-                )
-
-            if self._cancel_requested:
-
-                self.cancelled.emit()
-
-            else:
-
-                self.failed.emit(
-                    str(exc)
-                )
+            self.failed.emit(
+                str(exc)
+            )
 
         finally:
 
-            try:
-
-                self.pipeline.shutdown()
-
-            except Exception:
-
-                pass
-
             self._running = False
-
-    # --------------------------------------------------
-    # Status
-    # --------------------------------------------------
-
-    def session_id(self):
-
-        if self.session:
-
-            return self.session.id
-
-        return None
-
-    def output_file(self):
-
-        if self.session:
-
-            return self.session.output_file
-
-        return ""
-
-    def progress_percent(self):
-
-        if self.session:
-
-            return self.session.progress
-
-        return 0
-
-    # --------------------------------------------------
-    # Cleanup
-    # --------------------------------------------------
-
-    def cleanup(self):
-
-        if self.session:
-
-            try:
-
-                self.pipeline.cleanup_chunks(
-                    self.session
-                )
-
-            except Exception:
-
-                pass
-
-    # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def statistics(self):
-
-        return self.pipeline.statistics()
-
-    def is_finished(self):
-
-        if self.session is None:
-
-            return False
-
-        return self.session.is_finished
-
-    def is_running(self):
-
-        return self._running
-
-    # --------------------------------------------------
-    # Reset
-    # --------------------------------------------------
-
-    def clear(self):
-
-        self.cleanup()
-
-        self.reset()
-
-        self.reference_audio = ""
-
-        self.reference_text = ""
-
-        self.text = ""
-
-        self.output_directory = ""
