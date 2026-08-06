@@ -4,346 +4,464 @@ from pathlib import Path
 
 from backend.project.exceptions import (
     ProjectExistsError,
+    ProjectNotFoundError,
 )
 
 from backend.project.project import Project
+
 from backend.project.serializer import (
     ProjectSerializer,
 )
+
 from backend.project.validator import (
     ProjectValidator,
 )
 
 
+
 class ProjectManager:
     """
-    Create/Open/Save AI Content Studio projects.
+    Central backend service for project lifecycle.
+
+    Responsibilities:
+    - Create projects
+    - Open projects
+    - Save projects
+    - Close projects
+    - Track current project state
+
+    UI logic must not exist here.
     """
 
-    def __init__(self):
 
-        self.project = None
+    def __init__(
+        self,
+    ):
 
-        self.modified = False
+        self.project: Project | None = None
+
+        self.modified: bool = False
+
+
 
     # --------------------------------------------------
     # Properties
     # --------------------------------------------------
 
     @property
-    def current(self):
+    def current(
+        self,
+    ) -> Project | None:
 
         return self.project
 
-    def has_project(self):
 
-        return self.project is not None
 
-    # --------------------------------------------------
-    # Create
-    # --------------------------------------------------
-
-    def create(
-
+    def has_project(
         self,
+    ) -> bool:
 
-        name,
-
-        root,
-
-    ):
-
-        root = Path(root)
-
-        if root.exists() and (
-            root / "project.json"
-        ).exists():
-
-            raise ProjectExistsError(
-                "Project already exists."
-            )
-
-        project = Project(
-            name=name,
-            root=root,
+        return (
+            self.project is not None
         )
 
-        project.create_directories()
+
+
+    def project_root(
+        self,
+    ) -> Path | None:
+
+        if not self.project:
+
+            return None
+
+
+        return self.project.root
+
+
+
+    # --------------------------------------------------
+    # State Management
+    # --------------------------------------------------
+
+    def set_current(
+        self,
+        project: Project,
+    ):
+
+        self.project = project
+
+        self.modified = False
+
+
+
+    def mark_modified(
+        self,
+    ):
+
+        self.modified = True
+
+
+
+    def clear_modified(
+        self,
+    ):
+
+        self.modified = False
+
+
+
+    def has_changes(
+        self,
+    ) -> bool:
+
+        return self.modified
+    # --------------------------------------------------
+    # Create Project
+    # --------------------------------------------------
+
+    def create_project(
+        self,
+        path: str | Path,
+    ) -> Project:
+
+        project_path = Path(
+            path
+        )
+
+
+        if project_path.exists():
+
+            if any(
+                project_path.iterdir()
+            ):
+
+                raise ProjectExistsError(
+                    "Project directory already exists and is not empty"
+                )
+
+
+        else:
+
+            project_path.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+
+        project = Project(
+            root=project_path
+        )
+
+
+        ProjectValidator.validate_structure(
+            project
+        )
+
 
         ProjectSerializer.save(
             project
         )
 
-        self.project = project
 
-        self.modified = False
+        self.set_current(
+            project
+        )
+
 
         return project
 
+
+
     # --------------------------------------------------
-    # Open
+    # Load Project
     # --------------------------------------------------
 
-    def open(
-
+    def load_project(
         self,
+        path: str | Path,
+    ) -> Project:
 
-        root,
+        project_path = Path(
+            path
+        )
 
-    ):
 
-        root = Path(root)
+        if not project_path.exists():
 
-        ProjectValidator.validate(root)
-
-        project = ProjectSerializer.load(root)
-
-        if not project.is_version_supported():
-
-            raise RuntimeError(
-                f"Unsupported project version: {project.version}"
+            raise ProjectNotFoundError(
+                f"Project not found: {project_path}"
             )
 
-        self.project = project
 
-        self.modified = False
+        project = (
+            ProjectSerializer.load(
+                project_path
+            )
+        )
 
-        return self.project
+
+        ProjectValidator.validate_structure(
+            project
+        )
+
+
+        self.set_current(
+            project
+        )
+
+
+        return project
+
+
 
     # --------------------------------------------------
-    # Save
+    # Validation
     # --------------------------------------------------
 
-    def save(self):
+    def validate_current(
+        self,
+    ) -> bool:
 
-        if not self.has_project():
+        if not self.project:
 
             return False
+
+
+        return (
+            ProjectValidator.validate_structure(
+                self.project
+            )
+        )
+    # --------------------------------------------------
+    # Save Project
+    # --------------------------------------------------
+
+    def save_project(
+        self,
+    ):
+
+        if not self.project:
+
+            raise RuntimeError(
+                "No project is currently open"
+            )
+
 
         ProjectSerializer.save(
             self.project
         )
 
+
         self.clear_modified()
 
-        return True
+
 
     # --------------------------------------------------
     # Save As
     # --------------------------------------------------
 
     def save_as(
-
         self,
-
-        new_root,
-
+        path: str | Path,
     ):
 
-        if not self.has_project():
+        if not self.project:
 
-            return False
+            raise RuntimeError(
+                "No project is currently open"
+            )
 
-        self.project.root = Path(new_root)
 
-        self.project.create_directories()
-
-        self.save()
-
-        return True
-
-    # --------------------------------------------------
-    # Close
-    # --------------------------------------------------
-
-    def close(self):
-
-        self.project = None
-
-        self.modified = False
-
-    # --------------------------------------------------
-    # Auto Save
-    # --------------------------------------------------
-
-    def auto_save(self):
-
-        if not self.has_project():
-
-            return False
-
-        if not self.project.auto_save:
-
-            return False
-
-        self.save()
-
-        return True
-
-    # --------------------------------------------------
-    # Status
-    # --------------------------------------------------
-
-    def project_name(self):
-
-        if not self.has_project():
-
-            return ""
-
-        return self.project.name
-
-    def project_root(self):
-
-        if not self.has_project():
-
-            return None
-
-        return self.project.root
-
-    def project_file(self):
-
-        if not self.has_project():
-
-            return None
-
-        return self.project.project_file
-
-    # --------------------------------------------------
-    # Helpers
-    # --------------------------------------------------
-
-    def touch(self):
-
-        if self.has_project():
-
-            self.project.touch()
-
-    def exists(self):
-
-        if not self.has_project():
-
-            return False
-
-        return self.project.exists()
-
-    def refresh(self):
-
-        if not self.has_project():
-
-            return None
-
-        self.project = ProjectSerializer.load(
-            self.project.root
+        new_path = Path(
+            path
         )
+
+
+        new_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+
+        self.project.root = (
+            new_path
+        )
+
+
+        ProjectValidator.validate_structure(
+            self.project
+        )
+
+
+        ProjectSerializer.save(
+            self.project
+        )
+
+
+        self.clear_modified()
+
 
         return self.project
 
+
+
     # --------------------------------------------------
-    # Dirty State
+    # Close Project
     # --------------------------------------------------
 
-    def is_modified(self):
-
-        return self.modified
-
-    def set_modified(
-
+    def close_project(
         self,
-
-        modified=True,
-
     ):
 
-        self.modified = bool(modified)
+        if not self.project:
 
-        if self.modified:
+            return
 
-            self.touch()
 
-    def clear_modified(self):
+        self.project = None
 
-        self.modified = False
+
+        self.clear_modified()
+
+
 
     # --------------------------------------------------
-    # Validation
+    # Refresh Project
     # --------------------------------------------------
 
-    def validate(self):
+    def refresh(
+        self,
+    ):
 
-        if not self.has_project():
+        if not self.project:
 
-            return False
+            return None
 
-        return ProjectValidator.validate(
-            self.project.root
+
+        self.project = (
+            ProjectSerializer.load(
+                self.project.root
+            )
         )
 
+
+        self.clear_modified()
+
+
+        return self.project
     # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def project_metadata(self):
-
-        if not self.has_project():
-
-            return {}
-
-        return self.project.metadata
-
-    def project_version(self):
-
-        if not self.has_project():
-
-            return ""
-
-        return self.project.version
-
-    def is_supported(self):
-
-        if not self.has_project():
-
-            return False
-
-        return self.project.is_version_supported()
-
-    # --------------------------------------------------
-    # Statistics
+    # Refresh Current Project
     # --------------------------------------------------
 
-    def statistics(self):
+    def refresh(
+        self,
+    ):
 
-        if not self.has_project():
+        if not self.project:
 
-            return {}
+            return None
 
-        return {
 
-            "name": self.project.name,
+        ProjectValidator.validate_structure(
+            self.project
+        )
 
-            "version": self.project.version,
 
-            "language": self.project.language,
+        return self.project
 
-            "author": self.project.author,
 
-            "modified": self.modified,
 
-            "has_pdf": self.project.has_pdf(),
+    # --------------------------------------------------
+    # Reload Current Project
+    # --------------------------------------------------
 
-            "has_ocr": self.project.has_ocr(),
+    def reload(
+        self,
+    ):
 
-            "has_translation": self.project.has_translation(),
+        if not self.project:
 
-            "has_narration": self.project.has_narration(),
+            raise ProjectNotFoundError(
+                "No project is currently open"
+            )
 
-            "has_audiobook": self.project.has_audiobook(),
 
-            "has_podcast": self.project.has_podcast(),
+        root = self.project.root
 
-            "has_video": self.project.has_video(),
 
-            "has_subtitles": self.project.has_subtitles(),
+        project = (
+            ProjectSerializer.load(
+                root
+            )
+        )
 
-            "has_cover": self.project.has_cover(),
 
-        }
+        self.set_current(
+            project
+        )
+
+
+        return project
+
+
+
+    # --------------------------------------------------
+    # Project Information
+    # --------------------------------------------------
+
+    def project_name(
+        self,
+    ) -> str | None:
+
+        if not self.project:
+
+            return None
+
+
+        return getattr(
+            self.project,
+            "name",
+            None,
+        )
+
+
+
+    def project_exists(
+        self,
+        path: str | Path,
+    ) -> bool:
+
+        project_path = Path(
+            path
+        )
+
+
+        return (
+            project_path.exists()
+            and
+            project_path.is_dir()
+        )
+
+
+
+    # --------------------------------------------------
+    # Cleanup
+    # --------------------------------------------------
+
+    def dispose(
+        self,
+    ):
+
+        try:
+
+            if self.project:
+
+                self.close_project()
+
+
+        finally:
+
+            self.project = None
+
+            self.modified = False
