@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
+from backend.project.manager import ProjectManager
+
 
 class ProjectController(QObject):
     """
-    Controls the currently opened project.
+    Connects the UI with the backend ProjectManager.
     """
 
     projectOpened = Signal(Path)
@@ -20,93 +24,114 @@ class ProjectController(QObject):
 
         super().__init__()
 
-        self.project_path = None
+        self.manager = ProjectManager()
 
-        self.modified = False
+    # --------------------------------------------------
+    # Properties
+    # --------------------------------------------------
+
+    @property
+    def current(self):
+
+        return self.manager.current
+
+    def has_project(self):
+
+        return self.manager.has_project()
 
     # --------------------------------------------------
     # Project Operations
     # --------------------------------------------------
 
-    def new_project(self):
+    def create_project(
 
-        self.project_path = None
+        self,
 
-        self.modified = False
+        name,
 
-    def open_project(self, path: Path):
+        root,
 
-        self.project_path = Path(path)
+    ):
 
-        self.modified = False
+        project = self.manager.create(
 
-        self.projectOpened.emit(
+            name,
 
-            self.project_path
+            root,
 
         )
 
+        self.projectOpened.emit(
+
+            project.root
+
+        )
+
+        return project
+
+    def open_project(
+
+        self,
+
+        root,
+
+    ):
+
+        project = self.manager.open(
+
+            root,
+
+        )
+
+        self.projectOpened.emit(
+
+            project.root
+
+        )
+
+        return project
+
     def save_project(self):
 
-        if self.project_path is None:
+        if self.manager.save():
 
-            return
+            self.projectSaved.emit(
 
-        self.clear_modified()
+                self.manager.project_root()
 
-        self.projectSaved.emit(
+            )
 
-            self.project_path
+            return True
+
+        return False
+
+    def save_project_as(
+
+        self,
+
+        root,
+
+    ):
+
+        return self.manager.save_as(
+
+            root,
 
         )
 
     def close_project(self):
 
-        self.project_path = None
-
-        self.modified = False
+        self.manager.close()
 
         self.projectClosed.emit()
 
-    # --------------------------------------------------
-    # Helpers
-    # --------------------------------------------------
+    def auto_save(self):
 
-    def has_project(self):
-
-        return self.project_path is not None
-
-    def current_project(self):
-
-        return self.project_path
-
-    def project_name(self):
-
-        if self.project_path is None:
-
-            return None
-
-        return self.project_path.name
-
-    # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def project_directory(self):
-
-        return self.project_path
-
-    def is_open(self):
-
-        return self.project_path is not None
+        return self.manager.auto_save()
 
     # --------------------------------------------------
     # Dirty State
     # --------------------------------------------------
-
-    def is_modified(self):
-
-        return self.modified
 
     def set_modified(
 
@@ -116,20 +141,72 @@ class ProjectController(QObject):
 
     ):
 
-        modified = bool(modified)
+        self.manager.set_modified(
 
-        if self.modified == modified:
+            modified,
 
-            return
-
-        self.modified = modified
+        )
 
         self.projectModified.emit(
 
-            modified
+            self.manager.is_modified()
 
         )
 
     def clear_modified(self):
 
-        self.set_modified(False)
+        self.manager.clear_modified()
+
+        self.projectModified.emit(False)
+
+    def is_modified(self):
+
+        return self.manager.is_modified()
+
+    # --------------------------------------------------
+    # Information
+    # --------------------------------------------------
+
+    def project(self):
+
+        return self.manager.current
+
+    def project_name(self):
+
+        return self.manager.project_name()
+
+    def project_root(self):
+
+        return self.manager.project_root()
+
+    def project_file(self):
+
+        return self.manager.project_file()
+
+    def project_metadata(self):
+
+        return self.manager.project_metadata()
+
+    def statistics(self):
+
+        return self.manager.statistics()
+
+    # --------------------------------------------------
+    # Validation
+    # --------------------------------------------------
+
+    def validate(self):
+
+        return self.manager.validate()
+
+    def refresh(self):
+
+        return self.manager.refresh()
+
+    def exists(self):
+
+        return self.manager.exists()
+
+    def is_supported(self):
+
+        return self.manager.is_supported()
