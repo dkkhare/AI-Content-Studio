@@ -204,3 +204,233 @@ class MainWindow(QMainWindow):
         self.log(
             "Project closed."
         )
+    # --------------------------------------------------
+    # Project Events
+    # --------------------------------------------------
+
+    def _on_project_saved(
+        self,
+    ):
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+        self.statusBar().showMessage(
+            "Project saved."
+        )
+
+        self.log(
+            "Project saved successfully."
+        )
+
+
+    def _on_project_modified(
+        self,
+    ):
+
+        self.update_project_title()
+
+        self.update_action_states()
+
+
+    # --------------------------------------------------
+    # Dashboard / Workspace Switching
+    # --------------------------------------------------
+
+    def show_workspace(
+        self,
+    ):
+
+        if self.centralWidget() != self.workspace:
+
+            self.setCentralWidget(
+                self.workspace
+            )
+
+        self.workspace.show()
+
+
+    def show_dashboard(
+        self,
+    ):
+
+        if self.centralWidget() != self.dashboard:
+
+            self.setCentralWidget(
+                self.dashboard
+            )
+
+        self.dashboard.show()
+
+
+    # --------------------------------------------------
+    # Project Operations
+    # --------------------------------------------------
+
+    def new_project(
+        self,
+    ):
+
+        try:
+
+            path = ProjectDialogs.create_project(
+                self
+            )
+
+            if not path:
+                return
+
+
+            controller = ProjectController.create(
+                path
+            )
+
+            self.set_project_controller(
+                controller
+            )
+
+            controller.open()
+
+
+        except Exception as exc:
+
+            self.show_error(
+                "Unable to create project",
+                exc,
+            )
+
+            self.log(
+                f"Create project failed: {exc}"
+            )
+
+
+    def open_project(
+        self,
+        path=None,
+    ):
+
+        try:
+
+            if not path:
+
+                path = ProjectDialogs.open_project(
+                    self
+                )
+
+
+            if not path:
+                return
+
+
+            controller = ProjectController.open(
+                path
+            )
+
+
+            self.set_project_controller(
+                controller
+            )
+
+
+            controller.open()
+
+
+        except Exception as exc:
+
+            self.show_error(
+                "Unable to open project",
+                exc,
+            )
+
+            self.log(
+                f"Open project failed: {exc}"
+            )
+
+
+    def close_project(
+        self,
+    ):
+
+        try:
+
+            if self.project_controller:
+
+                self.project_controller.close()
+
+                self.project_controller = None
+
+
+        except Exception as exc:
+
+            self.show_error(
+                "Unable to close project",
+                exc,
+            )
+
+            self.log(
+                f"Close project failed: {exc}"
+            )
+
+
+    def save_project(
+        self,
+    ):
+
+        try:
+
+            if not self.project_controller:
+
+                return
+
+
+            self.project_controller.save()
+
+
+        except Exception as exc:
+
+            self.show_error(
+                "Unable to save project",
+                exc,
+            )
+
+            self.log(
+                f"Save project failed: {exc}"
+            )
+
+
+    def save_project_as(
+        self,
+    ):
+
+        try:
+
+            if not self.project_controller:
+
+                return
+
+
+            path = ProjectDialogs.save_as_project(
+                self
+            )
+
+
+            if not path:
+                return
+
+
+            self.project_controller.save_as(
+                path
+            )
+
+
+        except Exception as exc:
+
+            self.show_error(
+                "Unable to save project",
+                exc,
+            )
+
+            self.log(
+                f"Save As failed: {exc}"
+            )
