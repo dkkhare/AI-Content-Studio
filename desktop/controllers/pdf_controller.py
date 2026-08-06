@@ -28,6 +28,8 @@ class PDFController:
 
         self.engine = PDFEngine()
 
+        self.session = PDFSession()
+
         self.pdf = None
 
         self.filename = None
@@ -35,6 +37,12 @@ class PDFController:
         self.metadata = None
 
         self.project_folder = None
+
+        self.current_page = 1
+
+        self.zoom = 1.0
+
+        self.is_modified = False
 
     # --------------------------------------------------
     # Open PDF
@@ -58,23 +66,53 @@ class PDFController:
 
             return None
 
-        self.filename = filename
+        try:
 
-        self.pdf = self.engine.open(filename)
+            self.filename = filename
 
-        self.metadata = self.engine.metadata(self.pdf)
+            self.pdf = self.engine.open(filename)
 
-        self.project_folder = str(
-            Path(filename).parent
-        )
+            self.metadata = self.engine.metadata(self.pdf)
 
-        self.window.statusBar().showMessage(
+            self.project_folder = str(
+                Path(filename).parent
+            )
 
-            f"Loaded {self.metadata.page_count} pages"
+            self.current_page = 1
 
-        )
+            self.zoom = 1.0
 
-        return self.pdf
+            self.is_modified = False
+
+            self.window.statusBar().showMessage(
+
+                f"Loaded {self.metadata.page_count} pages"
+
+            )
+
+            return self.pdf
+
+        except Exception as exc:
+
+            self.pdf = None
+
+            self.metadata = None
+
+            self.filename = None
+
+            self.project_folder = None
+
+            QMessageBox.critical(
+
+                self.window,
+
+                "Open PDF",
+
+                str(exc),
+
+            )
+
+            return None
 
     # --------------------------------------------------
     # Close PDF
@@ -84,9 +122,27 @@ class PDFController:
 
         if self.pdf:
 
-            self.engine.close(self.pdf)
+            try:
 
-            self.pdf = None
+                self.engine.close(self.pdf)
+
+            except Exception:
+
+                pass
+
+        self.pdf = None
+
+        self.metadata = None
+
+        self.filename = None
+
+        self.project_folder = None
+
+        self.current_page = 1
+
+        self.zoom = 1.0
+
+        self.is_modified = False
 
     # --------------------------------------------------
     # Metadata
@@ -97,12 +153,38 @@ class PDFController:
         return self.metadata
 
     # --------------------------------------------------
+    # State Helpers
+    # --------------------------------------------------
+
+    def has_pdf(self):
+
+        return self.pdf is not None
+
+    def current_pdf(self):
+
+        return self.pdf
+
+    def current_filename(self):
+
+        return self.filename
+
+    def current_project_folder(self):
+
+        return self.project_folder
+    # --------------------------------------------------
     # Search
     # --------------------------------------------------
 
-    def search(self, keyword):
+    def search(
+        self,
+        keyword,
+    ):
 
         if self.pdf is None:
+
+            return []
+
+        if not keyword:
 
             return []
 
@@ -119,24 +201,26 @@ class PDFController:
     # --------------------------------------------------
 
     def jump_to_page(
-
         self,
-
         page_number,
-
     ):
 
         if self.pdf is None:
 
             return None
 
-        if page_number < 1:
+        total_pages = self.page_count()
 
-            page_number = 1
+        if total_pages == 0:
 
-        if page_number > len(self.pdf):
+            return None
 
-            page_number = len(self.pdf)
+        page_number = max(
+            1,
+            min(page_number, total_pages),
+        )
+
+        self.current_page = page_number
 
         return self.engine.page(
 
@@ -167,18 +251,18 @@ class PDFController:
     # --------------------------------------------------
 
     def save_session(
-
         self,
-
         current_page,
-
         zoom,
-
     ):
 
         if self.project_folder is None:
 
             return
+
+        self.current_page = current_page
+
+        self.zoom = zoom
 
         self.engine.save_session(
 
@@ -196,11 +280,25 @@ class PDFController:
 
             return None
 
-        return self.engine.restore_session(
+        session = self.engine.restore_session(
 
             self.project_folder
 
         )
+
+        if session:
+
+            try:
+
+                self.current_page = session.current_page
+
+                self.zoom = session.zoom
+
+            except AttributeError:
+
+                pass
+
+        return session
 
     # --------------------------------------------------
     # Information
@@ -217,10 +315,6 @@ class PDFController:
             self.pdf
 
         )
-
-    # --------------------------------------------------
-    # About PDF
-    # --------------------------------------------------
 
     def show_information(self):
 
@@ -241,3 +335,35 @@ class PDFController:
             ),
 
         )
+
+    # --------------------------------------------------
+    # Utility
+    # --------------------------------------------------
+
+    def is_open(self):
+
+        return self.pdf is not None
+
+    def mark_modified(self):
+
+        self.is_modified = True
+
+    def clear_modified(self):
+
+        self.is_modified = False
+
+    def current_state(self):
+
+        return {
+
+            "filename": self.filename,
+
+            "project_folder": self.project_folder,
+
+            "current_page": self.current_page,
+
+            "zoom": self.zoom,
+
+            "modified": self.is_modified,
+
+        }
