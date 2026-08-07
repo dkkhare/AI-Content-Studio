@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -43,9 +44,58 @@ class AIContentStudio:
             lambda root: self.window.workspace.open_project(self.project_controller.project)
         )
 
+        self.pipeline_controller.jobSubmitted.connect(self._on_processing_job_submitted)
+        self.pipeline_controller.jobFinished.connect(self._on_processing_job_finished)
+        self.pipeline_controller.queueRecoveryError.connect(
+            lambda message: self.window.log(f"Processing queue recovery: {message}")
+        )
+
         self.ui_state = UIState()
         self._restore_state()
         self._recover_processing_queue()
+
+    def _on_processing_job_submitted(self, record) -> None:
+        if self.window is None:
+            return
+        root = str(record.get("project_root", ""))
+        name = Path(root).name if root else "project"
+        self.window.log(f"Processing queued: {name}")
+        self.window.outputDock.append(f"QUEUED: {name}")
+
+    def _on_processing_job_finished(self, record) -> None:
+        if self.window is None:
+            return
+
+        root = str(record.get("project_root", ""))
+        name = Path(root).name if root else "project"
+        status = str(record.get("status", "completed"))
+        error = str(record.get("error", "") or "")
+
+        if status == "completed":
+            message = f"Processing completed: {name}"
+            self.window.outputDock.show_success(message)
+        elif status == "cancelled":
+            message = f"Processing cancelled: {name}"
+            self.window.outputDock.append(f"CANCELLED: {name}")
+        else:
+            message = f"Processing failed: {name}"
+            if error:
+                message = f"{message} — {error}"
+            self.window.outputDock.show_error(message)
+
+        self.window.log(message)
+        self.window.statusBar().showMessage(message, 5000)
+
+        current_root = None
+        if self.project_controller is not None:
+            current_root = self.project_controller.project_root()
+        if root and current_root is not None:
+            try:
+                if Path(root).resolve() == Path(current_root).resolve():
+                    self.window.projectDock.refresh(current_root)
+                    self.window.workspace.refresh()
+            except Exception:
+                pass
 
     def _recover_processing_queue(self) -> None:
         if self.pipeline_controller is None:
