@@ -50,6 +50,8 @@ class PromptFrameworkTests(unittest.TestCase):
         names = create_builtin_library().names()
         for name in (
             "ocr_cleanup",
+            "hindi_spelling_correction",
+            "hindi_grammar_correction",
             "translation",
             "chapter_summary",
             "script_generation",
@@ -59,6 +61,19 @@ class PromptFrameworkTests(unittest.TestCase):
             "narration_assistant",
         ):
             self.assertIn(name, names)
+
+    def test_hindi_proofing_prompts_are_independent(self):
+        library = create_builtin_library()
+        spelling = library.get("hindi_spelling_correction")
+        grammar = library.get("hindi_grammar_correction")
+
+        spelling_request = spelling.render({"text": "हिन्दी पाठ"})
+        grammar_request = grammar.render({"text": "हिन्दी पाठ"})
+
+        self.assertIn("spelling", spelling_request.messages[0].content.lower())
+        self.assertIn("do not rewrite sentences", spelling_request.messages[0].content.lower())
+        self.assertIn("grammar", grammar_request.messages[0].content.lower())
+        self.assertIn("do not summarize", grammar_request.messages[0].content.lower())
 
     def test_manager_executes_and_streams_prompt(self):
         registry = AIProviderRegistry()
