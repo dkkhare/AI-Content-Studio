@@ -4,11 +4,15 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMessageBox
 
 from desktop.controllers.project_controller import ProjectController
+from desktop.project.backup_manager_dialog import BackupManagerDialog
 from desktop.project.project_dialog import ProjectDialogs
+from desktop.project.project_settings import ProjectSettingsDialog
+from desktop.project.recovery_dialog import RecoveryDialog
 from desktop.settings import RecentProjects, UIState
+from desktop.themes.theme_manager import ThemeManager
 from desktop.ui.dashboard import Dashboard
 from desktop.ui.docks.log_dock import LogDock
 from desktop.ui.docks.output_dock import OutputDock
@@ -20,11 +24,10 @@ from desktop.ui.workspace import Workspace
 
 
 class MainWindow(QMainWindow):
-    """Main application window with Milestone 11 project lifecycle wiring."""
+    """Main application window with the Milestone 11 project lifecycle."""
 
     def __init__(self):
         super().__init__()
-
         self.setWindowTitle("AI Content Studio")
         self.resize(1600, 900)
 
@@ -39,17 +42,19 @@ class MainWindow(QMainWindow):
         self.dashboard = Dashboard()
         self.workspace = Workspace()
         self.setCentralWidget(self.dashboard)
-
         self.dashboard.newProjectRequested.connect(self.new_project)
         self.dashboard.openProjectRequested.connect(self.open_project)
 
         self.projectDock = ProjectDock(self)
         self.outputDock = OutputDock(self)
         self.logDock = LogDock(self)
-
         self.addDockWidget(Qt.LeftDockWidgetArea, self.projectDock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.outputDock)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.logDock)
+
+        self.projectDock.fileActivated.connect(
+            lambda path: self.log(f"Opened project item: {path}")
+        )
 
         self.restore_ui_state()
         self.refresh_recent_projects_menu()
@@ -65,7 +70,6 @@ class MainWindow(QMainWindow):
             return
 
         self.project_controller = controller
-
         controller.projectOpened.connect(self._on_project_opened)
         controller.projectClosed.connect(self._on_project_closed)
         controller.projectSaved.connect(self._on_project_saved)
@@ -75,6 +79,7 @@ class MainWindow(QMainWindow):
         controller.projectBackupRestored.connect(self._on_project_backup_restored)
         controller.projectRecoveryAvailable.connect(self._on_recovery_available)
         controller.projectRecovered.connect(self._on_project_recovered)
+        controller.projectSettingsChanged.connect(self._on_project_settings_changed)
 
         self.update_project_title()
         self.update_action_states()
@@ -82,22 +87,23 @@ class MainWindow(QMainWindow):
     def _on_project_opened(self, root) -> None:
         self.add_recent_project(str(root))
         self.projectDock.load_project(root)
+        self._apply_current_project_theme()
         self.show_workspace()
         self.refresh_project_ui()
-        self.statusBar().showMessage("Project opened.")
+        self.statusBar().showMessage("Project opened.", 3000)
         self.log(f"Project opened: {root}")
 
     def _on_project_closed(self) -> None:
         self.projectDock.clear()
         self.show_dashboard()
         self.refresh_project_ui()
-        self.statusBar().showMessage("Project closed.")
+        self.statusBar().showMessage("Project closed.", 3000)
         self.log("Project closed.")
 
     def _on_project_saved(self, root) -> None:
         self.projectDock.refresh(root)
         self.refresh_project_ui()
-        self.statusBar().showMessage("Project saved.")
+        self.statusBar().showMessage("Project saved.", 3000)
         self.log(f"Project saved: {root}")
 
     def _on_project_modified(self, modified: bool) -> None:
@@ -114,38 +120,46 @@ class MainWindow(QMainWindow):
 
     def _on_project_backup_restored(self, root) -> None:
         self.projectDock.refresh(root)
+        self._apply_current_project_theme()
         self.refresh_project_ui()
         self.statusBar().showMessage("Project backup restored.", 3000)
         self.log(f"Project backup restored: {root}")
 
     def _on_project_recovered(self, root) -> None:
         self.projectDock.refresh(root)
+        self._apply_current_project_theme()
         self.refresh_project_ui()
         self.statusBar().showMessage("Recovery snapshot restored.", 3000)
         self.log(f"Project recovered: {root}")
+
+    def _on_project_settings_changed(self, settings: dict) -> None:
+        self._apply_current_project_theme()
+        self.projectDock.refresh()
+        self.statusBar().showMessage("Project settings saved.", 3000)
 
     def _on_recovery_available(self, recovery) -> None:
         if self.project_controller is None:
             return
 
-        choice = ProjectDialogs.confirm_recovery(self, recovery)
-
+        choice = RecoveryDialog.ask(recovery, self)
         try:
             if choice == "recover":
                 if not self.project_controller.recover_project():
                     raise RuntimeError("Unable to recover project snapshot.")
-                return
-
-            if choice == "discard":
+            elif choice == "discard":
                 self.project_controller.clear_recovery()
                 self.log(f"Recovery snapshot discarded: {recovery}")
-                return
-
-            self.log(f"Recovery snapshot kept for later: {recovery}")
-
+            else:
+                self.log(f"Recovery snapshot kept for later: {recovery}")
         except Exception as exc:
             self.show_error("Project Recovery Failed", exc)
             self.log(f"Recovery failed: {exc}")
+
+    def _apply_current_project_theme(self) -> None:
+        if self.project_controller is None or self.project_controller.project is None:
+            return
+        theme = self.project_controller.project.get_setting("theme", "dark")
+        ThemeManager.load_theme(QApplication.instance(), str(theme))
 
     # --------------------------------------------------
     # Dashboard / workspace
@@ -166,18 +180,12 @@ class MainWindow(QMainWindow):
     # --------------------------------------------------
 
     def new_project(self) -> None:
-        if self.project_controller is None:
+        if self.project_controller is None or not self._prepare_for_project_switch():
             return
-
-        if not self._prepare_for_project_switch():
-            return
-
         result = ProjectDialogs.new_project(self)
         if not result:
             return
-
         name, path = result
-
         try:
             self.project_controller.create_project(path=path, name=name)
         except Exception as exc:
@@ -187,59 +195,64 @@ class MainWindow(QMainWindow):
     def open_project(self, path=None) -> None:
         if self.project_controller is None:
             return
-
         if isinstance(path, bool):
             path = None
-
         if path is None:
             path = ProjectDialogs.open_project(self)
-
-        if not path:
-            return
-
-        if not self._prepare_for_project_switch():
+        if not path or not self._prepare_for_project_switch():
             return
 
         try:
             self.project_controller.open_project(Path(path))
         except Exception as exc:
+            self.recent_projects.remove(path)
+            self.refresh_recent_projects_menu()
             self.show_error("Unable to open project", exc)
             self.log(f"Open project failed: {exc}")
 
     def save_project(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
-
         try:
-            return self.project_controller.save_project()
+            return bool(self.project_controller.save_project())
         except Exception as exc:
             self.show_error("Unable to save project", exc)
             self.log(f"Save project failed: {exc}")
             return False
 
     def save_project_as(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
-
         path = ProjectDialogs.save_project_as(self)
         if not path:
             return False
-
         try:
-            project = self.project_controller.save_project_as(path)
-            return project is not None
+            return self.project_controller.save_project_as(path) is not None
         except Exception as exc:
             self.show_error("Unable to save project", exc)
             self.log(f"Save As failed: {exc}")
             return False
 
-    def close_project(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
-            return True
-
-        if not self._confirm_unsaved_changes():
+    def open_project_settings(self) -> bool:
+        if not self.has_project():
             return False
 
+        dialog = ProjectSettingsDialog(self.project_controller.project, self)
+        if dialog.exec() != QDialog.Accepted:
+            return False
+
+        try:
+            return self.project_controller.update_project_settings(dialog.values(), save=True)
+        except Exception as exc:
+            self.show_error("Unable to Save Project Settings", exc)
+            self.log(f"Project settings failed: {exc}")
+            return False
+
+    def close_project(self) -> bool:
+        if not self.has_project():
+            return True
+        if not self._confirm_unsaved_changes():
+            return False
         try:
             return self.project_controller.close_project(force=True)
         except Exception as exc:
@@ -248,7 +261,7 @@ class MainWindow(QMainWindow):
             return False
 
     def refresh_project(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
 
         if self.project_controller.has_unsaved_changes():
@@ -267,6 +280,7 @@ class MainWindow(QMainWindow):
             if project is None:
                 return False
             self.projectDock.refresh(project.root)
+            self._apply_current_project_theme()
             self.refresh_project_ui()
             self.statusBar().showMessage("Project refreshed.", 3000)
             return True
@@ -276,39 +290,38 @@ class MainWindow(QMainWindow):
             return False
 
     def _prepare_for_project_switch(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return True
-
         if not self._confirm_unsaved_changes():
             return False
-
         return self.project_controller.close_project(force=True)
 
     def _confirm_unsaved_changes(self) -> bool:
-        if self.project_controller is None:
-            return True
-
-        if not self.project_controller.has_unsaved_changes():
+        if self.project_controller is None or not self.project_controller.has_unsaved_changes():
             return True
 
         choice = ProjectDialogs.confirm_close(self)
-
         if choice == "cancel":
             return False
-
         if choice == "save":
             return self.save_project()
-
         return choice == "discard"
 
     # --------------------------------------------------
     # Backup management
     # --------------------------------------------------
 
-    def create_project_backup(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+    def manage_project_backups(self) -> bool:
+        if not self.has_project():
             return False
+        dialog = BackupManagerDialog(self.project_controller, self)
+        dialog.exec()
+        self.projectDock.refresh()
+        return True
 
+    def create_project_backup(self) -> bool:
+        if not self.has_project():
+            return False
         try:
             backup = self.project_controller.create_backup()
             if backup is None:
@@ -317,68 +330,53 @@ class MainWindow(QMainWindow):
             return True
         except Exception as exc:
             self.show_error("Unable to Create Backup", exc)
-            self.log(f"Create backup failed: {exc}")
             return False
 
     def restore_project_backup(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
-
-        backups = self.project_controller.list_backups()
-        backup = ProjectDialogs.choose_backup(self, backups, "Restore Backup")
-        if backup is None:
+        backup = ProjectDialogs.choose_backup(
+            self,
+            self.project_controller.list_backups(),
+            "Restore Backup",
+        )
+        if backup is None or not ProjectDialogs.confirm_restore_backup(self, backup):
             return False
-
-        if not ProjectDialogs.confirm_restore_backup(self, backup):
-            return False
-
         try:
             return self.project_controller.restore_backup(backup)
         except Exception as exc:
             self.show_error("Unable to Restore Backup", exc)
-            self.log(f"Restore backup failed: {exc}")
             return False
 
     def delete_project_backup(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
-
-        backups = self.project_controller.list_backups()
-        backup = ProjectDialogs.choose_backup(self, backups, "Delete Backup")
-        if backup is None:
+        backup = ProjectDialogs.choose_backup(
+            self,
+            self.project_controller.list_backups(),
+            "Delete Backup",
+        )
+        if backup is None or not ProjectDialogs.confirm_delete_backup(self, backup):
             return False
-
-        if not ProjectDialogs.confirm_delete_backup(self, backup):
-            return False
-
         try:
-            deleted = self.project_controller.delete_backup(backup)
-            if deleted:
-                self.statusBar().showMessage(f"Backup deleted: {backup.name}", 3000)
-                self.log(f"Backup deleted: {backup}")
-            return deleted
+            return self.project_controller.delete_backup(backup)
         except Exception as exc:
             self.show_error("Unable to Delete Backup", exc)
-            self.log(f"Delete backup failed: {exc}")
             return False
 
     def cleanup_project_backups(self) -> bool:
-        if self.project_controller is None or not self.project_controller.has_project():
+        if not self.has_project():
             return False
-
-        backups = self.project_controller.list_backups()
-        keep = ProjectDialogs.backup_cleanup_count(self, len(backups))
-        if keep is None:
-            return False
-
         try:
-            removed = self.project_controller.cleanup_backups(keep=keep)
-            self.statusBar().showMessage(f"Removed {removed} old backup(s).", 4000)
-            self.log(f"Backup cleanup removed {removed} file(s); kept {keep}.")
+            removed = self.project_controller.cleanup_backups()
+            keep = int(self.project_controller.project.get_setting("backup_retention", 10))
+            self.statusBar().showMessage(
+                f"Removed {removed} old backup(s); keeping newest {keep}.",
+                4000,
+            )
             return True
         except Exception as exc:
             self.show_error("Unable to Cleanup Backups", exc)
-            self.log(f"Backup cleanup failed: {exc}")
             return False
 
     # --------------------------------------------------
@@ -386,33 +384,59 @@ class MainWindow(QMainWindow):
     # --------------------------------------------------
 
     def add_recent_project(self, path: str) -> None:
-        if not path:
-            return
+        if path:
+            self.recent_projects.add(path)
+            self.refresh_recent_projects_menu()
 
-        self.recent_projects.add(path)
+    def toggle_recent_pin(self, path: str) -> None:
+        if self.recent_projects.is_pinned(path):
+            self.recent_projects.unpin(path)
+        else:
+            self.recent_projects.pin(path)
         self.refresh_recent_projects_menu()
 
     def refresh_recent_projects_menu(self) -> None:
         if not hasattr(self, "recentProjectsMenu"):
             return
 
+        self.recent_projects.remove_missing()
         self.recentProjectsMenu.clear()
         projects = self.recent_projects.get_all()
 
         for project in projects:
-            action = QAction(project, self)
-            action.triggered.connect(
+            pinned = self.recent_projects.is_pinned(project)
+            label = f"📌 {project}" if pinned else project
+            submenu = self.recentProjectsMenu.addMenu(label)
+
+            open_action = QAction("Open", self)
+            open_action.triggered.connect(
                 lambda checked=False, p=project: self.open_project(p)
             )
-            self.recentProjectsMenu.addAction(action)
+            submenu.addAction(open_action)
+
+            pin_action = QAction("Unpin" if pinned else "Pin", self)
+            pin_action.triggered.connect(
+                lambda checked=False, p=project: self.toggle_recent_pin(p)
+            )
+            submenu.addAction(pin_action)
+
+            remove_action = QAction("Remove from Recent", self)
+            remove_action.triggered.connect(
+                lambda checked=False, p=project: self._remove_recent_project(p)
+            )
+            submenu.addAction(remove_action)
 
         if not projects:
             empty = QAction("No recent projects", self)
             empty.setEnabled(False)
             self.recentProjectsMenu.addAction(empty)
 
+    def _remove_recent_project(self, path: str) -> None:
+        self.recent_projects.remove(path)
+        self.refresh_recent_projects_menu()
+
     # --------------------------------------------------
-    # UI state
+    # UI state / actions
     # --------------------------------------------------
 
     def restore_ui_state(self) -> None:
@@ -427,34 +451,28 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.log(f"UI state save failed: {exc}")
 
-    # --------------------------------------------------
-    # Window title / actions
-    # --------------------------------------------------
-
     def update_project_title(self) -> None:
         title = "AI Content Studio"
-
-        if self.project_controller is not None:
-            project = self.project_controller.project
-            if project is not None:
-                title = f"{project.name} - AI Content Studio"
-                if self.project_controller.modified:
-                    title += " *"
-
+        project = self.current_project()
+        if project is not None:
+            title = f"{project.name} - AI Content Studio"
+            if self.project_controller.modified:
+                title += " *"
         self.setWindowTitle(title)
 
     def update_action_states(self) -> None:
         has_project = self.has_project()
-
         for name in (
             "saveAction",
             "saveAsAction",
+            "projectSettingsAction",
             "closeProjectAction",
             "exportAction",
             "toolbar_save",
             "toolbar_save_as",
             "toolbar_close",
             "refreshProjectAction",
+            "manageBackupsAction",
             "createBackupAction",
             "restoreBackupAction",
             "deleteBackupAction",
@@ -469,7 +487,7 @@ class MainWindow(QMainWindow):
             backup_menu.setEnabled(has_project)
 
     # --------------------------------------------------
-    # Logging / errors
+    # Logging / closing / helpers
     # --------------------------------------------------
 
     def log(self, message: str) -> None:
@@ -482,36 +500,24 @@ class MainWindow(QMainWindow):
     def show_error(self, title: str, error: Exception) -> None:
         QMessageBox.critical(self, title, str(error))
 
-    # --------------------------------------------------
-    # Application close
-    # --------------------------------------------------
-
     def closeEvent(self, event) -> None:
         try:
             if not self._confirm_unsaved_changes():
                 event.ignore()
                 return
-
-            if self.project_controller is not None and self.project_controller.has_project():
+            if self.has_project():
                 self.project_controller.close_project(force=True)
-
             self.save_ui_state()
             event.accept()
         except Exception as exc:
             self.log(f"Close failed: {exc}")
             event.ignore()
 
-    # --------------------------------------------------
-    # Utility methods
-    # --------------------------------------------------
-
     def current_project(self):
-        if self.project_controller is None:
-            return None
-        return self.project_controller.project
+        return self.project_controller.project if self.project_controller is not None else None
 
     def has_project(self) -> bool:
-        return (
+        return bool(
             self.project_controller is not None
             and self.project_controller.has_project()
         )
