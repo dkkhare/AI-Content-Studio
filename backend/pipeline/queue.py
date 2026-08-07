@@ -89,7 +89,6 @@ class PipelineJobQueue:
             )
 
     def records(self) -> list[dict]:
-        """Return persisted history merged with the current in-memory jobs."""
         merged = {
             str(item.get("job_id")): dict(item)
             for item in self.persisted_jobs()
@@ -234,7 +233,10 @@ class PipelineJobQueue:
         job.progress = max(0, min(100, int(getattr(progress, "percent", 0))))
         self._persist()
         if callback:
-            callback(progress)
+            try:
+                callback(job, progress)
+            except TypeError:
+                callback(progress)
 
     def _work(self) -> None:
         while not self._stop.is_set():
