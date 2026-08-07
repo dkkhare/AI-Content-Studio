@@ -42,7 +42,7 @@ class PipelineFactoryTests(unittest.TestCase):
             self.assertFalse(project.get_setting("pipeline_hindi_grammar_correction_enabled"))
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "ai_script", "narration"],
+                ["ocr", "ai_script", "episode_planning", "narration"],
             )
 
     def test_spelling_and_grammar_are_independently_optional(self):
@@ -58,6 +58,7 @@ class PipelineFactoryTests(unittest.TestCase):
                     "hindi_spelling_correction",
                     "hindi_grammar_correction",
                     "ai_script",
+                    "episode_planning",
                     "narration",
                 ],
             )
@@ -88,7 +89,7 @@ class PipelineFactoryTests(unittest.TestCase):
             )
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "translation", "ai_script", "narration", "video"],
+                ["ocr", "translation", "ai_script", "episode_planning", "narration", "video"],
             )
 
     def test_all_stages_can_be_disabled(self):
@@ -99,6 +100,7 @@ class PipelineFactoryTests(unittest.TestCase):
             project.set_setting("pipeline_hindi_spelling_correction_enabled", False)
             project.set_setting("pipeline_hindi_grammar_correction_enabled", False)
             project.set_setting("pipeline_ai_script_enabled", False)
+            project.set_setting("pipeline_episode_segmentation_enabled", False)
             project.set_setting("pipeline_narration_enabled", False)
             with self.assertRaises(ValueError):
                 build_project_pipeline(project, ai_manager=FakeAIManager())
