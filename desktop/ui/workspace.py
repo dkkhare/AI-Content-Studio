@@ -8,6 +8,7 @@ from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
 from desktop.ui.widgets.story_review_panel import StoryReviewPanel
+from desktop.ui.widgets.visual_review_panel import VisualReviewPanel
 from desktop.ui.workflow_panel import WorkflowPanel
 
 
@@ -34,6 +35,7 @@ class Workspace(QWidget):
         self.project_status_dashboard = None
         self.story_review_panel = None
         self.scene_review_panel = None
+        self.visual_review_panel = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -74,6 +76,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.story_review_panel, "Story Review")
         self.scene_review_panel = SceneReviewPanel(self)
         self.tabs.addTab(self.scene_review_panel, "Scene Review")
+        self.visual_review_panel = VisualReviewPanel(self)
+        self.tabs.addTab(self.visual_review_panel, "Visual Review")
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -124,6 +128,8 @@ class Workspace(QWidget):
             self.story_review_panel.set_project(project)
         if self.scene_review_panel:
             self.scene_review_panel.set_project(project)
+        if self.visual_review_panel:
+            self.visual_review_panel.set_project(project)
         self.refresh()
         self.open_overview_tab()
         self.projectOpened.emit(str(project))
@@ -139,7 +145,13 @@ class Workspace(QWidget):
         self.projectClosed.emit()
 
     def refresh(self) -> None:
-        for widget in (self.narration_panel, self.project_status_dashboard, self.story_review_panel, self.scene_review_panel):
+        for widget in (
+            self.narration_panel,
+            self.project_status_dashboard,
+            self.story_review_panel,
+            self.scene_review_panel,
+            self.visual_review_panel,
+        ):
             if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
                 try:
                     widget.refresh()
@@ -152,20 +164,12 @@ class Workspace(QWidget):
     def is_busy(self) -> bool:
         return self._busy
 
-    def narration(self):
-        return self.narration_panel
-
-    def processing(self):
-        return self.workflow_panel
-
-    def overview(self):
-        return self.project_status_dashboard
-
-    def story_review(self):
-        return self.story_review_panel
-
-    def scene_review(self):
-        return self.scene_review_panel
+    def narration(self): return self.narration_panel
+    def processing(self): return self.workflow_panel
+    def overview(self): return self.project_status_dashboard
+    def story_review(self): return self.story_review_panel
+    def scene_review(self): return self.scene_review_panel
+    def visual_review(self): return self.visual_review_panel
 
     def current_tab(self) -> int:
         return self.tabs.currentIndex()
@@ -187,13 +191,19 @@ class Workspace(QWidget):
     def open_overview_tab(self) -> None: self.set_current_tab(7)
     def open_story_review_tab(self) -> None: self.set_current_tab(8)
     def open_scene_review_tab(self) -> None: self.set_current_tab(9)
+    def open_visual_review_tab(self) -> None: self.set_current_tab(10)
 
     def clear(self) -> None:
         self._busy = False
         self.current_project = None
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
-        for widget in (self.project_status_dashboard, self.story_review_panel, self.scene_review_panel):
+        for widget in (
+            self.project_status_dashboard,
+            self.story_review_panel,
+            self.scene_review_panel,
+            self.visual_review_panel,
+        ):
             if widget:
                 widget.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
