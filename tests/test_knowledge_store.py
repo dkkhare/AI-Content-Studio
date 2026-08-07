@@ -20,6 +20,7 @@ class KnowledgeStoreTests(unittest.TestCase):
                 "characters.json",
                 "locations.json",
                 "objects.json",
+                "events.json",
                 "timeline.json",
                 "relationships.json",
                 "glossary.json",
@@ -28,6 +29,8 @@ class KnowledgeStoreTests(unittest.TestCase):
                 "scenes.json",
                 "prompts.json",
                 "assets.json",
+                "analyses.json",
+                "merge_suggestions.json",
             }
             self.assertEqual(expected, {path.name for path in store.root.glob("*.json")})
 
