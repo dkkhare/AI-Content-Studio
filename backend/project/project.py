@@ -24,6 +24,7 @@ DEFAULT_PROJECT_SETTINGS = {
     "pipeline_ai_summary_enabled": False,
     "pipeline_ai_script_enabled": True,
     "pipeline_ai_subtitle_enabled": False,
+    "pipeline_story_intelligence_enabled": True,
     "ai_provider": "ollama",
     "ai_model": "",
     "ai_source_language": "hi",
