@@ -20,6 +20,7 @@ on:
       - "tests/test_processing_stages.py"
       - "tests/test_pipeline_factory.py"
       - "tests/test_translation_provider.py"
+      - "tests/test_video_renderer.py"
       - ".github/workflows/milestone-12-smoke.yml"
 
 jobs:
@@ -45,6 +46,7 @@ jobs:
           tests.test_processing_stages
           tests.test_pipeline_factory
           tests.test_translation_provider
+          tests.test_video_renderer
 
       - name: Re-run Milestone 11 lifecycle regression
         run: python -m unittest -v tests.test_project_lifecycle
