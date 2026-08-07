@@ -32,6 +32,17 @@ class AIContentStudio:
         self.window.set_project_controller(self.project_controller)
         self.window.workspace.set_pipeline_controller(self.pipeline_controller)
 
+        self.project_controller.projectOpened.connect(
+            lambda root: self.window.workspace.open_project(self.project_controller.project)
+        )
+        self.project_controller.projectClosed.connect(self.window.workspace.close_project)
+        self.project_controller.projectRecovered.connect(
+            lambda root: self.window.workspace.open_project(self.project_controller.project)
+        )
+        self.project_controller.projectBackupRestored.connect(
+            lambda root: self.window.workspace.open_project(self.project_controller.project)
+        )
+
         self.ui_state = UIState()
         self._restore_state()
 
