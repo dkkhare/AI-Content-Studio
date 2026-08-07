@@ -10,10 +10,6 @@ def build_menu(window):
     menu_bar = QMenuBar(window)
     window.setMenuBar(menu_bar)
 
-    # --------------------------------------------------
-    # File Menu
-    # --------------------------------------------------
-
     file_menu = menu_bar.addMenu("File")
 
     new_action = QAction("New Project", window)
@@ -36,14 +32,21 @@ def build_menu(window):
     window.saveAsAction = save_as_action
     file_menu.addAction(save_as_action)
 
-    file_menu.addSeparator()
+    settings_action = QAction("Project Settings", window)
+    settings_action.triggered.connect(window.open_project_settings)
+    window.projectSettingsAction = settings_action
+    file_menu.addAction(settings_action)
 
-    # --------------------------------------------------
-    # Backup Management
-    # --------------------------------------------------
+    file_menu.addSeparator()
 
     backup_menu = file_menu.addMenu("Backups")
     window.backupMenu = backup_menu
+
+    manage_backups_action = QAction("Manage Backups...", window)
+    manage_backups_action.triggered.connect(window.manage_project_backups)
+    window.manageBackupsAction = manage_backups_action
+    backup_menu.addAction(manage_backups_action)
+    backup_menu.addSeparator()
 
     create_backup_action = QAction("Create Backup", window)
     create_backup_action.triggered.connect(window.create_project_backup)
@@ -59,8 +62,6 @@ def build_menu(window):
     delete_backup_action.triggered.connect(window.delete_project_backup)
     window.deleteBackupAction = delete_backup_action
     backup_menu.addAction(delete_backup_action)
-
-    backup_menu.addSeparator()
 
     cleanup_backup_action = QAction("Cleanup Backups", window)
     cleanup_backup_action.triggered.connect(window.cleanup_project_backups)
@@ -85,20 +86,12 @@ def build_menu(window):
     exit_action.triggered.connect(window.close)
     file_menu.addAction(exit_action)
 
-    # --------------------------------------------------
-    # Edit Menu
-    # --------------------------------------------------
-
     edit_menu = menu_bar.addMenu("Edit")
 
     refresh_action = QAction("Refresh Project", window)
     refresh_action.triggered.connect(window.refresh_project)
     window.refreshProjectAction = refresh_action
     edit_menu.addAction(refresh_action)
-
-    # --------------------------------------------------
-    # View Menu
-    # --------------------------------------------------
 
     view_menu = menu_bar.addMenu("View")
 
@@ -109,10 +102,6 @@ def build_menu(window):
     workspace_action = QAction("Workspace", window)
     workspace_action.triggered.connect(window.show_workspace)
     view_menu.addAction(workspace_action)
-
-    # --------------------------------------------------
-    # Help Menu
-    # --------------------------------------------------
 
     help_menu = menu_bar.addMenu("Help")
     about_action = QAction("About AI Content Studio", window)
