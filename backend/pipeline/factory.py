@@ -23,7 +23,7 @@ def build_project_pipeline(
     renderer: Any | None = None,
     ai_manager: Any | None = None,
 ) -> ProcessingPipeline:
-    """Build a ProcessingPipeline from project-specific Milestone 12/13 settings."""
+    """Build the Hindi/local-first processing pipeline from project settings."""
 
     pipeline = ProcessingPipeline()
 
@@ -44,18 +44,18 @@ def build_project_pipeline(
             "pipeline_ai_subtitle_enabled",
         )
     )
+    ai_provider = str(project.get_setting("ai_provider", "ollama") or "ollama")
+    ai_model = str(project.get_setting("ai_model", "") or "")
+
     if ai_enabled and ai_manager is None:
         from backend.ai import AIConfig, AIManager
 
         ai_manager = AIManager(
             config=AIConfig(
-                default_provider=str(project.get_setting("ai_provider", "")),
-                default_model=str(project.get_setting("ai_model", "")),
+                default_provider=ai_provider,
+                default_model=ai_model,
             )
         )
-
-    ai_provider = str(project.get_setting("ai_provider", "")) or None
-    ai_model = str(project.get_setting("ai_model", ""))
 
     if bool(project.get_setting("pipeline_ai_ocr_cleanup_enabled", False)):
         pipeline.add_stage(
@@ -63,48 +63,60 @@ def build_project_pipeline(
                 ai_manager,
                 provider_id=ai_provider,
                 model=ai_model,
-                language=str(project.get_setting("ai_source_language", project.language)),
+                language=str(project.get_setting("ai_source_language", project.language) or "hi"),
             )
         )
 
     if bool(project.get_setting("pipeline_translation_enabled", False)):
-        if translator is None:
-            from backend.translation import create_translation_provider
-
-            translator = create_translation_provider(project)
-
-        configured = getattr(translator, "configured", None)
-        if callable(configured) and not configured():
-            env_name = str(
-                project.get_setting("translation_api_key_env", "GOOGLE_TRANSLATE_API_KEY")
-            )
-            raise ValueError(
-                "Translation is enabled but the configured provider has no credentials. "
-                f"Set environment variable {env_name}."
-            )
-
-        pipeline.add_stage(
-            TranslationStage(
-                translator=translator,
-                source_language=str(
-                    project.get_setting("translation_source_language", project.language)
-                ),
-                target_language=str(
-                    project.get_setting("translation_target_language", project.language)
-                ),
-            )
+        source_language = str(
+            project.get_setting("translation_source_language", project.language) or "hi"
         )
+        target_language = str(
+            project.get_setting("translation_target_language", project.language) or "hi"
+        )
+        if source_language.lower() != target_language.lower():
+            if translator is None:
+                from backend.translation import create_translation_provider
+
+                translator = create_translation_provider(project)
+
+            configured = getattr(translator, "configured", None)
+            if callable(configured) and not configured():
+                env_name = str(
+                    project.get_setting(
+                        "translation_api_key_env", "GOOGLE_TRANSLATE_API_KEY"
+                    )
+                )
+                raise ValueError(
+                    "Translation is enabled but the configured provider has no credentials. "
+                    f"Set environment variable {env_name}."
+                )
+
+            pipeline.add_stage(
+                TranslationStage(
+                    translator=translator,
+                    source_language=source_language,
+                    target_language=target_language,
+                )
+            )
 
     if bool(project.get_setting("pipeline_ai_translation_enabled", False)):
-        pipeline.add_stage(
-            AITranslationStage(
-                ai_manager,
-                provider_id=ai_provider,
-                model=ai_model,
-                source_language=str(project.get_setting("ai_source_language", project.language)),
-                target_language=str(project.get_setting("ai_target_language", project.language)),
-            )
+        source_language = str(
+            project.get_setting("ai_source_language", project.language) or "hi"
         )
+        target_language = str(
+            project.get_setting("ai_target_language", project.language) or "hi"
+        )
+        if source_language.lower() != target_language.lower():
+            pipeline.add_stage(
+                AITranslationStage(
+                    ai_manager,
+                    provider_id=ai_provider,
+                    model=ai_model,
+                    source_language=source_language,
+                    target_language=target_language,
+                )
+            )
 
     if bool(project.get_setting("pipeline_ai_summary_enabled", False)):
         pipeline.add_stage(
@@ -112,7 +124,8 @@ def build_project_pipeline(
                 ai_manager,
                 provider_id=ai_provider,
                 model=ai_model,
-                style=str(project.get_setting("ai_summary_style", "concise")),
+                language=str(project.language or "hi"),
+                style=str(project.get_setting("ai_summary_style", "concise") or "concise"),
             )
         )
 
@@ -122,7 +135,13 @@ def build_project_pipeline(
                 ai_manager,
                 provider_id=ai_provider,
                 model=ai_model,
-                style=str(project.get_setting("ai_script_style", "natural narration")),
+                language=str(project.language or "hi"),
+                style=str(
+                    project.get_setting(
+                        "ai_script_style", "natural Hindi podcast narration"
+                    )
+                    or "natural Hindi podcast narration"
+                ),
             )
         )
 
@@ -132,11 +151,17 @@ def build_project_pipeline(
                 ai_manager,
                 provider_id=ai_provider,
                 model=ai_model,
-                language=str(project.get_setting("ai_subtitle_language", project.language)),
+                language=str(project.get_setting("ai_subtitle_language", "hi") or "hi"),
             )
         )
 
     if bool(project.get_setting("pipeline_narration_enabled", True)):
+        tts_provider = str(project.get_setting("tts_provider", "f5tts") or "f5tts")
+        if tts_provider.lower() != "f5tts":
+            raise ValueError(
+                f"Unsupported local TTS provider: {tts_provider}. "
+                "F5-TTS is the configured local narration engine."
+            )
         pipeline.add_stage(NarrationStage())
 
     if bool(project.get_setting("pipeline_video_enabled", False)):
