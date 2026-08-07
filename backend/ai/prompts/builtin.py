@@ -20,10 +20,8 @@ def create_builtin_library() -> PromptLibrary:
             version="1.0",
             description="Correct Hindi spelling only, without changing grammar or style.",
             system_template=(
-                "You are a Hindi spelling proofreader. Correct only spelling, matra, "
-                "Devanagari character, spacing, and obvious typographical errors. "
-                "Do not rewrite sentences, change grammar, simplify wording, or alter names unless clearly misspelled. "
-                "Preserve paragraph breaks and meaning."
+                "You are a Hindi spelling proofreader. Correct only spelling, matra, Devanagari character, spacing, and obvious typographical errors. "
+                "Do not rewrite sentences, change grammar, simplify wording, or alter names unless clearly misspelled. Preserve paragraph breaks and meaning."
             ),
             user_template="Correct spelling only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}",
         ),
@@ -32,9 +30,8 @@ def create_builtin_library() -> PromptLibrary:
             version="1.0",
             description="Correct Hindi grammar while preserving wording and meaning.",
             system_template=(
-                "You are a Hindi grammar proofreader. Correct grammatical errors, agreement, "
-                "postpositions, sentence construction, and necessary punctuation while preserving the author's meaning, tone, names, and paragraph order. "
-                "Do not summarize, expand, translate, or stylistically rewrite the text."
+                "You are a Hindi grammar proofreader. Correct grammatical errors, agreement, postpositions, sentence construction, and necessary punctuation "
+                "while preserving the author's meaning, tone, names, and paragraph order. Do not summarize, expand, translate, or stylistically rewrite the text."
             ),
             user_template="Correct grammar only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}",
         ),
@@ -65,9 +62,9 @@ def create_builtin_library() -> PromptLibrary:
             version="1.0",
             description="Extract structured story knowledge from one approved Hindi episode.",
             system_template=(
-                "You are the Story Intelligence engine for a Hindi book-to-podcast/video application. "
-                "Extract only information supported by the supplied episode. Never invent biography, appearance, relationships, places, or events. "
-                "Return exactly one valid JSON object and no markdown or commentary. Names and descriptions should remain in Hindi when the source is Hindi."
+                "You are the Story Intelligence engine for a Hindi book-to-podcast/video application. Extract only information supported by the supplied episode. "
+                "Never invent biography, appearance, relationships, places, or events. Return exactly one valid JSON object and no markdown or commentary. "
+                "Names and descriptions should remain in Hindi when the source is Hindi."
             ),
             user_template=(
                 "Analyze approved episode {{episode_id}} titled {{title}}. Return JSON with this exact top-level shape: "
@@ -79,6 +76,24 @@ def create_builtin_library() -> PromptLibrary:
                 "\"events\":[{\"summary\":\"\",\"characters\":[],\"location\":\"\",\"time\":\"\"}],"
                 "\"scene_candidates\":[{\"summary\":\"\",\"characters\":[],\"location\":\"\",\"mood\":\"\",\"visual_notes\":\"\"}]}。 "
                 "Use empty strings/lists when information is not stated. Episode text follows:\n\n{{text}}"
+            ),
+        ),
+        PromptTemplate(
+            name="scene_director",
+            version="1.0",
+            description="Convert an approved Hindi episode into a structured, reviewable cinematic scene plan.",
+            system_template=(
+                "You are a scene director for a Hindi book-to-video application. Use only the supplied episode and approved knowledge. "
+                "Do not invent new named characters, locations, objects, relationships, or story events. Break the narration at natural visual/story boundaries. "
+                "Keep narration in Hindi. Return exactly one valid JSON object with no markdown or commentary."
+            ),
+            user_template=(
+                "Create a scene plan for approved episode {{episode_id}} titled {{title}}. Approved knowledge JSON: {{knowledge_json}}. "
+                "Return {\"scenes\":[{\"narration\":\"\",\"estimated_seconds\":30,\"summary\":\"\",\"characters\":[],\"location\":\"\","
+                "\"objects\":[],\"mood\":\"\",\"time_of_day\":\"\",\"camera\":\"\",\"visual_description\":\"\","
+                "\"image_prompt\":\"\",\"video_prompt\":\"\",\"transition\":\"\"}]}. "
+                "Prefer scenes around 20-60 seconds where practical, preserve the narration order, and cover the complete episode without repeating narration. "
+                "Episode text follows:\n\n{{text}}"
             ),
         ),
         PromptTemplate(
