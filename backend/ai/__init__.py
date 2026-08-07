@@ -9,6 +9,13 @@ from .exceptions import (
 from .manager import AIManager
 from .models import AIMessage, AIRequest, AIResponse, AIStreamChunk, AIUsage
 from .provider import AIProvider
+from .providers import (
+    GeminiProvider,
+    OllamaProvider,
+    OpenAIProvider,
+    create_default_registry,
+    register_builtin_providers,
+)
 from .registry import AIProviderRegistry
 from .stream import collect_stream
 from .usage import AIUsageTracker
@@ -29,5 +36,10 @@ __all__ = [
     "AIStreamChunk",
     "AIUsage",
     "AIUsageTracker",
+    "GeminiProvider",
+    "OllamaProvider",
+    "OpenAIProvider",
     "collect_stream",
+    "create_default_registry",
+    "register_builtin_providers",
 ]
