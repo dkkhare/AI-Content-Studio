@@ -17,7 +17,9 @@ class ProjectController(QObject):
     projectModified = Signal(bool)
     projectAutoSaved = Signal(object)
     projectBackupCreated = Signal(object)
+    projectBackupRestored = Signal(object)
     projectRecoveryAvailable = Signal(object)
+    projectRecovered = Signal(object)
     recentProjectsChanged = Signal(list)
 
     def __init__(self, parent=None):
@@ -34,17 +36,12 @@ class ProjectController(QObject):
         self._autosave_timer.timeout.connect(self.auto_save)
         self._autosave_timer.start(self._autosave_interval)
 
-    # --------------------------------------------------
-    # Properties / state
-    # --------------------------------------------------
-
     @property
     def current(self):
         return self.manager.current
 
     @property
     def project(self):
-        """Compatibility alias used by desktop widgets."""
         return self.manager.current
 
     @property
@@ -135,8 +132,9 @@ class ProjectController(QObject):
         if recovery is None:
             return False
 
+        # Autosave is informational. Recovery prompting is reserved
+        # for project-open detection so the UI is not interrupted.
         self.projectAutoSaved.emit(recovery)
-        self.projectRecoveryAvailable.emit(recovery)
         return True
 
     def has_recovery(self) -> bool:
@@ -154,8 +152,9 @@ class ProjectController(QObject):
 
         project = self.manager.recover()
         self._modified = True
+        self._last_saved = self.manager.last_saved
         self.projectModified.emit(True)
-        self.projectRecoveryAvailable.emit(project.root)
+        self.projectRecovered.emit(project.root)
         return True
 
     def clear_recovery(self) -> bool:
@@ -215,6 +214,7 @@ class ProjectController(QObject):
         self._modified = False
         self._last_saved = self.manager.last_saved
         self.projectModified.emit(False)
+        self.projectSaved.emit(project.root)
         return project
 
     reload = refresh
@@ -260,7 +260,6 @@ class ProjectController(QObject):
         self.projectSaved.emit(project.root)
         return project
 
-    # Compatibility aliases used by menu/window code.
     save = save_project
     save_as = save_project_as
 
@@ -292,6 +291,7 @@ class ProjectController(QObject):
         self.add_recent_project(project.root)
         self.projectModified.emit(False)
         self.projectSaved.emit(project.root)
+        self.projectBackupRestored.emit(project.root)
         return True
 
     def delete_backup(self, backup: str | Path) -> bool:
