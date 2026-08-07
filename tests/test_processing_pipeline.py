@@ -106,6 +106,77 @@ class ProcessingPipelineTests(unittest.TestCase):
             self.assertEqual(job.status, "completed")
             self.assertTrue(context.get("queued"))
 
+    def test_job_queue_persists_metadata_and_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "project"
+            root.mkdir()
+            state_file = Path(temp) / "queue.json"
+            context = PipelineContext(DummyProject(root), {"source": "test"})
+
+            def stage(ctx, progress):
+                progress(50, "half")
+                return {"persisted": True}
+
+            runner = PipelineRunner(
+                ProcessingPipeline([FunctionStage("persist", "Persist", stage)])
+            )
+            jobs = PipelineJobQueue(state_file=state_file)
+            job = jobs.submit(context, runner, priority=7, resume=False)
+
+            deadline = time.time() + 2
+            while job.status in {"queued", "running"} and time.time() < deadline:
+                time.sleep(0.01)
+
+            jobs.shutdown(cancel_current=False, wait=1)
+            records = jobs.persisted_jobs()
+            record = next(item for item in records if item["job_id"] == job.job_id)
+            self.assertEqual(record["status"], "completed")
+            self.assertEqual(record["priority"], 7)
+            self.assertEqual(record["progress"], 100)
+            self.assertEqual(record["project_root"], str(root.resolve()))
+            self.assertTrue(record["data"]["persisted"])
+
+    def test_cancel_queued_job_keeps_history_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "project"
+            root.mkdir()
+            state_file = Path(temp) / "queue.json"
+            blocker = PipelineContext(DummyProject(root))
+            queued = PipelineContext(DummyProject(root))
+
+            def slow(ctx, progress):
+                for index in range(20):
+                    progress(index * 5, "slow")
+                    time.sleep(0.01)
+
+            def fast(ctx, progress):
+                return {"should_not_run": True}
+
+            jobs = PipelineJobQueue(state_file=state_file)
+            jobs.submit(
+                blocker,
+                PipelineRunner(ProcessingPipeline([FunctionStage("slow", "Slow", slow)])),
+                resume=False,
+            )
+            job = jobs.submit(
+                queued,
+                PipelineRunner(ProcessingPipeline([FunctionStage("fast", "Fast", fast)])),
+                resume=False,
+            )
+            self.assertTrue(jobs.cancel_job(job.job_id))
+
+            deadline = time.time() + 2
+            while jobs.current is not None and time.time() < deadline:
+                time.sleep(0.01)
+            jobs.shutdown(cancel_current=False, wait=1)
+
+            self.assertEqual(job.status, "cancelled")
+            self.assertFalse(queued.get("should_not_run", False))
+            record = next(
+                item for item in jobs.persisted_jobs() if item["job_id"] == job.job_id
+            )
+            self.assertEqual(record["status"], "cancelled")
+
 
 if __name__ == "__main__":
     unittest.main()
