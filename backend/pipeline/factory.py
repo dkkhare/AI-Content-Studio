@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from backend.episodes import EpisodeReviewStore
-from backend.knowledge import KnowledgeReviewStore
+from backend.images import VisualAssetReviewStore
+from backend.knowledge import KnowledgeReviewStore, KnowledgeStore
 from backend.scenes import SceneReviewStore
 
 from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
+from .image_stage import ReferenceImageGenerationStage, SceneImageGenerationStage
 from .pipeline import ProcessingPipeline
 from .scene_stage import SceneDirectorStage
 from .story_stage import StoryIntelligenceStage
@@ -116,8 +118,6 @@ def build_project_pipeline(
     if story_allowed:
         pipeline.add_stage(StoryIntelligenceStage(ai_manager, provider_id=ai_provider, model=ai_model))
 
-    # Scene planning is deliberately gated on completed human Story Review.
-    # The first scene-planning run stops before media so the planned scenes can be reviewed.
     scene_enabled = bool(project.get_setting("pipeline_scene_director_enabled", True))
     scene_review_required = bool(project.get_setting("scene_review_required", True))
     knowledge_review_complete = KnowledgeReviewStore(project.root).review_complete()
@@ -132,6 +132,35 @@ def build_project_pipeline(
                 media_allowed = False
         elif scene_review_required and not scene_review_complete:
             media_allowed = False
+
+    # Local image generation is optional. When enabled it has two human-review gates:
+    # reusable character/location references first, then scene images using approved references.
+    image_enabled = bool(project.get_setting("pipeline_image_generation_enabled", False))
+    if image_enabled and scene_review_complete:
+        knowledge = KnowledgeStore(project.root)
+        knowledge.initialize()
+        visual_review = VisualAssetReviewStore(project.root)
+        visual_assets = visual_review.items()
+        reference_assets = [item for item in visual_assets if str(item.get("asset_type", "")) in {"character_reference", "location_reference"}]
+        approved_visual_entities = sum(
+            1
+            for collection in ("characters", "locations")
+            for item in knowledge.read(collection)
+            if isinstance(item, dict) and bool(item.get("approved", False))
+        )
+
+        if approved_visual_entities and not reference_assets:
+            pipeline.add_stage(ReferenceImageGenerationStage())
+            media_allowed = False
+        elif approved_visual_entities and not visual_review.reference_review_complete():
+            media_allowed = False
+        else:
+            scene_assets = [item for item in visual_assets if str(item.get("asset_type", "")) == "scene_image"]
+            if not scene_assets:
+                pipeline.add_stage(SceneImageGenerationStage())
+                media_allowed = False
+            elif not visual_review.scene_review_complete():
+                media_allowed = False
 
     if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)) and media_allowed:
         pipeline.add_stage(AISubtitleStage(ai_manager, provider_id=ai_provider, model=ai_model, language=str(project.get_setting("ai_subtitle_language", "hi") or "hi")))
