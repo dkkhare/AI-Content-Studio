@@ -7,12 +7,17 @@ on:
   pull_request:
     paths:
       - "backend/pipeline/**"
+      - "backend/video/**"
+      - "backend/project/project.py"
       - "desktop/controllers/pipeline_controller.py"
+      - "desktop/project/project_settings.py"
+      - "desktop/ui/dialogs/processing_setup_dialog.py"
       - "desktop/ui/workflow_panel.py"
       - "desktop/ui/workspace.py"
       - "desktop/app.py"
       - "tests/test_processing_pipeline.py"
       - "tests/test_processing_stages.py"
+      - "tests/test_pipeline_factory.py"
       - ".github/workflows/milestone-12-smoke.yml"
 
 jobs:
@@ -32,7 +37,11 @@ jobs:
         run: python -m compileall -q backend desktop tests
 
       - name: Run processing pipeline tests
-        run: python -m unittest -v tests.test_processing_pipeline tests.test_processing_stages
+        run: >-
+          python -m unittest -v
+          tests.test_processing_pipeline
+          tests.test_processing_stages
+          tests.test_pipeline_factory
 
       - name: Re-run Milestone 11 lifecycle regression
         run: python -m unittest -v tests.test_project_lifecycle
