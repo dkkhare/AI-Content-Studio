@@ -56,6 +56,8 @@ class PipelineJob:
 class PipelineJobQueue:
     """Persistent single-worker priority queue for long-running processing jobs."""
 
+    TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+
     def __init__(self, state_file: str | Path | None = None, history_limit: int = 100):
         self._queue: queue.PriorityQueue[tuple[int, int, PipelineJob | None]] = (
             queue.PriorityQueue()
@@ -85,6 +87,21 @@ class PipelineJobQueue:
                 key=lambda item: item.created_at,
                 reverse=True,
             )
+
+    def records(self) -> list[dict]:
+        """Return persisted history merged with the current in-memory jobs."""
+        merged = {
+            str(item.get("job_id")): dict(item)
+            for item in self.persisted_jobs()
+            if item.get("job_id")
+        }
+        for job in self.jobs():
+            merged[job.job_id] = job.to_dict()
+        return sorted(
+            merged.values(),
+            key=lambda item: str(item.get("created_at", "")),
+            reverse=True,
+        )
 
     def get(self, job_id: str) -> PipelineJob | None:
         with self._lock:
@@ -267,7 +284,7 @@ class PipelineJobQueue:
             completed = [
                 job
                 for job in self._jobs.values()
-                if job.status in {"completed", "failed", "cancelled"}
+                if job.status in self.TERMINAL_STATUSES
             ]
             completed.sort(key=lambda item: item.finished_at or item.created_at, reverse=True)
             for job in completed[self.history_limit :]:
@@ -278,10 +295,38 @@ class PipelineJobQueue:
             return
         try:
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
+
+            merged = {
+                str(item.get("job_id")): dict(item)
+                for item in self.persisted_jobs()
+                if item.get("job_id")
+                and str(item.get("status", "")) in self.TERMINAL_STATUSES
+            }
+            for job in self.jobs():
+                merged[job.job_id] = job.to_dict()
+
+            records = sorted(
+                merged.values(),
+                key=lambda item: str(item.get("finished_at") or item.get("created_at", "")),
+                reverse=True,
+            )
+            terminal = [
+                item for item in records if str(item.get("status", "")) in self.TERMINAL_STATUSES
+            ]
+            keep_terminal_ids = {
+                str(item.get("job_id")) for item in terminal[: self.history_limit]
+            }
+            records = [
+                item
+                for item in records
+                if str(item.get("status", "")) not in self.TERMINAL_STATUSES
+                or str(item.get("job_id")) in keep_terminal_ids
+            ]
+
             payload = {
                 "version": 1,
                 "updated_at": datetime.now().isoformat(),
-                "jobs": [job.to_dict() for job in self.jobs()],
+                "jobs": records,
             }
             temp = self.state_file.with_suffix(self.state_file.suffix + ".tmp")
             temp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
