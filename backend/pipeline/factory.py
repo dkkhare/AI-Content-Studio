@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .episode_stage import EpisodePlanningStage
+from backend.episodes import EpisodeReviewStore
+
+from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
 from .pipeline import ProcessingPipeline
 from .stages import (
     AIOCRCleanupStage,
@@ -168,17 +170,32 @@ def build_project_pipeline(
             )
         )
 
-    if bool(project.get_setting("pipeline_episode_segmentation_enabled", True)):
-        pipeline.add_stage(
-            EpisodePlanningStage(
-                target_minutes=float(project.get_setting("episode_target_minutes", 15.0)),
-                min_minutes=float(project.get_setting("episode_min_minutes", 12.0)),
-                max_minutes=float(project.get_setting("episode_max_minutes", 18.0)),
-                words_per_minute=float(project.get_setting("hindi_narration_words_per_minute", 130.0)),
-            )
-        )
+    segmentation_enabled = bool(
+        project.get_setting("pipeline_episode_segmentation_enabled", True)
+    )
+    review_required = bool(project.get_setting("episode_review_required", True))
+    review_store = EpisodeReviewStore(project.root)
+    manifest_exists = review_store.exists()
+    review_complete = review_store.review_complete() if manifest_exists else False
 
-    if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)):
+    media_allowed = True
+    if segmentation_enabled:
+        if not manifest_exists:
+            pipeline.add_stage(
+                EpisodePlanningStage(
+                    target_minutes=float(project.get_setting("episode_target_minutes", 15.0)),
+                    min_minutes=float(project.get_setting("episode_min_minutes", 12.0)),
+                    max_minutes=float(project.get_setting("episode_max_minutes", 18.0)),
+                    words_per_minute=float(
+                        project.get_setting("hindi_narration_words_per_minute", 130.0)
+                    ),
+                )
+            )
+            media_allowed = not review_required
+        elif review_required:
+            media_allowed = review_complete
+
+    if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)) and media_allowed:
         pipeline.add_stage(
             AISubtitleStage(
                 ai_manager,
@@ -188,16 +205,25 @@ def build_project_pipeline(
             )
         )
 
-    if bool(project.get_setting("pipeline_narration_enabled", True)):
+    if bool(project.get_setting("pipeline_narration_enabled", True)) and media_allowed:
         tts_provider = str(project.get_setting("tts_provider", "f5tts") or "f5tts")
         if tts_provider.lower() != "f5tts":
             raise ValueError(
                 f"Unsupported local TTS provider: {tts_provider}. "
                 "F5-TTS is the configured local narration engine."
             )
-        pipeline.add_stage(NarrationStage())
+        if segmentation_enabled and review_required:
+            pipeline.add_stage(EpisodeNarrationStage())
+        else:
+            pipeline.add_stage(NarrationStage())
 
-    if bool(project.get_setting("pipeline_video_enabled", False)):
+    # Episode-aware video composition will be added after the review gate. Until then,
+    # the existing global FFmpeg renderer remains available only when segmentation is off.
+    if (
+        bool(project.get_setting("pipeline_video_enabled", False))
+        and media_allowed
+        and not segmentation_enabled
+    ):
         if renderer is None:
             from backend.video import FFmpegRenderer
 
