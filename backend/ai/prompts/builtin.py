@@ -61,6 +61,27 @@ def create_builtin_library() -> PromptLibrary:
             defaults={"tone": "natural Hindi podcast narration", "language": "Hindi"},
         ),
         PromptTemplate(
+            name="story_intelligence",
+            version="1.0",
+            description="Extract structured story knowledge from one approved Hindi episode.",
+            system_template=(
+                "You are the Story Intelligence engine for a Hindi book-to-podcast/video application. "
+                "Extract only information supported by the supplied episode. Never invent biography, appearance, relationships, places, or events. "
+                "Return exactly one valid JSON object and no markdown or commentary. Names and descriptions should remain in Hindi when the source is Hindi."
+            ),
+            user_template=(
+                "Analyze approved episode {{episode_id}} titled {{title}}. Return JSON with this exact top-level shape: "
+                "{\"genre\":\"\",\"time_period\":\"\",\"mood\":\"\","
+                "\"characters\":[{\"name\":\"\",\"aliases\":[],\"role\":\"\",\"importance\":\"\",\"appearance\":\"\",\"personality\":\"\"}],"
+                "\"locations\":[{\"name\":\"\",\"aliases\":[],\"type\":\"\",\"description\":\"\"}],"
+                "\"objects\":[{\"name\":\"\",\"aliases\":[],\"description\":\"\",\"importance\":\"\"}],"
+                "\"relationships\":[{\"source\":\"\",\"relationship\":\"\",\"target\":\"\",\"evidence\":\"\"}],"
+                "\"events\":[{\"summary\":\"\",\"characters\":[],\"location\":\"\",\"time\":\"\"}],"
+                "\"scene_candidates\":[{\"summary\":\"\",\"characters\":[],\"location\":\"\",\"mood\":\"\",\"visual_notes\":\"\"}]}。 "
+                "Use empty strings/lists when information is not stated. Episode text follows:\n\n{{text}}"
+            ),
+        ),
+        PromptTemplate(
             name="subtitle_generation",
             version="1.0",
             system_template="Create concise readable subtitles. Do not add information not present in the source.",
