@@ -157,13 +157,63 @@ class AIOCRCleanupStage(AIPromptStage):
         return text
 
 
+class HindiSpellingCorrectionStage(AIPromptStage):
+    stage_id = "hindi_spelling_correction"
+    name = "Hindi Spelling Correction"
+    weight = 1.0
+
+    def __init__(self, ai_manager, *, provider_id=None, model=""):
+        super().__init__(
+            ai_manager,
+            "hindi_spelling_correction",
+            source_keys=("cleaned_text", "ocr_text"),
+            output_key="spelling_corrected_text",
+            output_filename="hindi_spelling_corrected.txt",
+            provider_id=provider_id,
+            model=model,
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+    def execute(self, context, progress=None):
+        text = super().execute(context, progress)
+        context.cleaned_text = text
+        return text
+
+
+class HindiGrammarCorrectionStage(AIPromptStage):
+    stage_id = "hindi_grammar_correction"
+    name = "Hindi Grammar Correction"
+    weight = 1.0
+
+    def __init__(self, ai_manager, *, provider_id=None, model=""):
+        super().__init__(
+            ai_manager,
+            "hindi_grammar_correction",
+            source_keys=("spelling_corrected_text", "cleaned_text", "ocr_text"),
+            output_key="grammar_corrected_text",
+            output_filename="hindi_grammar_corrected.txt",
+            provider_id=provider_id,
+            model=model,
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+    def execute(self, context, progress=None):
+        text = super().execute(context, progress)
+        context.cleaned_text = text
+        return text
+
+
 class AITranslationStage(AIPromptStage):
     stage_id = "ai_translation"
     name = "AI Translation"
     weight = 1.5
 
     def __init__(self, ai_manager, *, provider_id=None, model="", source_language="hi", target_language="hi"):
-        super().__init__(ai_manager, "translation", source_keys=("cleaned_text", "ocr_text"), output_key="translated_text", output_filename="translation_ai.txt", provider_id=provider_id, model=model, extra_variables={"source_language": source_language, "target_language": target_language}, project_asset="translation_file", stage_id=self.stage_id, name=self.name, weight=self.weight)
+        super().__init__(ai_manager, "translation", source_keys=("grammar_corrected_text", "spelling_corrected_text", "cleaned_text", "ocr_text"), output_key="translated_text", output_filename="translation_ai.txt", provider_id=provider_id, model=model, extra_variables={"source_language": source_language, "target_language": target_language}, project_asset="translation_file", stage_id=self.stage_id, name=self.name, weight=self.weight)
 
     def execute(self, context, progress=None):
         text = super().execute(context, progress)
@@ -177,7 +227,7 @@ class AISummaryStage(AIPromptStage):
     weight = 1.0
 
     def __init__(self, ai_manager, *, provider_id=None, model="", language="hi", style="concise"):
-        super().__init__(ai_manager, "chapter_summary", source_keys=("translated_text", "cleaned_text", "ocr_text"), output_key="summary_text", output_filename="summary.txt", provider_id=provider_id, model=model, extra_variables={"language": language, "audience": f"general readers; style: {style}"}, stage_id=self.stage_id, name=self.name, weight=self.weight)
+        super().__init__(ai_manager, "chapter_summary", source_keys=("translated_text", "grammar_corrected_text", "spelling_corrected_text", "cleaned_text", "ocr_text"), output_key="summary_text", output_filename="summary.txt", provider_id=provider_id, model=model, extra_variables={"language": language, "audience": f"general readers; style: {style}"}, stage_id=self.stage_id, name=self.name, weight=self.weight)
 
 
 class AIScriptStage(AIPromptStage):
@@ -186,7 +236,7 @@ class AIScriptStage(AIPromptStage):
     weight = 1.5
 
     def __init__(self, ai_manager, *, provider_id=None, model="", language="hi", style="natural Hindi podcast narration"):
-        super().__init__(ai_manager, "script_generation", source_keys=("summary_text", "translated_text", "cleaned_text", "ocr_text"), output_key="script_text", output_filename="podcast_script.txt", provider_id=provider_id, model=model, extra_variables={"language": language, "tone": style}, stage_id=self.stage_id, name=self.name, weight=self.weight)
+        super().__init__(ai_manager, "script_generation", source_keys=("summary_text", "translated_text", "grammar_corrected_text", "spelling_corrected_text", "cleaned_text", "ocr_text"), output_key="script_text", output_filename="podcast_script.txt", provider_id=provider_id, model=model, extra_variables={"language": language, "tone": style}, stage_id=self.stage_id, name=self.name, weight=self.weight)
 
 
 class AISubtitleStage(AIPromptStage):
@@ -195,7 +245,7 @@ class AISubtitleStage(AIPromptStage):
     weight = 1.0
 
     def __init__(self, ai_manager, *, provider_id=None, model="", language="hi"):
-        super().__init__(ai_manager, "subtitle_generation", source_keys=("script_text", "translated_text", "cleaned_text", "ocr_text"), output_key="subtitle_text", output_filename="subtitles.txt", provider_id=provider_id, model=model, extra_variables={"language": language}, project_asset="subtitle_file", stage_id=self.stage_id, name=self.name, weight=self.weight)
+        super().__init__(ai_manager, "subtitle_generation", source_keys=("script_text", "translated_text", "grammar_corrected_text", "spelling_corrected_text", "cleaned_text", "ocr_text"), output_key="subtitle_text", output_filename="subtitles.txt", provider_id=provider_id, model=model, extra_variables={"language": language}, project_asset="subtitle_file", stage_id=self.stage_id, name=self.name, weight=self.weight)
 
 
 class TranslationStage(PipelineStage):
@@ -256,7 +306,14 @@ class NarrationStage(PipelineStage):
         return NarrationPipeline()
 
     def execute(self, context, progress=None):
-        text = context.get("script_text") or context.get("translated_text") or context.cleaned_text or context.ocr_text
+        text = (
+            context.get("script_text")
+            or context.get("translated_text")
+            or context.get("grammar_corrected_text")
+            or context.get("spelling_corrected_text")
+            or context.cleaned_text
+            or context.ocr_text
+        )
         if not text:
             raise ValueError("Narration stage has no source text.")
         if progress:
