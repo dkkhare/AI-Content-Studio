@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QTabWidget, QVBoxLayout, QWidget
 
+from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.workflow_panel import WorkflowPanel
 
@@ -66,11 +67,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.export_page, "Export")
 
         self.workflow_panel = WorkflowPanel(self)
+        self.workflow_panel.startRequested.connect(self.start_processing)
         self.tabs.addTab(self.workflow_panel, "Processing")
-
-    # --------------------------------------------------
-    # Controller integration
-    # --------------------------------------------------
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -82,13 +80,46 @@ class Workspace(QWidget):
         controller.cancelled.connect(lambda: self.set_busy(False))
         controller.failed.connect(lambda message: self.set_busy(False))
 
-    # --------------------------------------------------
-    # Project handling
-    # --------------------------------------------------
+    def start_processing(self) -> bool:
+        if self.current_project is None or self.pipeline_controller is None:
+            return False
+        if self.pipeline_controller.running:
+            self.open_processing_tab()
+            return False
+
+        dialog = ProcessingSetupDialog(self.current_project, self)
+        if dialog.exec() != QDialog.Accepted:
+            return False
+
+        data = dialog.data()
+        if self.current_project.get_setting("pipeline_ocr_enabled", True) and not data["ocr_images"]:
+            QMessageBox.warning(
+                self,
+                "Start Processing",
+                "OCR is enabled, but no source images were selected.",
+            )
+            return False
+
+        try:
+            started = self.pipeline_controller.start_project(
+                self.current_project,
+                data=data,
+                resume=True,
+                configure=True,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Unable to Start Processing", str(exc))
+            return False
+
+        if started:
+            self.open_processing_tab()
+        return bool(started)
 
     def open_project(self, project) -> None:
         self.current_project = project
         self._busy = False
+        if self.workflow_panel:
+            self.workflow_panel.set_project_available(True)
         self.refresh()
         self.open_pdf_tab()
         self.projectOpened.emit(str(project))
@@ -96,10 +127,10 @@ class Workspace(QWidget):
     def close_project(self) -> None:
         self.current_project = None
         self._busy = False
-        if self.workflow_panel and not (
-            self.pipeline_controller and self.pipeline_controller.running
-        ):
-            self.workflow_panel.reset()
+        if self.workflow_panel:
+            self.workflow_panel.set_project_available(False)
+            if not (self.pipeline_controller and self.pipeline_controller.running):
+                self.workflow_panel.reset()
         self.clear()
         self.projectClosed.emit()
 
@@ -110,14 +141,8 @@ class Workspace(QWidget):
             except Exception:
                 pass
 
-    # --------------------------------------------------
-    # State / tabs
-    # --------------------------------------------------
-
     def set_busy(self, busy: bool) -> None:
         self._busy = bool(busy)
-        # Keep the Processing tab usable while work is running so users can
-        # pause, resume, or cancel. Other tabs remain readable as well.
 
     def is_busy(self) -> bool:
         return self._busy
@@ -159,13 +184,11 @@ class Workspace(QWidget):
     def open_processing_tab(self) -> None:
         self.set_current_tab(6)
 
-    # --------------------------------------------------
-    # Cleanup / information
-    # --------------------------------------------------
-
     def clear(self) -> None:
         self._busy = False
         self.current_project = None
+        if self.workflow_panel:
+            self.workflow_panel.set_project_available(False)
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
             try:
                 self.narration_panel.clear()
