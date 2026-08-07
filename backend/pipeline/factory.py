@@ -28,6 +28,17 @@ def build_project_pipeline(
             from backend.translation import create_translation_provider
 
             translator = create_translation_provider(project)
+
+        configured = getattr(translator, "configured", None)
+        if callable(configured) and not configured():
+            env_name = str(
+                project.get_setting("translation_api_key_env", "GOOGLE_TRANSLATE_API_KEY")
+            )
+            raise ValueError(
+                "Translation is enabled but the configured provider has no credentials. "
+                f"Set environment variable {env_name}."
+            )
+
         pipeline.add_stage(
             TranslationStage(
                 translator=translator,
