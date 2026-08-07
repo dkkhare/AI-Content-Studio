@@ -9,6 +9,7 @@ on:
       - "backend/ai/**"
       - "tests/test_ai_core.py"
       - "tests/test_ai_providers.py"
+      - "tests/test_ai_prompts.py"
       - ".github/workflows/milestone-13-smoke.yml"
 
 jobs:
@@ -32,6 +33,7 @@ jobs:
           python -m unittest -v
           tests.test_ai_core
           tests.test_ai_providers
+          tests.test_ai_prompts
 
       - name: Re-run Milestone 12 processing regressions
         run: >-
