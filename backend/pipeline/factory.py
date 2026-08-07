@@ -3,7 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 from .pipeline import ProcessingPipeline
-from .stages import NarrationStage, OCRStage, TranslationStage, VideoRenderStage
+from .stages import (
+    AIOCRCleanupStage,
+    AIScriptStage,
+    AISubtitleStage,
+    AISummaryStage,
+    AITranslationStage,
+    NarrationStage,
+    OCRStage,
+    TranslationStage,
+    VideoRenderStage,
+)
 
 
 def build_project_pipeline(
@@ -11,8 +21,9 @@ def build_project_pipeline(
     *,
     translator: Any | None = None,
     renderer: Any | None = None,
+    ai_manager: Any | None = None,
 ) -> ProcessingPipeline:
-    """Build a ProcessingPipeline from project-specific Milestone 12 settings."""
+    """Build a ProcessingPipeline from project-specific Milestone 12/13 settings."""
 
     pipeline = ProcessingPipeline()
 
@@ -20,6 +31,39 @@ def build_project_pipeline(
         pipeline.add_stage(
             OCRStage(
                 provider=str(project.get_setting("ocr_provider", "paddle")) or None,
+            )
+        )
+
+    ai_enabled = any(
+        bool(project.get_setting(key, False))
+        for key in (
+            "pipeline_ai_ocr_cleanup_enabled",
+            "pipeline_ai_translation_enabled",
+            "pipeline_ai_summary_enabled",
+            "pipeline_ai_script_enabled",
+            "pipeline_ai_subtitle_enabled",
+        )
+    )
+    if ai_enabled and ai_manager is None:
+        from backend.ai import AIConfig, AIManager
+
+        ai_manager = AIManager(
+            config=AIConfig(
+                default_provider=str(project.get_setting("ai_provider", "")),
+                default_model=str(project.get_setting("ai_model", "")),
+            )
+        )
+
+    ai_provider = str(project.get_setting("ai_provider", "")) or None
+    ai_model = str(project.get_setting("ai_model", ""))
+
+    if bool(project.get_setting("pipeline_ai_ocr_cleanup_enabled", False)):
+        pipeline.add_stage(
+            AIOCRCleanupStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+                language=str(project.get_setting("ai_source_language", project.language)),
             )
         )
 
@@ -48,6 +92,47 @@ def build_project_pipeline(
                 target_language=str(
                     project.get_setting("translation_target_language", project.language)
                 ),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_ai_translation_enabled", False)):
+        pipeline.add_stage(
+            AITranslationStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+                source_language=str(project.get_setting("ai_source_language", project.language)),
+                target_language=str(project.get_setting("ai_target_language", project.language)),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_ai_summary_enabled", False)):
+        pipeline.add_stage(
+            AISummaryStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+                style=str(project.get_setting("ai_summary_style", "concise")),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_ai_script_enabled", False)):
+        pipeline.add_stage(
+            AIScriptStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+                style=str(project.get_setting("ai_script_style", "natural narration")),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)):
+        pipeline.add_stage(
+            AISubtitleStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+                language=str(project.get_setting("ai_subtitle_language", project.language)),
             )
         )
 
