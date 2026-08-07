@@ -9,6 +9,8 @@ from .stages import (
     AISubtitleStage,
     AISummaryStage,
     AITranslationStage,
+    HindiGrammarCorrectionStage,
+    HindiSpellingCorrectionStage,
     NarrationStage,
     OCRStage,
     TranslationStage,
@@ -38,6 +40,8 @@ def build_project_pipeline(
         bool(project.get_setting(key, False))
         for key in (
             "pipeline_ai_ocr_cleanup_enabled",
+            "pipeline_hindi_spelling_correction_enabled",
+            "pipeline_hindi_grammar_correction_enabled",
             "pipeline_ai_translation_enabled",
             "pipeline_ai_summary_enabled",
             "pipeline_ai_script_enabled",
@@ -64,6 +68,24 @@ def build_project_pipeline(
                 provider_id=ai_provider,
                 model=ai_model,
                 language=str(project.get_setting("ai_source_language", project.language) or "hi"),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_hindi_spelling_correction_enabled", False)):
+        pipeline.add_stage(
+            HindiSpellingCorrectionStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+            )
+        )
+
+    if bool(project.get_setting("pipeline_hindi_grammar_correction_enabled", False)):
+        pipeline.add_stage(
+            HindiGrammarCorrectionStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
             )
         )
 
