@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -17,20 +18,20 @@ from PySide6.QtWidgets import (
 
 
 class ProcessingSetupDialog(QDialog):
-    """Collect inputs and queue options for the configured project pipeline."""
+    """Collect inputs and per-run processing choices for the project pipeline."""
 
     def __init__(self, project, parent=None):
         super().__init__(parent)
         self.project = project
         self._images: list[str] = []
         self.setWindowTitle("Queue Processing")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(600)
 
         layout = QVBoxLayout(self)
         layout.addWidget(
             QLabel(
-                "Select the page/image files to use for OCR and video rendering. "
-                "Enabled stages are read from Project Settings."
+                "Select the page/image files and choose optional Hindi proofreading steps. "
+                "Spelling and grammar correction are independent and are never enabled silently."
             )
         )
 
@@ -45,6 +46,27 @@ class ProcessingSetupDialog(QDialog):
         layout.addLayout(row)
 
         options = QFormLayout()
+
+        self.spelling_correction = QCheckBox("Correct Hindi spelling", self)
+        self.spelling_correction.setChecked(
+            bool(project.get_setting("pipeline_hindi_spelling_correction_enabled", False))
+        )
+        self.spelling_correction.setToolTip(
+            "Correct spelling, matras and typographical errors only; do not rewrite grammar or style."
+        )
+        self.spelling_correction.toggled.connect(self._refresh_summary)
+        options.addRow("Optional proofing", self.spelling_correction)
+
+        self.grammar_correction = QCheckBox("Correct Hindi grammar", self)
+        self.grammar_correction.setChecked(
+            bool(project.get_setting("pipeline_hindi_grammar_correction_enabled", False))
+        )
+        self.grammar_correction.setToolTip(
+            "Correct Hindi grammar after spelling correction when both options are selected."
+        )
+        self.grammar_correction.toggled.connect(self._refresh_summary)
+        options.addRow("", self.grammar_correction)
+
         self.priority = QSpinBox(self)
         self.priority.setRange(-100, 100)
         self.priority.setValue(0)
@@ -78,18 +100,40 @@ class ProcessingSetupDialog(QDialog):
             self._images = files
             self.images_edit.setText(f"{len(files)} image(s) selected")
 
-    def _refresh_summary(self) -> None:
+    def _refresh_summary(self, *_args) -> None:
         project = self.project
         stages = []
         if project.get_setting("pipeline_ocr_enabled", True):
             stages.append(f"OCR ({project.get_setting('ocr_provider', 'paddle')})")
+        if project.get_setting("pipeline_ai_ocr_cleanup_enabled", False):
+            stages.append("AI OCR Cleanup")
+        if self.spelling_correction.isChecked():
+            stages.append("Hindi Spelling Correction")
+        if self.grammar_correction.isChecked():
+            stages.append("Hindi Grammar Correction")
         if project.get_setting("pipeline_translation_enabled", False):
             stages.append("Translation")
+        if project.get_setting("pipeline_ai_summary_enabled", False):
+            stages.append("AI Summary")
+        if project.get_setting("pipeline_ai_script_enabled", False):
+            stages.append("Hindi Podcast Script")
+        if project.get_setting("pipeline_ai_subtitle_enabled", False):
+            stages.append("Hindi Subtitle Preparation")
         if project.get_setting("pipeline_narration_enabled", True):
-            stages.append("Narration / TTS")
+            stages.append("F5-TTS Hindi Narration")
         if project.get_setting("pipeline_video_enabled", False):
             stages.append("Video Render")
-        self.summary.setText("Configured stages: " + (" → ".join(stages) if stages else "None"))
+        self.summary.setText("This run: " + (" → ".join(stages) if stages else "None"))
+
+    def proofing_options(self) -> dict[str, bool]:
+        return {
+            "pipeline_hindi_spelling_correction_enabled": self.spelling_correction.isChecked(),
+            "pipeline_hindi_grammar_correction_enabled": self.grammar_correction.isChecked(),
+        }
+
+    def accept(self) -> None:
+        self.project.update_settings(self.proofing_options())
+        super().accept()
 
     def data(self) -> dict:
         return {
