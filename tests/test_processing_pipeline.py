@@ -177,6 +177,55 @@ class ProcessingPipelineTests(unittest.TestCase):
             )
             self.assertEqual(record["status"], "cancelled")
 
+    def test_shutdown_does_not_start_next_queued_job(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "project"
+            root.mkdir()
+            state_file = Path(temp) / "queue.json"
+            current_context = PipelineContext(DummyProject(root))
+            queued_context = PipelineContext(DummyProject(root))
+
+            def slow(ctx, progress):
+                for index in range(200):
+                    progress(index // 2, "working")
+                    time.sleep(0.005)
+
+            def should_not_start(ctx, progress):
+                ctx.set("started_after_shutdown", True)
+
+            jobs = PipelineJobQueue(state_file=state_file)
+            jobs.submit(
+                current_context,
+                PipelineRunner(ProcessingPipeline([FunctionStage("slow", "Slow", slow)])),
+                priority=10,
+                resume=False,
+            )
+            queued_job = jobs.submit(
+                queued_context,
+                PipelineRunner(
+                    ProcessingPipeline(
+                        [FunctionStage("next", "Next", should_not_start)]
+                    )
+                ),
+                priority=5,
+                resume=False,
+            )
+
+            deadline = time.time() + 1
+            while jobs.current is None and time.time() < deadline:
+                time.sleep(0.005)
+            self.assertIsNotNone(jobs.current)
+
+            jobs.shutdown(cancel_current=True, wait=2)
+
+            self.assertFalse(queued_context.get("started_after_shutdown", False))
+            record = next(
+                item
+                for item in jobs.persisted_jobs()
+                if item["job_id"] == queued_job.job_id
+            )
+            self.assertEqual(record["status"], "queued")
+
 
 if __name__ == "__main__":
     unittest.main()
