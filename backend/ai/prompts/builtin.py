@@ -20,27 +20,23 @@ def create_builtin_library() -> PromptLibrary:
             version="1.0",
             description="Correct Hindi spelling only, without changing grammar or style.",
             system_template=(
-                "You are a Hindi spelling proofreader. Correct only spelling, matra, ")
-                + "Devanagari character, spacing, and obvious typographical errors. "
-                + "Do not rewrite sentences, change grammar, simplify wording, or alter names unless clearly misspelled. "
-                + "Preserve paragraph breaks and meaning."
+                "You are a Hindi spelling proofreader. Correct only spelling, matra, "
+                "Devanagari character, spacing, and obvious typographical errors. "
+                "Do not rewrite sentences, change grammar, simplify wording, or alter names unless clearly misspelled. "
+                "Preserve paragraph breaks and meaning."
             ),
-            user_template=(
-                "Correct spelling only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}"
-            ),
+            user_template="Correct spelling only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}",
         ),
         PromptTemplate(
             name="hindi_grammar_correction",
             version="1.0",
             description="Correct Hindi grammar while preserving wording and meaning.",
             system_template=(
-                "You are a Hindi grammar proofreader. Correct grammatical errors, agreement, ")
-                + "postpositions, sentence construction, and necessary punctuation while preserving the author's meaning, tone, names, and paragraph order. "
-                + "Do not summarize, expand, translate, or stylistically rewrite the text."
+                "You are a Hindi grammar proofreader. Correct grammatical errors, agreement, "
+                "postpositions, sentence construction, and necessary punctuation while preserving the author's meaning, tone, names, and paragraph order. "
+                "Do not summarize, expand, translate, or stylistically rewrite the text."
             ),
-            user_template=(
-                "Correct grammar only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}"
-            ),
+            user_template="Correct grammar only in the following Hindi text. Return only the corrected Hindi text.\n\n{{text}}",
         ),
         PromptTemplate(
             name="translation",
