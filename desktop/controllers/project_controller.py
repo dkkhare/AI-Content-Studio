@@ -14,24 +14,23 @@ from backend.project.manager import ProjectManager
 
 class ProjectController(QObject):
     """
-    Connects the desktop UI layer with the backend
-    ProjectManager.
+    Desktop controller for project lifecycle management.
 
-    Responsibilities:
-    - Create projects
-    - Open projects
-    - Save projects
-    - Close projects
-    - Notify UI about project state changes
-
-    Milestone 11 additions
-    ----------------------
+    Responsibilities
+    ----------------
+    • Create projects
+    • Open projects
+    • Save projects
+    • Save projects as
+    • Close projects
+    • Track modified state
     • Autosave
-    • Backup support
-    • Recent projects
+    • Backup notifications
     • Recovery detection
+    • Recent projects
 
-    Business logic remains inside ProjectManager.
+    Business/project persistence logic remains inside
+    ProjectManager.
     """
 
     # --------------------------------------------------
@@ -46,8 +45,6 @@ class ProjectController(QObject):
 
     projectModified = Signal(bool)
 
-    # Milestone 11
-
     projectAutoSaved = Signal(Path)
 
     projectBackupCreated = Signal(Path)
@@ -56,6 +53,8 @@ class ProjectController(QObject):
 
     recentProjectsChanged = Signal(list)
 
+    # --------------------------------------------------
+    # Initialization
     # --------------------------------------------------
 
     def __init__(
@@ -69,23 +68,29 @@ class ProjectController(QObject):
 
         self.manager = ProjectManager()
 
-        self._modified = False
+        # ------------------------------------------
+        # UI/controller state
+        # ------------------------------------------
 
-        # ------------------------------------------
-        # Milestone 11 State
-        # ------------------------------------------
+        self._modified = False
 
         self._recent_projects: list[Path] = []
 
         self._last_saved: datetime | None = None
 
+        # ------------------------------------------
+        # Autosave configuration
+        # ------------------------------------------
+
         self._autosave_enabled = True
 
         self._autosave_interval = (
             5 * 60 * 1000
-        )  # 5 minutes
+        )
 
-        self._autosave_timer = QTimer(self)
+        self._autosave_timer = QTimer(
+            self
+        )
 
         self._autosave_timer.timeout.connect(
             self.auto_save
@@ -105,26 +110,38 @@ class ProjectController(QObject):
         return self.manager.current
 
     @property
-    def modified(self):
+    def modified(
+        self,
+    ) -> bool:
 
         return self._modified
 
     @property
-    def autosave_enabled(self):
+    def autosave_enabled(
+        self,
+    ) -> bool:
 
         return self._autosave_enabled
 
     @property
-    def recent_projects(self):
+    def recent_projects(
+        self,
+    ) -> list[Path]:
 
         return list(
             self._recent_projects
         )
 
     @property
-    def last_saved(self):
+    def last_saved(
+        self,
+    ) -> datetime | None:
 
         return self._last_saved
+
+    # --------------------------------------------------
+    # Project State
+    # --------------------------------------------------
 
     def has_project(
         self,
@@ -141,8 +158,9 @@ class ProjectController(QObject):
             return None
 
         return self.manager.project_root()
+
     # --------------------------------------------------
-    # Internal State
+    # Modified State
     # --------------------------------------------------
 
     def mark_modified(
@@ -150,7 +168,21 @@ class ProjectController(QObject):
         value: bool = True,
     ):
 
-        value = bool(value)
+        value = bool(
+            value
+        )
+
+        # ------------------------------------------
+        # Keep controller and manager synchronized.
+        # ------------------------------------------
+
+        if value:
+
+            self.manager.mark_modified()
+
+        else:
+
+            self.manager.clear_modified()
 
         if self._modified == value:
 
@@ -162,12 +194,34 @@ class ProjectController(QObject):
             value
         )
 
+    # --------------------------------------------------
+
     def reset_modified(
         self,
     ):
 
         self.mark_modified(
             False
+        )
+
+    # --------------------------------------------------
+
+    def sync_modified_state(
+        self,
+    ):
+
+        value = bool(
+            self.manager.modified
+        )
+
+        if self._modified == value:
+
+            return
+
+        self._modified = value
+
+        self.projectModified.emit(
+            value
         )
 
     # --------------------------------------------------
@@ -193,6 +247,8 @@ class ProjectController(QObject):
 
             self._autosave_timer.stop()
 
+    # --------------------------------------------------
+
     def set_autosave_interval(
         self,
         milliseconds: int,
@@ -203,13 +259,17 @@ class ProjectController(QObject):
             int(milliseconds),
         )
 
-        self._autosave_interval = milliseconds
+        self._autosave_interval = (
+            milliseconds
+        )
 
         if self._autosave_enabled:
 
             self._autosave_timer.start(
-                milliseconds
+                self._autosave_interval
             )
+
+    # --------------------------------------------------
 
     def auto_save(
         self,
@@ -223,17 +283,25 @@ class ProjectController(QObject):
 
             return False
 
+        self.sync_modified_state()
+
         if not self.modified:
 
             return False
 
         try:
 
-            self.manager.save_current()
+            # --------------------------------------
+            # IMPORTANT:
+            # Autosave creates a recovery snapshot.
+            # It must NOT perform a normal save.
+            # --------------------------------------
 
-            self.reset_modified()
+            recovery = self.manager.autosave()
 
-            self._last_saved = datetime.now()
+            if recovery is None:
+
+                return False
 
             root = self.project_root()
 
@@ -243,57 +311,84 @@ class ProjectController(QObject):
                     root
                 )
 
+                self.projectRecoveryAvailable.emit(
+                    recovery
+                )
+
             return True
 
         except Exception:
 
             return False
-
     # --------------------------------------------------
     # Recent Projects
     # --------------------------------------------------
 
     def add_recent_project(
         self,
-        project: str | Path,
+        path: str | Path,
     ):
 
-        project = Path(project)
+        project_path = Path(
+            path
+        ).resolve()
 
-        if project in self._recent_projects:
+        # Remove existing occurrence.
+        self._recent_projects = [
 
-            self._recent_projects.remove(
-                project
-            )
+            item
 
+            for item in self._recent_projects
+
+            if item != project_path
+
+        ]
+
+        # Put newest project first.
         self._recent_projects.insert(
             0,
-            project,
+            project_path
         )
 
+        # Keep a reasonable history size.
         self._recent_projects = (
-            self._recent_projects[:10]
+            self._recent_projects[:20]
         )
 
         self.recentProjectsChanged.emit(
-            list(self._recent_projects)
+            list(
+                self._recent_projects
+            )
         )
+
+    # --------------------------------------------------
+
     def remove_recent_project(
         self,
-        project: str | Path,
+        path: str | Path,
     ):
 
-        project = Path(project)
+        project_path = Path(
+            path
+        ).resolve()
 
-        if project in self._recent_projects:
+        self._recent_projects = [
 
-            self._recent_projects.remove(
-                project
+            item
+
+            for item in self._recent_projects
+
+            if item != project_path
+
+        ]
+
+        self.recentProjectsChanged.emit(
+            list(
+                self._recent_projects
             )
+        )
 
-            self.recentProjectsChanged.emit(
-                list(self._recent_projects)
-            )
+    # --------------------------------------------------
 
     def clear_recent_projects(
         self,
@@ -301,93 +396,141 @@ class ProjectController(QObject):
 
         self._recent_projects.clear()
 
-        self.recentProjectsChanged.emit([])
+        self.recentProjectsChanged.emit(
+            []
+        )
 
     # --------------------------------------------------
     # Recovery
     # --------------------------------------------------
 
-    def recovery_file(
-        self,
-    ) -> Path | None:
-
-        root = self.project_root()
-
-        if root is None:
-
-            return None
-
-        return root / ".autosave.project"
-
     def has_recovery(
         self,
     ) -> bool:
 
-        recovery = self.recovery_file()
-
-        if recovery is None:
+        if not self.has_project():
 
             return False
 
-        if recovery.exists():
+        return self.manager.has_recovery()
+
+    # --------------------------------------------------
+
+    def recovery_path(
+        self,
+    ) -> Path | None:
+
+        if not self.has_project():
+
+            return None
+
+        return self.manager.recovery_path()
+
+    # --------------------------------------------------
+
+    def load_recovery(
+        self,
+    ):
+
+        if not self.has_project():
+
+            return None
+
+        return self.manager.load_recovery()
+
+    # --------------------------------------------------
+
+    def recover_project(
+        self,
+    ) -> bool:
+
+        if not self.has_project():
+
+            return False
+
+        if not self.manager.has_recovery():
+
+            return False
+
+        try:
+
+            project = (
+                self.manager.recover()
+            )
+
+            self._modified = True
+
+            self.projectModified.emit(
+                True
+            )
+
+            root = project.root
 
             self.projectRecoveryAvailable.emit(
-                recovery
+                root
             )
 
             return True
 
-        return False
+        except Exception:
+
+            return False
 
     # --------------------------------------------------
-    # Project Creation
+
+    def clear_recovery(
+        self,
+    ) -> bool:
+
+        try:
+
+            return self.manager.clear_recovery()
+
+        except Exception:
+
+            return False
+
+    # --------------------------------------------------
+    # Create Project
     # --------------------------------------------------
 
     def create_project(
         self,
         path: str | Path,
+        name: str | None = None,
     ):
 
-        project_path = Path(path)
-
-        if not project_path:
-
-            raise ValueError(
-                "Project path is required"
-            )
-
-        if (
-            project_path.exists()
-            and any(project_path.iterdir())
-        ):
-
-            raise FileExistsError(
-                "Project directory is not empty"
-            )
-
         project = self.manager.create_project(
-            project_path
+            path=path,
+            name=name,
         )
 
-        self.manager.set_current(
-            project
+        # ------------------------------------------
+        # Synchronize controller state.
+        # ------------------------------------------
+
+        self._modified = False
+
+        self._last_saved = (
+            self.manager.last_saved
         )
-
-        self.reset_modified()
-
-        self._last_saved = datetime.now()
 
         self.add_recent_project(
-            project_path
+            project.root
         )
 
         self.projectOpened.emit(
-            project_path
+            project.root
+        )
+
+        self.projectModified.emit(
+            False
         )
 
         return project
+
     # --------------------------------------------------
-    # Project Opening
+    # Open Project
     # --------------------------------------------------
 
     def open_project(
@@ -395,90 +538,144 @@ class ProjectController(QObject):
         path: str | Path,
     ):
 
-        project_path = Path(path)
-
-        if not project_path.exists():
-
-            raise FileNotFoundError(
-                f"Project not found: {project_path}"
-            )
+        project_path = Path(
+            path
+        ).resolve()
 
         project = self.manager.load_project(
             project_path
         )
 
-        self.manager.set_current(
-            project
+        # ------------------------------------------
+        # Synchronize state.
+        # ------------------------------------------
+
+        self._modified = False
+
+        self._last_saved = (
+            self.manager.last_saved
         )
-
-        self.reset_modified()
-
-        self._last_saved = datetime.now()
 
         self.add_recent_project(
-            project_path
+            project.root
         )
-
-        self.has_recovery()
 
         self.projectOpened.emit(
-            project_path
+            project.root
         )
+
+        self.projectModified.emit(
+            False
+        )
+
+        # ------------------------------------------
+        # Notify UI if recovery exists.
+        # ------------------------------------------
+
+        recovery = (
+            self.manager.recovery_path()
+        )
+
+        if (
+            recovery is not None
+            and recovery.exists()
+        ):
+
+            self.projectRecoveryAvailable.emit(
+                recovery
+            )
 
         return project
 
     # --------------------------------------------------
-    # Project Reload
+    # Open Recent Project
     # --------------------------------------------------
 
-    def reload_project(
+    def open_recent_project(
         self,
+        path: str | Path,
     ):
 
-        root = self.project_root()
-
-        if root is None:
-
-            raise RuntimeError(
-                "No project is open"
-            )
-
-        return self.open_project(
-            root
+        project_path = Path(
+            path
         )
 
+        if not project_path.exists():
+
+            self.remove_recent_project(
+                project_path
+            )
+
+            return None
+
+        try:
+
+            return self.open_project(
+                project_path
+            )
+
+        except Exception:
+
+            return None
     # --------------------------------------------------
     # Save Project
     # --------------------------------------------------
 
     def save_project(
         self,
-    ):
+    ) -> bool:
 
         if not self.has_project():
 
-            raise RuntimeError(
-                "No project is open"
+            return False
+
+        try:
+
+            result = self.manager.save_current()
+
+            if not result:
+
+                return False
+
+            self._modified = False
+
+            self._last_saved = (
+                self.manager.last_saved
             )
 
-        self.manager.save_current()
-
-        self.reset_modified()
-
-        self._last_saved = datetime.now()
-
-        root = self.project_root()
-
-        if root is not None:
-
-            self.projectSaved.emit(
-                root
+            self.projectModified.emit(
+                False
             )
 
-        return True
+            root = self.project_root()
+
+            if root is not None:
+
+                self.projectSaved.emit(
+                    root
+                )
+
+            # --------------------------------------
+            # A successful normal save means the
+            # recovery snapshot is no longer needed.
+            # --------------------------------------
+
+            try:
+
+                self.manager.clear_recovery()
+
+            except Exception:
+
+                pass
+
+            return True
+
+        except Exception:
+
+            return False
 
     # --------------------------------------------------
-    # Save Project As
+    # Save As
     # --------------------------------------------------
 
     def save_project_as(
@@ -488,56 +685,266 @@ class ProjectController(QObject):
 
         if not self.has_project():
 
-            raise RuntimeError(
-                "No project is open"
+            return None
+
+        try:
+
+            project = self.manager.save_as(
+                path
             )
 
-        target = Path(path)
+            self._modified = False
 
-        if not target:
-
-            raise ValueError(
-                "Target path required"
+            self._last_saved = (
+                self.manager.last_saved
             )
 
-        self.manager.save_as(
-            target
-        )
+            self.projectModified.emit(
+                False
+            )
 
-        self.reset_modified()
+            self.add_recent_project(
+                project.root
+            )
 
-        self._last_saved = datetime.now()
+            self.projectSaved.emit(
+                project.root
+            )
 
-        self.add_recent_project(
-            target
-        )
+            return project
 
-        self.projectSaved.emit(
-            target
-        )    # --------------------------------------------------
+        except Exception:
+
+            return None
+
+    # --------------------------------------------------
+    # Backup
+    # --------------------------------------------------
+
+    def create_backup(
+        self,
+    ) -> Path | None:
+
+        if not self.has_project():
+
+            return None
+
+        try:
+
+            backup = (
+                self.manager.create_backup()
+            )
+
+            self.projectBackupCreated.emit(
+                backup
+            )
+
+            return backup
+
+        except Exception:
+
+            return None
+
+    # --------------------------------------------------
+    # List Backups
+    # --------------------------------------------------
+
+    def list_backups(
+        self,
+    ) -> list[Path]:
+
+        if not self.has_project():
+
+            return []
+
+        try:
+
+            return self.manager.list_backups()
+
+        except Exception:
+
+            return []
+
+    # --------------------------------------------------
+    # Restore Backup
+    # --------------------------------------------------
+
+    def restore_backup(
+        self,
+        backup: str | Path,
+    ) -> bool:
+
+        if not self.has_project():
+
+            return False
+
+        try:
+
+            # --------------------------------------
+            # Create a safety backup of the current
+            # state before restoring another backup.
+            # --------------------------------------
+
+            try:
+
+                self.manager.create_backup()
+
+            except Exception:
+
+                pass
+
+            project = (
+                self.manager.restore_backup(
+                    backup
+                )
+            )
+
+            self._modified = False
+
+            self._last_saved = (
+                self.manager.last_saved
+            )
+
+            self.projectModified.emit(
+                False
+            )
+
+            self.add_recent_project(
+                project.root
+            )
+
+            self.projectSaved.emit(
+                project.root
+            )
+
+            return True
+
+        except Exception:
+
+            return False
+
+    # --------------------------------------------------
+    # Delete Backup
+    # --------------------------------------------------
+
+    def delete_backup(
+        self,
+        backup: str | Path,
+    ) -> bool:
+
+        try:
+
+            return self.manager.delete_backup(
+                backup
+            )
+
+        except Exception:
+
+            return False
+
+    # --------------------------------------------------
+    # Cleanup Backups
+    # --------------------------------------------------
+
+    def cleanup_backups(
+        self,
+        keep: int = 10,
+    ) -> int:
+
+        if not self.has_project():
+
+            return 0
+
+        try:
+
+            return self.manager.cleanup_backups(
+                keep=keep
+            )
+
+        except Exception:
+
+            return 0
+
+    # --------------------------------------------------
+    # Refresh Project
+    # --------------------------------------------------
+
+    def refresh(
+        self,
+    ):
+
+        if not self.has_project():
+
+            return None
+
+        try:
+
+            project = (
+                self.manager.reload_current()
+            )
+
+            self._modified = False
+
+            self._last_saved = (
+                self.manager.last_saved
+            )
+
+            self.projectModified.emit(
+                False
+            )
+
+            return project
+
+        except Exception:
+
+            return None
+    # --------------------------------------------------
     # Close Project
     # --------------------------------------------------
 
     def close_project(
         self,
         force: bool = False,
-    ):
+    ) -> bool:
 
         if not self.has_project():
 
-            return
+            return True
+
+        # ------------------------------------------
+        # Synchronize state before checking whether
+        # there are unsaved changes.
+        # ------------------------------------------
+
+        self.sync_modified_state()
 
         if self.modified and not force:
 
             raise RuntimeError(
-                "Project has unsaved changes"
+                "Project has unsaved changes."
             )
 
-        self.manager.close_current()
+        try:
 
-        self.reset_modified()
+            result = self.manager.close_current(
+                force=force
+            )
 
-        self.projectClosed.emit()
+            if not result:
+
+                return False
+
+            self._modified = False
+
+            self._last_saved = None
+
+            self.projectClosed.emit()
+
+            return True
+
+        except Exception:
+
+            return False
 
     # --------------------------------------------------
     # Unsaved Changes
@@ -547,16 +954,54 @@ class ProjectController(QObject):
         self,
     ) -> bool:
 
+        self.sync_modified_state()
+
         return self.modified
+
+    # --------------------------------------------------
 
     def can_close(
         self,
     ) -> bool:
 
-        return not self.modified
+        return not self.has_unsaved_changes()
 
     # --------------------------------------------------
-    # Project State Helpers
+    # Save Before Close
+    # --------------------------------------------------
+
+    def save_and_close(
+        self,
+    ) -> bool:
+
+        if not self.has_project():
+
+            return True
+
+        if self.has_unsaved_changes():
+
+            if not self.save_project():
+
+                return False
+
+        return self.close_project(
+            force=True
+        )
+
+    # --------------------------------------------------
+    # Force Close
+    # --------------------------------------------------
+
+    def force_close(
+        self,
+    ) -> bool:
+
+        return self.close_project(
+            force=True
+        )
+
+    # --------------------------------------------------
+    # Current Project
     # --------------------------------------------------
 
     def current_project(
@@ -565,112 +1010,126 @@ class ProjectController(QObject):
 
         return self.manager.current
 
+    # --------------------------------------------------
+
     def project_name(
         self,
     ) -> str | None:
 
-        project = self.current_project()
+        return self.manager.project_name()
 
-        if project is None:
-
-            return None
-
-        return getattr(
-            project,
-            "name",
-            None,
-        )
+    # --------------------------------------------------
 
     def is_open(
         self,
     ) -> bool:
 
-        return self.manager.current is not None
+        return self.manager.is_open()
 
     # --------------------------------------------------
-    # Project Validation
+    # Validation
     # --------------------------------------------------
 
     def validate_project(
         self,
     ) -> bool:
 
-        if not self.is_open():
+        if not self.has_project():
 
             return False
 
-        return self.manager.validate_current()
+        try:
+
+            return self.manager.validate_current()
+
+        except Exception:
+
+            return False
 
     # --------------------------------------------------
-    # Refresh
+    # Synchronize Manager State
     # --------------------------------------------------
 
-    def refresh(
+    def synchronize(
         self,
     ):
 
-        if not self.is_open():
+        if not self.has_project():
+
+            self._modified = False
+
+            self._last_saved = None
 
             return
 
-        self.manager.refresh()
+        self.sync_modified_state()
 
-        if self.has_recovery():
-
-            self.has_recovery()
+        self._last_saved = (
+            self.manager.last_saved
+        )
 
     # --------------------------------------------------
-    # Statistics
+    # Project Statistics
     # --------------------------------------------------
 
     def statistics(
         self,
-    ):
+    ) -> dict:
+
+        self.synchronize()
+
+        try:
+
+            manager_statistics = (
+                self.manager.statistics()
+            )
+
+        except Exception:
+
+            manager_statistics = {}
 
         return {
 
             "project_open":
-                self.is_open(),
+                self.has_project(),
+
+            "project_name":
+                self.project_name(),
+
+            "project_root":
+                str(
+                    self.project_root()
+                )
+                if self.project_root()
+                is not None
+                else None,
 
             "modified":
                 self.modified,
 
             "autosave":
-                self._autosave_enabled,
-
-            "recent_projects":
-                len(self._recent_projects),
+                self.autosave_enabled,
 
             "last_saved":
-                self._last_saved,
+                self.last_saved,
+
+            "recent_projects":
+                len(
+                    self._recent_projects
+                ),
+
+            "manager":
+                manager_statistics,
 
         }
 
     # --------------------------------------------------
-    # Cleanup
+    # Clear Current Project
     # --------------------------------------------------
 
-    def dispose(
+    def reset(
         self,
     ):
-
-        try:
-
-            self.auto_save()
-
-        except Exception:
-
-            pass
-
-        try:
-
-            self.close_project(
-                force=True
-            )
-
-        except Exception:
-
-            pass
 
         try:
 
@@ -680,7 +1139,73 @@ class ProjectController(QObject):
 
             pass
 
-        self.manager = None
+        try:
+
+            self.manager.reset()
+
+        except Exception:
+
+            pass
+
+        self._modified = False
+
+        self._last_saved = None
+
+    # --------------------------------------------------
+    # Dispose
+    # --------------------------------------------------
+
+    def dispose(
+        self,
+    ):
+
+        # ------------------------------------------
+        # Stop autosave first.
+        # ------------------------------------------
+
+        try:
+
+            self._autosave_timer.stop()
+
+        except Exception:
+
+            pass
+
+        # ------------------------------------------
+        # Give the current project a final autosave
+        # snapshot if necessary.
+        # ------------------------------------------
+
+        try:
+
+            self.sync_modified_state()
+
+            if self.modified:
+
+                self.manager.autosave()
+
+        except Exception:
+
+            pass
+
+        # ------------------------------------------
+        # Close manager state without forcing a
+        # normal save.
+        # ------------------------------------------
+
+        try:
+
+            self.manager.close_current(
+                force=True
+            )
+
+        except Exception:
+
+            pass
+
+        self._modified = False
+
+        self._last_saved = None
 
     # --------------------------------------------------
     # Destructor
@@ -697,5 +1222,3 @@ class ProjectController(QObject):
         except Exception:
 
             pass
-
-        return True
