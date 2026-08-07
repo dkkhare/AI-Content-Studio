@@ -13,14 +13,19 @@ class VideoGenerationRequest:
     prompt: str
     output: Path
     image: Path | None = None
+    duration_seconds: float = 5.0
+    fps: int = 24
+    width: int = 1920
+    height: int = 1080
 
 
 class LocalCommandVideoProvider:
     """Run a locally installed open-source video generator through its CLI.
 
-    The argument template is intentionally generic so the same adapter can drive
-    Wan, LTX-Video, CogVideoX wrappers, or another local command. Supported
-    placeholders are ``{prompt}``, ``{output}``, and ``{image}``.
+    The adapter is intentionally model-agnostic. It can drive Wan, LTX-Video,
+    CogVideoX wrappers, ComfyUI launchers, or another local command. Supported
+    placeholders are ``{prompt}``, ``{output}``, ``{image}``, ``{duration}``,
+    ``{fps}``, ``{width}``, and ``{height}``.
     """
 
     provider_id = "local-command"
@@ -47,11 +52,17 @@ class LocalCommandVideoProvider:
     def _arguments(self, request: VideoGenerationRequest) -> list[str]:
         if not request.prompt.strip():
             raise ValueError("Local video generation requires a non-empty prompt.")
+        if request.duration_seconds <= 0:
+            raise ValueError("Local video generation duration must be greater than zero.")
 
         values = {
             "prompt": request.prompt,
             "output": str(request.output.resolve()),
             "image": str(request.image.resolve()) if request.image else "",
+            "duration": f"{float(request.duration_seconds):.3f}",
+            "fps": str(int(request.fps)),
+            "width": str(int(request.width)),
+            "height": str(int(request.height)),
         }
         try:
             rendered = self.args_template.format(**values)
@@ -70,12 +81,7 @@ class LocalCommandVideoProvider:
         request.output.unlink(missing_ok=True)
 
         command = [self.command, *self._arguments(request)]
-        result = self._runner(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = self._runner(command, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "Unknown local generator error").strip()
             raise RuntimeError(f"Local video generation failed: {detail}")
@@ -84,3 +90,16 @@ class LocalCommandVideoProvider:
                 "Local video generator completed without creating the configured output file."
             )
         return request.output
+
+
+def create_local_video_provider(project, *, runner=None) -> LocalCommandVideoProvider:
+    """Create the configured local video provider for a project."""
+
+    provider_id = str(project.get_setting("video_generator_provider", "local-command") or "local-command").lower()
+    if provider_id not in {"local-command", "wan", "ltx-video", "cogvideox"}:
+        raise ValueError(f"Unsupported local video provider: {provider_id}")
+    return LocalCommandVideoProvider(
+        command=str(project.get_setting("video_generator_command", "") or ""),
+        args_template=str(project.get_setting("video_generator_args", "") or ""),
+        runner=runner,
+    )
