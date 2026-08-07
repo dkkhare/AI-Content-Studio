@@ -13,6 +13,8 @@ DEFAULT_PROJECT_SETTINGS = {
     "pipeline_ocr_enabled": True,
     "ocr_provider": "paddle",
     "pipeline_translation_enabled": False,
+    "translation_provider": "google",
+    "translation_api_key_env": "GOOGLE_TRANSLATE_API_KEY",
     "translation_source_language": "en",
     "translation_target_language": "en",
     "pipeline_narration_enabled": True,
