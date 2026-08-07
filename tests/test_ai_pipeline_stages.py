@@ -6,7 +6,12 @@ from pathlib import Path
 
 from backend.ai import AIResponse
 from backend.pipeline.context import PipelineContext
-from backend.pipeline.stages import AIOCRCleanupStage, AIScriptStage
+from backend.pipeline.stages import (
+    AIOCRCleanupStage,
+    AIScriptStage,
+    HindiGrammarCorrectionStage,
+    HindiSpellingCorrectionStage,
+)
 from backend.project.project import Project
 
 
@@ -37,11 +42,53 @@ class AIPipelineStageTests(unittest.TestCase):
             self.assertEqual(kwargs["provider_id"], "ollama")
             self.assertEqual(context.cleaned_text, "result:ocr_cleanup")
 
-    def test_podcast_script_uses_hindi_language_and_tone(self):
+    def test_spelling_and_grammar_are_separate_and_ordered(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Hindi", Path(temp)).initialize()
             context = PipelineContext(project)
-            context.cleaned_text = "साफ किया गया पाठ"
+            context.ocr_text = "यह गलत वर्तनी वाला पाठ है"
+            manager = RecordingAIManager()
+
+            HindiSpellingCorrectionStage(manager, provider_id="ollama").execute(context)
+            self.assertEqual(
+                context.get("spelling_corrected_text"),
+                "result:hindi_spelling_correction",
+            )
+            self.assertTrue((Path(temp) / "output" / "hindi_spelling_corrected.txt").exists())
+
+            HindiGrammarCorrectionStage(manager, provider_id="ollama").execute(context)
+            self.assertEqual(
+                context.get("grammar_corrected_text"),
+                "result:hindi_grammar_correction",
+            )
+            self.assertTrue((Path(temp) / "output" / "hindi_grammar_corrected.txt").exists())
+
+            self.assertEqual(manager.calls[0][0], "hindi_spelling_correction")
+            self.assertEqual(manager.calls[0][1]["text"], "यह गलत वर्तनी वाला पाठ है")
+            self.assertEqual(manager.calls[1][0], "hindi_grammar_correction")
+            self.assertEqual(
+                manager.calls[1][1]["text"],
+                "result:hindi_spelling_correction",
+            )
+
+    def test_grammar_can_run_without_spelling(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Project("Hindi", Path(temp)).initialize()
+            context = PipelineContext(project)
+            context.ocr_text = "मुझे किताब पढ़ना है"
+            manager = RecordingAIManager()
+
+            HindiGrammarCorrectionStage(manager).execute(context)
+
+            self.assertEqual(manager.calls[0][0], "hindi_grammar_correction")
+            self.assertEqual(manager.calls[0][1]["text"], "मुझे किताब पढ़ना है")
+
+    def test_podcast_script_prefers_corrected_hindi_text(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Project("Hindi", Path(temp)).initialize()
+            context = PipelineContext(project)
+            context.ocr_text = "मूल पाठ"
+            context.set("grammar_corrected_text", "व्याकरण सुधारा गया पाठ")
             manager = RecordingAIManager()
 
             stage = AIScriptStage(
@@ -54,7 +101,7 @@ class AIPipelineStageTests(unittest.TestCase):
 
             name, variables, _ = manager.calls[0]
             self.assertEqual(name, "script_generation")
-            self.assertEqual(variables["text"], "साफ किया गया पाठ")
+            self.assertEqual(variables["text"], "व्याकरण सुधारा गया पाठ")
             self.assertEqual(variables["language"], "hi")
             self.assertIn("Hindi podcast", variables["tone"])
             self.assertEqual(context.get("script_text"), "result:script_generation")
