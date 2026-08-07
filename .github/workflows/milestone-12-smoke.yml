@@ -1,0 +1,33 @@
+name: Milestone 12 Smoke
+
+on:
+  push:
+    branches:
+      - agent/milestone-12-processing-pipeline
+  pull_request:
+    paths:
+      - "backend/pipeline/**"
+      - "tests/test_processing_pipeline.py"
+      - ".github/workflows/milestone-12-smoke.yml"
+
+jobs:
+  processing-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: python -m compileall -q backend desktop tests
+
+      - name: Run processing pipeline tests
+        run: python -m unittest -v tests.test_processing_pipeline
+
+      - name: Re-run Milestone 11 lifecycle regression
+        run: python -m unittest -v tests.test_project_lifecycle
