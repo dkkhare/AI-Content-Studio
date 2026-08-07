@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
-from backend.pipeline import PipelineContext, PipelineRunner, ProcessingPipeline
+from backend.pipeline import (
+    PipelineContext,
+    PipelineRunner,
+    ProcessingPipeline,
+    build_project_pipeline,
+)
+from backend.video import FFmpegRenderer
 
 
 class PipelineController(QObject):
@@ -20,6 +26,7 @@ class PipelineController(QObject):
         super().__init__(parent)
         self.runner = PipelineRunner(ProcessingPipeline())
         self.context: PipelineContext | None = None
+        self.translator = None
 
     @property
     def running(self) -> bool:
@@ -33,10 +40,35 @@ class PipelineController(QObject):
     def project(self):
         return self.context.project if self.context is not None else None
 
+    def set_translator(self, translator) -> None:
+        if self.running:
+            raise RuntimeError("Cannot change translator while processing is running.")
+        self.translator = translator
+
     def set_pipeline(self, pipeline: ProcessingPipeline) -> None:
         if self.running:
             raise RuntimeError("Cannot replace pipeline while processing is running.")
         self.runner = PipelineRunner(pipeline)
+
+    def configure_project(self, project) -> ProcessingPipeline:
+        if self.running:
+            raise RuntimeError("Cannot configure pipeline while processing is running.")
+
+        renderer = None
+        if bool(project.get_setting("pipeline_video_enabled", False)):
+            renderer = FFmpegRenderer(
+                ffmpeg_path=str(project.get_setting("ffmpeg_path", "")) or None,
+                fps=int(project.get_setting("video_fps", 30)),
+                seconds_per_image=float(project.get_setting("video_seconds_per_image", 3.0)),
+            )
+
+        pipeline = build_project_pipeline(
+            project,
+            translator=self.translator,
+            renderer=renderer,
+        )
+        self.set_pipeline(pipeline)
+        return pipeline
 
     def clear_stages(self) -> None:
         if self.running:
@@ -48,9 +80,12 @@ class PipelineController(QObject):
             raise RuntimeError("Cannot add stages while processing is running.")
         return self.runner.add_stage(stage)
 
-    def start_project(self, project, *, data=None, resume: bool = True) -> bool:
+    def start_project(self, project, *, data=None, resume: bool = True, configure: bool = True) -> bool:
         if self.running:
             return False
+
+        if configure:
+            self.configure_project(project)
 
         self.context = PipelineContext(project, data=data)
         project.clear_error()
