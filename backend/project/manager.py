@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -13,1118 +15,380 @@ class ProjectManager:
     """
     Central project lifecycle manager.
 
-    Handles:
-
-    - create project
-    - open project
-    - save project
-    - reload project
-    - backup
-    - recovery
-    - project state tracking
+    Handles project creation, loading, saving, reloading,
+    backups, autosave/recovery, validation, and state tracking.
     """
 
     BACKUP_DIRECTORY_NAME = "backups"
-
     RECOVERY_DIRECTORY_NAME = ".autosave"
 
-
-    # --------------------------------------------------
-    # Initialization
-    # --------------------------------------------------
-
     def __init__(self):
-
         self.project: Optional[Project] = None
-
         self.modified: bool = False
-
         self.last_saved: Optional[datetime] = None
-
-
-    # --------------------------------------------------
-    # Properties
-    # --------------------------------------------------
 
     @property
     def current(self) -> Optional[Project]:
-
         return self.project
-
 
     @property
     def root(self) -> Optional[Path]:
+        return self.project.root if self.project is not None else None
 
-        if self.project is None:
-
-            return None
-
-        return self.project.root
-
-
-    # --------------------------------------------------
-    # Project State
-    # --------------------------------------------------
-
-    def has_project(
-        self,
-    ) -> bool:
-
+    def has_project(self) -> bool:
         return self.project is not None
 
-
-    def is_open(
-        self,
-    ) -> bool:
-
+    def is_open(self) -> bool:
         return self.has_project()
 
-
-    def project_root(
-        self,
-    ) -> Optional[Path]:
-
+    def project_root(self) -> Optional[Path]:
         return self.root
 
+    def project_name(self) -> Optional[str]:
+        return self.project.name if self.project is not None else None
 
-    def project_name(
-        self,
-    ) -> Optional[str]:
-
-        if self.project is None:
-
-            return None
-
-        return self.project.name
-
-
-    # --------------------------------------------------
-    # Modified State
-    # --------------------------------------------------
-
-    def mark_modified(
-        self,
-    ):
-
+    def mark_modified(self) -> None:
         self.modified = True
 
-
-    def clear_modified(
-        self,
-    ):
-
+    def clear_modified(self) -> None:
         self.modified = False
 
-
-    def is_modified(
-        self,
-    ) -> bool:
-
+    def is_modified(self) -> bool:
         return self.modified
 
+    def has_changes(self) -> bool:
+        return self.modified
 
-    # --------------------------------------------------
-    # Last Saved
-    # --------------------------------------------------
-
-    def update_saved_time(
-        self,
-    ):
-
+    def update_saved_time(self) -> None:
         self.last_saved = datetime.now()
 
+    def set_current(self, project: Project) -> Project:
+        if not isinstance(project, Project):
+            raise TypeError("project must be a Project instance")
 
-    # --------------------------------------------------
-    # Reset
-    # --------------------------------------------------
-
-    def reset(
-        self,
-    ):
-
-        self.project = None
-
+        self.project = project
         self.modified = False
+        self.update_saved_time()
+        return project
 
+    def reset(self) -> None:
+        self.project = None
+        self.modified = False
         self.last_saved = None
-    # --------------------------------------------------
-    # Create Project
-    # --------------------------------------------------
 
     def create_project(
         self,
         path: str | Path,
         name: str | None = None,
     ) -> Project:
+        project_path = Path(path).resolve()
+        project_name = (name or project_path.name).strip()
 
-        project_path = Path(
-            path
-        ).resolve()
-
-
-        if name is None:
-
-            name = project_path.name
-
-
-        # ------------------------------------------
-        # Create project object
-        # ------------------------------------------
+        if not project_name:
+            raise ValueError("Project name is required.")
 
         project = Project(
-
-            name=name,
-
+            name=project_name,
             root=project_path,
-
         )
-
-
-        # ------------------------------------------
-        # Initialize folders/files
-        # ------------------------------------------
-
         project.initialize()
+        ProjectValidator.validate_structure(project)
+        ProjectSerializer.save(project)
+        return self.set_current(project)
 
+    def load_project(self, path: str | Path) -> Project:
+        project_path = Path(path).resolve()
 
-        # ------------------------------------------
-        # Validate
-        # ------------------------------------------
-
-        ProjectValidator.validate_structure(
-            project
-        )
-
-
-        # ------------------------------------------
-        # Save initial project.json
-        # ------------------------------------------
-
-        ProjectSerializer.save(
-            project
-        )
-
-
-        self.set_current(
-            project
-        )
-
-
-        return project
-
-
-    # --------------------------------------------------
-    # Load Project
-    # --------------------------------------------------
-
-    def load_project(
-        self,
-        path: str | Path,
-    ) -> Project:
-
-        project_path = Path(
-            path
-        ).resolve()
-
-
-        if not project_path.exists():
-
+        if not project_path.exists() or not project_path.is_dir():
             raise FileNotFoundError(
-                f"Project path does not exist: "
-                f"{project_path}"
+                f"Project path does not exist: {project_path}"
             )
 
+        if not ProjectSerializer.exists(project_path):
+            raise FileNotFoundError(
+                f"project.json not found in: {project_path}"
+            )
 
-        # ------------------------------------------
-        # Load through serializer
-        # ------------------------------------------
-
-        project = ProjectSerializer.load(
-            project_path
-        )
-
-
-        # ------------------------------------------
-        # Ensure opened path is authoritative
-        # ------------------------------------------
-
+        project = ProjectSerializer.load(project_path)
         project.root = project_path
+        ProjectValidator.validate_structure(project)
+        return self.set_current(project)
 
+    def open_project(self, path: str | Path) -> Project:
+        return self.load_project(path)
 
-        # ------------------------------------------
-        # Validate loaded project
-        # ------------------------------------------
-
-        ProjectValidator.validate_structure(
-            project
-        )
-
-
-        self.set_current(
-            project
-        )
-
-
-        return project
-
-
-
-    # --------------------------------------------------
-    # Open Project Alias
-    # --------------------------------------------------
-
-    def open_project(
-        self,
-        path: str | Path,
-    ) -> Project:
-
-        return self.load_project(
-            path
-        )
-
-
-
-    # --------------------------------------------------
-    # Reload Current Project
-    # --------------------------------------------------
-
-    def reload_current(
-        self,
-    ) -> Project:
-
+    def reload_current(self) -> Project:
         if self.project is None:
-
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
+            raise RuntimeError("No project is currently open.")
 
         current_root = self.project.root
-
-
-        project = ProjectSerializer.load(
-            current_root
-        )
-
-
+        project = ProjectSerializer.load(current_root)
         project.root = current_root
+        ProjectValidator.validate_structure(project)
+        return self.set_current(project)
 
+    def refresh(self) -> Project:
+        return self.reload_current()
 
-        ProjectValidator.validate_structure(
-            project
-        )
+    def reload(self) -> Project:
+        return self.reload_current()
 
-
-        self.set_current(
-            project
-        )
-
-
-        return project
-
-
-
-    # --------------------------------------------------
-    # Save Current Project
-    # --------------------------------------------------
-
-    def save_current(
-        self,
-    ) -> bool:
-
+    def save_current(self) -> bool:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        ProjectValidator.validate_structure(
-            self.project
-        )
-
-
+        ProjectValidator.validate_structure(self.project)
         self.project.touch()
-
-
-        ProjectSerializer.save(
-            self.project
-        )
-
-
-        self.modified = False
-
-
-        self.last_saved = datetime.now()
-
-
+        ProjectSerializer.save(self.project)
+        self.clear_modified()
+        self.update_saved_time()
         return True
-    # --------------------------------------------------
-    # Save As
-    # --------------------------------------------------
 
-    def save_as(
-        self,
-        path: str | Path,
-    ) -> Project:
+    def save(self) -> bool:
+        return self.save_current()
 
+    def save_as(self, path: str | Path) -> Project:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        new_root = Path(
-            path
-        ).resolve()
-
-
-        new_root.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-
-        # ------------------------------------------
-        # Update project root
-        # ------------------------------------------
+        new_root = Path(path).resolve()
+        old_root = self.project.root
 
         self.project.root = new_root
+        try:
+            self.project.initialize()
+            ProjectValidator.validate_structure(self.project)
+            ProjectSerializer.save(self.project)
+        except Exception:
+            self.project.root = old_root
+            raise
 
-
-        ProjectValidator.validate_structure(
-            self.project
-        )
-
-
-        ProjectSerializer.save(
-            self.project
-        )
-
-
-        self.modified = False
-
-
-        self.last_saved = datetime.now()
-
-
+        self.clear_modified()
+        self.update_saved_time()
         return self.project
 
-
-
-    # --------------------------------------------------
-    # Backup Directory
-    # --------------------------------------------------
-
-    def backup_directory(
-        self,
-    ) -> Path:
-
+    def backup_directory(self) -> Path:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        directory = (
-            self.project.root
-            /
-            self.BACKUP_DIRECTORY_NAME
-        )
-
-
-        directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-
+        directory = self.project.root / self.BACKUP_DIRECTORY_NAME
+        directory.mkdir(parents=True, exist_ok=True)
         return directory
 
-
-
-    # --------------------------------------------------
-    # Create Backup
-    # --------------------------------------------------
-
-    def create_backup(
-        self,
-    ) -> Path:
-
+    def create_backup(self) -> Path:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        backup_dir = (
-            self.backup_directory()
+        return ProjectSerializer.save_backup(
+            self.project,
+            self.backup_directory(),
         )
 
-
-        backup_file = (
-            ProjectSerializer.save_backup(
-                self.project,
-                backup_dir,
-            )
-        )
-
-
-        return backup_file
-
-
-
-    # --------------------------------------------------
-    # List Backups
-    # --------------------------------------------------
-
-    def list_backups(
-        self,
-    ) -> list[Path]:
-
-        backup_dir = (
-            self.backup_directory()
-        )
-
-
-        if not backup_dir.exists():
-
+    def list_backups(self) -> list[Path]:
+        if self.project is None:
             return []
 
+        directory = self.project.root / self.BACKUP_DIRECTORY_NAME
+        if not directory.exists():
+            return []
 
         return sorted(
-
-            [
-
+            (
                 item
-
-                for item
-
-                in backup_dir.iterdir()
-
-                if (
-                    item.is_file()
-                    and
-                    item.suffix.lower()
-                    == ".json"
-                )
-
-            ],
-
+                for item in directory.iterdir()
+                if item.is_file() and item.suffix.lower() == ".json"
+            ),
+            key=lambda item: item.stat().st_mtime,
             reverse=True,
-
         )
 
-
-
-    # --------------------------------------------------
-    # Restore Backup
-    # --------------------------------------------------
-
-    def restore_backup(
-        self,
-        backup_file: str | Path,
-    ) -> Project:
-
+    def restore_backup(self, backup_file: str | Path) -> Project:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        backup_path = Path(
-            backup_file
-        ).resolve()
-
-
-        project_root = (
-            self.project.root
+        backup_path = Path(backup_file).resolve()
+        project_root = self.project.root
+        project = ProjectSerializer.restore_backup(
+            backup_path,
+            project_root,
         )
-
-
-        project = (
-            ProjectSerializer.restore_backup(
-                backup_path,
-                project_root,
-            )
-        )
-
-
         project.root = project_root
+        ProjectValidator.validate_structure(project)
+        return self.set_current(project)
 
+    def delete_backup(self, backup_file: str | Path) -> bool:
+        backup_path = Path(backup_file)
 
-        ProjectValidator.validate_structure(
-            project
-        )
-
-
-        self.set_current(
-            project
-        )
-
-
-        return project
-
-
-
-    # --------------------------------------------------
-    # Delete Backup
-    # --------------------------------------------------
-
-    def delete_backup(
-        self,
-        backup_file: str | Path,
-    ) -> bool:
-
-        backup_path = Path(
-            backup_file
-        )
-
-
-        if not backup_path.exists():
-
+        if not backup_path.exists() or not backup_path.is_file():
             return False
-
-
-        if not backup_path.is_file():
-
-            return False
-
 
         backup_path.unlink()
-
-
         return True
 
-
-
-    # --------------------------------------------------
-    # Cleanup Backups
-    # --------------------------------------------------
-
-    def cleanup_backups(
-        self,
-        keep: int = 10,
-    ) -> int:
-
+    def cleanup_backups(self, keep: int = 10) -> int:
+        keep = max(0, int(keep))
         backups = self.list_backups()
-
-
         removed = 0
 
-
         for backup in backups[keep:]:
-
             try:
-
                 backup.unlink()
-
                 removed += 1
-
-            except Exception:
-
+            except OSError:
                 continue
 
-
         return removed
-    # --------------------------------------------------
-    # Recovery / Autosave
-    # --------------------------------------------------
 
-    def recovery_directory(
-        self,
-    ) -> Path:
-
+    def recovery_directory(self) -> Path:
         if self.project is None:
+            raise RuntimeError("No project is currently open.")
 
-            raise RuntimeError(
-                "No project is currently open."
-            )
-
-
-        directory = (
-
-            self.project.root
-
-            / self.RECOVERY_DIRECTORY_NAME
-
-        )
-
-
-        directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-
+        directory = self.project.root / self.RECOVERY_DIRECTORY_NAME
+        directory.mkdir(parents=True, exist_ok=True)
         return directory
 
-
-
-    # --------------------------------------------------
-
-    def autosave(
-        self,
-    ) -> Path | None:
-
+    def recovery_path(self) -> Optional[Path]:
         if self.project is None:
-
             return None
 
-
-        recovery = (
-            self.recovery_directory()
+        return (
+            self.project.root
+            / self.RECOVERY_DIRECTORY_NAME
+            / ProjectSerializer.PROJECT_FILE
         )
 
+    def autosave(self) -> Optional[Path]:
+        if self.project is None:
+            return None
 
         recovery_file = (
-            recovery
-            / "project.json"
+            self.recovery_directory()
+            / ProjectSerializer.PROJECT_FILE
         )
+        temp_file = recovery_file.with_suffix(".tmp")
 
-
-        data = (
-            self.project.to_dict()
-        )
-
-
-        import json
-
-
-        with open(
-            recovery_file,
-            "w",
-            encoding="utf-8",
-        ) as file:
-
+        with open(temp_file, "w", encoding="utf-8") as file:
             json.dump(
-                data,
+                self.project.to_dict(),
                 file,
                 indent=4,
                 ensure_ascii=False,
             )
 
-
+        temp_file.replace(recovery_file)
         return recovery_file
 
+    def has_recovery(self) -> bool:
+        recovery = self.recovery_path()
+        return bool(recovery and recovery.is_file())
 
-
-    # --------------------------------------------------
-
-    def has_recovery(
-        self,
-    ) -> bool:
-
+    def load_recovery(self) -> Project:
         if self.project is None:
-
-            return False
-
-
-        recovery_file = (
-
-            self.project.root
-
-            / self.RECOVERY_DIRECTORY_NAME
-
-            / "project.json"
-
-        )
-
-
-        return recovery_file.exists()
-
-
-
-    # --------------------------------------------------
-
-    def recovery_path(
-        self,
-    ) -> Path | None:
-
-        if self.project is None:
-
-            return None
-
-
-        return (
-
-            self.project.root
-
-            / self.RECOVERY_DIRECTORY_NAME
-
-            / "project.json"
-
-        )
-
-
-
-    # --------------------------------------------------
-
-    def recover(
-        self,
-    ) -> Project:
+            raise RuntimeError("No project is currently open.")
 
         recovery = self.recovery_path()
-
-
         if recovery is None or not recovery.exists():
+            raise RuntimeError("No recovery file found.")
 
-            raise RuntimeError(
-                "No recovery file found."
-            )
+        with open(recovery, "r", encoding="utf-8") as file:
+            data = json.load(file)
 
-
-        import json
-
-
-        with open(
-            recovery,
-            "r",
-            encoding="utf-8",
-        ) as file:
-
-            data = json.load(
-                file
-            )
-
-
-        project = Project.from_dict(
-            data
-        )
-
-
-        project.root = (
-            self.project.root
-        )
-
-
-        self.set_current(
-            project
-        )
-
-
-        self.modified = True
-
-
+        project = Project.from_dict(data)
+        project.root = self.project.root
+        ProjectValidator.validate_structure(project)
         return project
 
+    def recover(self) -> Project:
+        project = self.load_recovery()
+        self.project = project
+        self.modified = True
+        return project
 
-
-    # --------------------------------------------------
-
-    def clear_recovery(
-        self,
-    ) -> bool:
-
+    def clear_recovery(self) -> bool:
         recovery = self.recovery_path()
-
-
-        if recovery is None:
-
+        if recovery is None or not recovery.exists():
             return False
 
+        recovery.unlink()
 
-        if recovery.exists():
+        directory = recovery.parent
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
 
-            recovery.unlink()
+        return True
 
-
-            return True
-
-
-        return False
-
-
-
-    # --------------------------------------------------
-    # Close / Shutdown
-    # --------------------------------------------------
-
-    def close_current(
-        self,
-        force: bool = False,
-    ) -> bool:
-
+    def remove_recovery_directory(self) -> bool:
         if self.project is None:
+            return False
 
+        directory = self.project.root / self.RECOVERY_DIRECTORY_NAME
+        if not directory.exists():
+            return False
+
+        shutil.rmtree(directory)
+        return True
+
+    def close_current(self, force: bool = False) -> bool:
+        if self.project is None:
             return True
-
 
         if self.modified and not force:
+            raise RuntimeError("Project has unsaved changes.")
 
-            raise RuntimeError(
-                "Project has unsaved changes."
-            )
-
-
-        self.project = None
-
-        self.modified = False
-
-
+        self.reset()
         return True
 
+    def close(self, force: bool = False) -> bool:
+        return self.close_current(force=force)
 
+    def shutdown(self) -> bool:
+        if self.project is None:
+            return True
 
-    # --------------------------------------------------
+        if self.modified:
+            self.autosave()
 
-    def shutdown(
-        self,
-    ):
+        return self.close_current(force=True)
 
-        try:
+    def validate_current(self) -> bool:
+        if self.project is None:
+            return False
 
-            if self.modified:
+        return ProjectValidator.validate_structure(self.project)
 
-                self.autosave()
+    def project_exists(self, path: str | Path) -> bool:
+        project_path = Path(path)
+        return (
+            project_path.exists()
+            and project_path.is_dir()
+            and ProjectSerializer.exists(project_path)
+        )
 
-
-        finally:
-
-            self.close_current(
-                force=True
-            )
-
-
-
-    # --------------------------------------------------
-    # Information
-    # --------------------------------------------------
-
-    def statistics(
-        self,
-    ) -> dict:
-
+    def statistics(self) -> dict:
+        root = self.project_root()
         return {
-
-            "open":
-                self.has_project(),
-
-            "name":
-                self.project_name(),
-
-            "root":
-                str(
-                    self.project_root()
-                )
-                if self.project_root()
-                else None,
-
-            "modified":
-                self.modified,
-
-            "has_recovery":
-                self.has_recovery(),
-
-            "backups":
-                len(
-                    self.list_backups()
-                )
-                if self.has_project()
-                else 0,
-
+            "open": self.has_project(),
+            "name": self.project_name(),
+            "root": str(root) if root is not None else None,
+            "modified": self.modified,
+            "last_saved": self.last_saved,
+            "has_recovery": self.has_recovery(),
+            "backups": len(self.list_backups()),
         }
 
-
-
-    # --------------------------------------------------
-    # Compatibility Helpers
-    # --------------------------------------------------
-
-    def save(
-        self,
-    ):
-
-        return self.save_current()
-
-
-
-    def open(
-        self,
-        path: str | Path,
-    ):
-
-        return self.load_project(
-            path
-        )
-
-
-
-    def close(
-        self,
-        force: bool = False,
-    ):
-
-        return self.close_current(
-            force
-        )
-
-
-
-    def refresh(
-        self,
-    ):
-
-        return self.reload_current()
-    # --------------------------------------------------
-    # Project Exists
-    # --------------------------------------------------
-
-    def project_exists(
-        self,
-        path: str | Path,
-    ) -> bool:
-
-        project_path = Path(
-            path
-        )
-
-
-        return (
-
-            project_path.exists()
-
-            and
-
-            project_path.is_dir()
-
-        )
-
-
-    # --------------------------------------------------
-    # Is Open
-    # --------------------------------------------------
-
-    def is_open(
-        self,
-    ) -> bool:
-
-        return self.project is not None
-
-
-
-    # --------------------------------------------------
-    # Has Changes Alias
-    # --------------------------------------------------
-
-    def has_changes(
-        self,
-    ) -> bool:
-
-        return self.modified
-
-
-
-    # --------------------------------------------------
-    # Reload Alias
-    # --------------------------------------------------
-
-    def reload(
-        self,
-    ) -> Project:
-
-        return self.reload_current()
-
-
-
-    # --------------------------------------------------
-    # Delete Project Recovery Folder
-    # --------------------------------------------------
-
-    def remove_recovery_directory(
-        self,
-    ) -> bool:
-
-        if self.project is None:
-
-            return False
-
-
-        recovery = (
-
-            self.project.root
-
-            / self.RECOVERY_DIRECTORY_NAME
-
-        )
-
-
-        if not recovery.exists():
-
-            return False
-
-
-        import shutil
-
-
-        shutil.rmtree(
-            recovery
-        )
-
-
-        return True
-
-
-
-    # --------------------------------------------------
-    # Clear Project
-    # --------------------------------------------------
-
-    def reset(
-        self,
-    ):
-
-        self.project = None
-
-        self.modified = False
-
-        self.last_saved = None
-
-
-
-    # --------------------------------------------------
-    # Dispose
-    # --------------------------------------------------
-
-    def dispose(
-        self,
-    ):
-
+    def dispose(self) -> None:
         try:
-
-            if self.project:
-
-                self.close_current(
-                    force=True
-                )
-
-
-        finally:
-
-            self.project = None
-
-            self.modified = False
-
-            self.last_saved = None
-
-
-
-    # --------------------------------------------------
-    # Destructor
-    # --------------------------------------------------
-
-    def __del__(
-        self,
-    ):
-
-        try:
-
-            self.dispose()
-
+            if self.project is not None and self.modified:
+                self.autosave()
         except Exception:
+            pass
+        finally:
+            self.reset()
 
+    def __del__(self):
+        try:
+            self.dispose()
+        except Exception:
             pass
