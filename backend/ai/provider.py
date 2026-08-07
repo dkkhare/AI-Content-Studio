@@ -32,3 +32,16 @@ class AIProvider(ABC):
 
     def list_models(self) -> list[str]:
         return []
+
+    def capabilities(self) -> set[str]:
+        return {"text"}
+
+    def supports(self, capability: str) -> bool:
+        return str(capability).strip().lower() in {
+            item.lower() for item in self.capabilities()
+        }
+
+    def health_check(self) -> tuple[bool, str]:
+        if not self.configured():
+            return False, f"{self.provider_id} is not configured"
+        return True, f"{self.provider_id} is configured"
