@@ -1,0 +1,42 @@
+name: Milestone 13 Smoke
+
+on:
+  push:
+    branches:
+      - agent/milestone-13-ai-models
+  pull_request:
+    paths:
+      - "backend/ai/**"
+      - "tests/test_ai_core.py"
+      - ".github/workflows/milestone-13-smoke.yml"
+
+jobs:
+  ai-core:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: python -m compileall -q backend desktop tests
+
+      - name: Run Milestone 13 AI core tests
+        run: python -m unittest -v tests.test_ai_core
+
+      - name: Re-run Milestone 12 processing regressions
+        run: >-
+          python -m unittest -v
+          tests.test_processing_pipeline
+          tests.test_processing_stages
+          tests.test_pipeline_factory
+          tests.test_translation_provider
+          tests.test_video_renderer
+
+      - name: Re-run Milestone 11 lifecycle regression
+        run: python -m unittest -v tests.test_project_lifecycle
