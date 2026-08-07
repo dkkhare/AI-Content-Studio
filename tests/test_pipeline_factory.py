@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from backend.ai import AIResponse
+from backend.episodes import EpisodeReviewStore, SegmentPlanner
 from backend.pipeline import build_project_pipeline
 from backend.project.project import Project
 
@@ -31,18 +32,19 @@ class FakeAIManager:
 
 
 class PipelineFactoryTests(unittest.TestCase):
-    def test_default_project_builds_hindi_local_first_pipeline(self):
+    def test_default_project_stops_at_episode_planning_for_review(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Demo", Path(temp)).initialize()
             pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
             self.assertEqual(project.language, "hi")
             self.assertEqual(project.get_setting("ai_provider"), "ollama")
             self.assertEqual(project.get_setting("tts_provider"), "f5tts")
+            self.assertTrue(project.get_setting("episode_review_required"))
             self.assertFalse(project.get_setting("pipeline_hindi_spelling_correction_enabled"))
             self.assertFalse(project.get_setting("pipeline_hindi_grammar_correction_enabled"))
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "ai_script", "episode_planning", "narration"],
+                ["ocr", "ai_script", "episode_planning"],
             )
 
     def test_spelling_and_grammar_are_independently_optional(self):
@@ -59,7 +61,6 @@ class PipelineFactoryTests(unittest.TestCase):
                     "hindi_grammar_correction",
                     "ai_script",
                     "episode_planning",
-                    "narration",
                 ],
             )
 
@@ -68,6 +69,32 @@ class PipelineFactoryTests(unittest.TestCase):
             self.assertIn("hindi_grammar_correction", [stage.stage_id for stage in pipeline.stages])
             self.assertNotIn("hindi_spelling_correction", [stage.stage_id for stage in pipeline.stages])
 
+    def test_pending_episode_review_blocks_media(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Project("Demo", Path(temp)).initialize()
+            planner = SegmentPlanner(target_minutes=1, min_minutes=1, max_minutes=2, words_per_minute=20)
+            planner.persist(project.root, planner.plan("अध्याय 1\n\n" + "शब्द " * 25))
+            pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
+            stage_ids = [stage.stage_id for stage in pipeline.stages]
+            self.assertNotIn("narration", stage_ids)
+            self.assertNotIn("episode_narration", stage_ids)
+            self.assertNotIn("episode_planning", stage_ids)
+
+    def test_completed_episode_review_enables_episode_narration(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Project("Demo", Path(temp)).initialize()
+            planner = SegmentPlanner(target_minutes=1, min_minutes=1, max_minutes=2, words_per_minute=20)
+            planner.persist(project.root, planner.plan("अध्याय 1\n\n" + "शब्द " * 25))
+            store = EpisodeReviewStore(project.root)
+            for episode in store.episodes():
+                store.approve(str(episode["episode_id"]))
+
+            pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
+            stage_ids = [stage.stage_id for stage in pipeline.stages]
+            self.assertIn("episode_narration", stage_ids)
+            self.assertNotIn("narration", stage_ids)
+            self.assertNotIn("episode_planning", stage_ids)
+
     def test_hindi_to_hindi_translation_is_skipped(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Demo", Path(temp)).initialize()
@@ -75,9 +102,10 @@ class PipelineFactoryTests(unittest.TestCase):
             pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
             self.assertNotIn("translation", [stage.stage_id for stage in pipeline.stages])
 
-    def test_optional_translation_and_video(self):
+    def test_global_video_renderer_remains_for_non_segmented_projects(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Demo", Path(temp)).initialize()
+            project.set_setting("pipeline_episode_segmentation_enabled", False)
             project.set_setting("pipeline_translation_enabled", True)
             project.set_setting("translation_target_language", "en")
             project.set_setting("pipeline_video_enabled", True)
@@ -89,7 +117,7 @@ class PipelineFactoryTests(unittest.TestCase):
             )
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "translation", "ai_script", "episode_planning", "narration", "video"],
+                ["ocr", "translation", "ai_script", "narration", "video"],
             )
 
     def test_all_stages_can_be_disabled(self):
