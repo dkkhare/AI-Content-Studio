@@ -6,6 +6,7 @@ from .exceptions import (
     PipelineError,
     StageError,
 )
+from .factory import build_project_pipeline
 from .pipeline import ProcessingPipeline
 from .progress import PipelineProgress
 from .queue import PipelineJob, PipelineJobQueue
@@ -32,6 +33,7 @@ __all__ = [
     "TranslationStage",
     "NarrationStage",
     "VideoRenderStage",
+    "build_project_pipeline",
     "PipelineState",
     "PipelineStateStore",
 ]
