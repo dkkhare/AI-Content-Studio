@@ -239,11 +239,20 @@ class PipelineJobQueue:
                 callback(progress)
 
     def _work(self) -> None:
-        while not self._stop.is_set():
+        while True:
             _, _, job = self._queue.get()
             if job is None:
                 self._queue.task_done()
                 break
+
+            # A shutdown request can arrive while the worker is blocked in
+            # PriorityQueue.get(). Do not start another queued project after
+            # that request; leave its persisted status as queued so startup
+            # recovery can safely reconstruct it on the next launch.
+            if self._stop.is_set():
+                self._queue.task_done()
+                break
+
             if job.status == "cancelled":
                 self._queue.task_done()
                 continue
@@ -280,6 +289,9 @@ class PipelineJobQueue:
                 self._prune_history()
                 self._persist()
                 self._queue.task_done()
+
+            if self._stop.is_set():
+                break
 
     def _prune_history(self) -> None:
         with self._lock:
