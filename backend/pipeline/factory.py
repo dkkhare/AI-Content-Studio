@@ -11,6 +11,7 @@ from backend.video import VideoAssetReviewStore
 from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
 from .image_stage import ReferenceImageGenerationStage, SceneImageGenerationStage
 from .pipeline import ProcessingPipeline
+from .production_stage import EpisodeProductionStage
 from .scene_stage import SceneDirectorStage
 from .story_stage import StoryIntelligenceStage
 from .video_scene_stage import EpisodeVideoAssemblyStage, SceneVideoGenerationStage
@@ -165,8 +166,6 @@ def build_project_pipeline(
             else:
                 scene_visual_review_complete = True
 
-    # For segmented projects, local video generation creates per-scene clips and
-    # stops for human review. Only reviewed clips can advance to final assembly.
     local_video_enabled = bool(project.get_setting("pipeline_video_enabled", False)) and segmentation_enabled
     video_review_complete = False
     if local_video_enabled:
@@ -199,6 +198,8 @@ def build_project_pipeline(
         if not narration_enabled:
             raise ValueError("Episode video assembly requires narration to be enabled.")
         pipeline.add_stage(EpisodeVideoAssemblyStage())
+        if bool(project.get_setting("pipeline_episode_production_enabled", True)):
+            pipeline.add_stage(EpisodeProductionStage())
 
     if bool(project.get_setting("pipeline_video_enabled", False)) and media_allowed and not segmentation_enabled:
         if renderer is None:
