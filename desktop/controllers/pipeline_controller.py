@@ -6,7 +6,7 @@ from backend.pipeline import PipelineContext, PipelineRunner, ProcessingPipeline
 
 
 class PipelineController(QObject):
-    """Qt bridge for the Milestone 12 background processing pipeline."""
+    """Qt bridge for background project processing."""
 
     started = Signal()
     progressChanged = Signal(object)
@@ -29,6 +29,10 @@ class PipelineController(QObject):
     def is_paused(self) -> bool:
         return self.runner.paused
 
+    @property
+    def project(self):
+        return self.context.project if self.context is not None else None
+
     def set_pipeline(self, pipeline: ProcessingPipeline) -> None:
         if self.running:
             raise RuntimeError("Cannot replace pipeline while processing is running.")
@@ -49,11 +53,14 @@ class PipelineController(QObject):
             return False
 
         self.context = PipelineContext(project, data=data)
+        project.clear_error()
+        project.set_status("processing")
+        project.set_progress(0)
         self.started.emit()
 
         self.runner.start(
             self.context,
-            progress_callback=self.progressChanged.emit,
+            progress_callback=self._progress,
             finished_callback=self._finished,
             error_callback=self._failed,
             resume=resume,
@@ -63,29 +70,53 @@ class PipelineController(QObject):
     def pause(self) -> bool:
         if not self.runner.pause():
             return False
+        if self.project is not None:
+            self.project.set_status("paused")
         self.paused.emit()
         return True
 
     def resume(self) -> bool:
         if not self.runner.resume():
             return False
+        if self.project is not None:
+            self.project.set_status("processing")
         self.resumed.emit()
         return True
 
     def cancel(self) -> bool:
         if not self.runner.cancel():
             return False
-        self.cancelled.emit()
         return True
 
     def wait(self, timeout: float | None = None) -> bool:
         return self.runner.wait(timeout)
 
+    def _progress(self, progress) -> None:
+        if self.project is not None:
+            self.project.set_status(str(getattr(progress, "status", "processing")))
+            self.project.set_progress(int(getattr(progress, "percent", 0)))
+        self.progressChanged.emit(progress)
+
     def _finished(self, state) -> None:
-        if getattr(state, "status", "") == "cancelled":
+        status = str(getattr(state, "status", ""))
+        if status == "cancelled":
+            if self.project is not None:
+                self.project.set_status("cancelled")
             self.cancelled.emit()
-        else:
-            self.completed.emit(state)
+            return
+
+        if self.project is not None:
+            self.project.set_status("completed")
+            self.project.set_progress(100)
+            self.project.clear_error()
+        self.completed.emit(state)
 
     def _failed(self, error: Exception) -> None:
+        if self.project is not None:
+            self.project.set_error(str(error))
         self.failed.emit(str(error))
+
+    def reset(self) -> None:
+        if self.running:
+            raise RuntimeError("Cannot reset while processing is running.")
+        self.context = None
