@@ -1,812 +1,367 @@
+from __future__ import annotations
+
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QMessageBox
 
-from desktop.project.project_controller import ProjectController
-from desktop.project.project_dialogs import ProjectDialogs
-
-from desktop.settings import (
-    UIState,
-    RecentProjects,
-)
-
-from desktop.ui.menu_bar import build_menu
-from desktop.ui.tool_bar import build_toolbar
-from desktop.ui.status_bar import build_statusbar
-
-from desktop.ui.docks.project_dock import ProjectDock
-from desktop.ui.docks.output_dock import OutputDock
-from desktop.ui.docks.log_dock import LogDock
-
+from desktop.controllers.project_controller import ProjectController
+from desktop.project.project_dialog import ProjectDialogs
+from desktop.settings import RecentProjects, UIState
 from desktop.ui.dashboard import Dashboard
+from desktop.ui.docks.log_dock import LogDock
+from desktop.ui.docks.output_dock import OutputDock
+from desktop.ui.docks.project_dock import ProjectDock
+from desktop.ui.menu_bar import build_menu
+from desktop.ui.status_bar import build_statusbar
+from desktop.ui.tool_bar import build_toolbar
 from desktop.ui.workspace import Workspace
 
 
 class MainWindow(QMainWindow):
+    """Main application window with Milestone 11 project lifecycle wiring."""
 
     def __init__(self):
-
         super().__init__()
 
-        self.setWindowTitle(
-            "AI Content Studio"
-        )
+        self.setWindowTitle("AI Content Studio")
+        self.resize(1600, 900)
 
-        self.resize(
-            1600,
-            900
-        )
-
-        # --------------------------------------------------
-        # Project Controller
-        # --------------------------------------------------
-
-        self.project_controller = None
-
-        # --------------------------------------------------
-        # Menu / Toolbar / Status Bar
-        # --------------------------------------------------
-
-        build_menu(self)
-
-        build_toolbar(self)
-
-        build_statusbar(self)
-
-        # --------------------------------------------------
-        # Settings
-        # --------------------------------------------------
-
+        self.project_controller: ProjectController | None = None
         self.ui_state = UIState()
-
         self.recent_projects = RecentProjects()
 
-        # --------------------------------------------------
-        # Central Widgets
-        # --------------------------------------------------
+        build_menu(self)
+        build_toolbar(self)
+        build_statusbar(self)
 
         self.dashboard = Dashboard()
-
         self.workspace = Workspace()
+        self.setCentralWidget(self.dashboard)
 
-        self.setCentralWidget(
-            self.dashboard
-        )
+        self.dashboard.newProjectRequested.connect(self.new_project)
+        self.dashboard.openProjectRequested.connect(self.open_project)
 
-        # --------------------------------------------------
-        # Dashboard Signals
-        # --------------------------------------------------
+        self.projectDock = ProjectDock(self)
+        self.outputDock = OutputDock(self)
+        self.logDock = LogDock(self)
 
-        self.dashboard.newProjectRequested.connect(
-            self.new_project
-        )
-
-        self.dashboard.openProjectRequested.connect(
-            self.open_project
-        )
-
-        # --------------------------------------------------
-        # Docks
-        # --------------------------------------------------
-
-        self.projectDock = ProjectDock(
-            self
-        )
-
-        self.outputDock = OutputDock(
-            self
-        )
-
-        self.logDock = LogDock(
-            self
-        )
-
-        self.addDockWidget(
-            Qt.LeftDockWidgetArea,
-            self.projectDock,
-        )
-
-        self.addDockWidget(
-            Qt.RightDockWidgetArea,
-            self.outputDock,
-        )
-
-        self.addDockWidget(
-            Qt.BottomDockWidgetArea,
-            self.logDock,
-        )
-
-        # --------------------------------------------------
-        # Initial State
-        # --------------------------------------------------
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.projectDock)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.outputDock)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.logDock)
 
         self.restore_ui_state()
-
         self.refresh_recent_projects_menu()
-
         self.update_action_states()
-
-        self.log(
-            "AI Content Studio started."
-        )
-
+        self.log("AI Content Studio started.")
 
     # --------------------------------------------------
-    # Project Controller Setup
+    # Controller setup / events
     # --------------------------------------------------
 
-    def set_project_controller(
-        self,
-        controller: ProjectController,
-    ):
+    def set_project_controller(self, controller: ProjectController) -> None:
+        if self.project_controller is controller:
+            return
 
         self.project_controller = controller
 
-        controller.projectOpened.connect(
-            self._on_project_opened
-        )
+        controller.projectOpened.connect(self._on_project_opened)
+        controller.projectClosed.connect(self._on_project_closed)
+        controller.projectSaved.connect(self._on_project_saved)
+        controller.projectModified.connect(self._on_project_modified)
+        controller.projectAutoSaved.connect(self._on_project_autosaved)
+        controller.projectBackupCreated.connect(self._on_project_backup_created)
+        controller.projectRecoveryAvailable.connect(self._on_recovery_available)
 
-        controller.projectClosed.connect(
-            self._on_project_closed
-        )
+        self.update_project_title()
+        self.update_action_states()
 
-        controller.projectSaved.connect(
-            self._on_project_saved
-        )
-
-        controller.projectModified.connect(
-            self._on_project_modified
-        )
-
-
-    # --------------------------------------------------
-    # Controller Events
-    # --------------------------------------------------
-
-    def _on_project_opened(
-        self,
-        root,
-    ):
-
-        self.add_recent_project(
-            str(root)
-        )
-
+    def _on_project_opened(self, root) -> None:
+        self.add_recent_project(str(root))
         self.show_workspace()
+        self.refresh_project_ui()
+        self.statusBar().showMessage("Project opened.")
+        self.log(f"Project opened: {root}")
 
-        self.update_project_title()
-
-        self.update_action_states()
-
-        self.statusBar().showMessage(
-            "Project opened."
-        )
-
-        self.log(
-            "Project opened."
-        )
-
-
-    def _on_project_closed(
-        self,
-    ):
-
+    def _on_project_closed(self) -> None:
         self.show_dashboard()
+        self.refresh_project_ui()
+        self.statusBar().showMessage("Project closed.")
+        self.log("Project closed.")
 
+    def _on_project_saved(self, root) -> None:
+        self.refresh_project_ui()
+        self.statusBar().showMessage("Project saved.")
+        self.log(f"Project saved: {root}")
+
+    def _on_project_modified(self, modified: bool) -> None:
         self.update_project_title()
-
         self.update_action_states()
 
-        self.statusBar().showMessage(
-            "Project closed."
-        )
+    def _on_project_autosaved(self, recovery) -> None:
+        self.statusBar().showMessage("Recovery snapshot saved.")
+        self.log(f"Autosave recovery snapshot: {recovery}")
 
-        self.log(
-            "Project closed."
-        )
-    # --------------------------------------------------
-    # Project Events
-    # --------------------------------------------------
+    def _on_project_backup_created(self, backup) -> None:
+        self.log(f"Project backup created: {backup}")
 
-    def _on_project_saved(
-        self,
-    ):
-
-        self.update_project_title()
-
-        self.update_action_states()
-
-        self.statusBar().showMessage(
-            "Project saved."
-        )
-
-        self.log(
-            "Project saved successfully."
-        )
-
-
-    def _on_project_modified(
-        self,
-    ):
-
-        self.update_project_title()
-
-        self.update_action_states()
-
+    def _on_recovery_available(self, recovery) -> None:
+        self.log(f"Project recovery available: {recovery}")
 
     # --------------------------------------------------
-    # Dashboard / Workspace Switching
+    # Dashboard / workspace
     # --------------------------------------------------
 
-    def show_workspace(
-        self,
-    ):
-
-        if self.centralWidget() != self.workspace:
-
-            self.setCentralWidget(
-                self.workspace
-            )
-
+    def show_workspace(self) -> None:
+        if self.centralWidget() is not self.workspace:
+            self.setCentralWidget(self.workspace)
         self.workspace.show()
 
-
-    def show_dashboard(
-        self,
-    ):
-
-        if self.centralWidget() != self.dashboard:
-
-            self.setCentralWidget(
-                self.dashboard
-            )
-
+    def show_dashboard(self) -> None:
+        if self.centralWidget() is not self.dashboard:
+            self.setCentralWidget(self.dashboard)
         self.dashboard.show()
 
-
     # --------------------------------------------------
-    # Project Operations
-    # --------------------------------------------------
-
-    def new_project(
-        self,
-    ):
-
-        try:
-
-            path = ProjectDialogs.create_project(
-                self
-            )
-
-            if not path:
-                return
-
-
-            controller = ProjectController.create(
-                path
-            )
-
-            self.set_project_controller(
-                controller
-            )
-
-            controller.open()
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to create project",
-                exc,
-            )
-
-            self.log(
-                f"Create project failed: {exc}"
-            )
-
-
-    def open_project(
-        self,
-        path=None,
-    ):
-
-        try:
-
-            if not path:
-
-                path = ProjectDialogs.open_project(
-                    self
-                )
-
-
-            if not path:
-                return
-
-
-            controller = ProjectController.open(
-                path
-            )
-
-
-            self.set_project_controller(
-                controller
-            )
-
-
-            controller.open()
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to open project",
-                exc,
-            )
-
-            self.log(
-                f"Open project failed: {exc}"
-            )
-
-
-    def close_project(
-        self,
-    ):
-
-        try:
-
-            if self.project_controller:
-
-                self.project_controller.close()
-
-                self.project_controller = None
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to close project",
-                exc,
-            )
-
-            self.log(
-                f"Close project failed: {exc}"
-            )
-
-
-    def save_project(
-        self,
-    ):
-
-        try:
-
-            if not self.project_controller:
-
-                return
-
-
-            self.project_controller.save()
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to save project",
-                exc,
-            )
-
-            self.log(
-                f"Save project failed: {exc}"
-            )
-
-
-    def save_project_as(
-        self,
-    ):
-
-        try:
-
-            if not self.project_controller:
-
-                return
-
-
-            path = ProjectDialogs.save_as_project(
-                self
-            )
-
-
-            if not path:
-                return
-
-
-            self.project_controller.save_as(
-                path
-            )
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to save project",
-                exc,
-            )
-
-            self.log(
-                f"Save As failed: {exc}"
-            )
-    # --------------------------------------------------
-    # Recent Projects
+    # Project operations
     # --------------------------------------------------
 
-    def add_recent_project(
-        self,
-        path: str,
-    ):
+    def new_project(self) -> None:
+        if self.project_controller is None:
+            return
+
+        if not self._prepare_for_project_switch():
+            return
+
+        result = ProjectDialogs.new_project(self)
+        if not result:
+            return
+
+        name, path = result
+
+        try:
+            self.project_controller.create_project(path=path, name=name)
+        except Exception as exc:
+            self.show_error("Unable to create project", exc)
+            self.log(f"Create project failed: {exc}")
+
+    def open_project(self, path=None) -> None:
+        if self.project_controller is None:
+            return
+
+        # QAction.triggered may pass False when no explicit path is supplied.
+        if isinstance(path, bool):
+            path = None
+
+        if path is None:
+            path = ProjectDialogs.open_project(self)
 
         if not path:
             return
 
-        self.recent_projects.add(
-            path
-        )
+        if not self._prepare_for_project_switch():
+            return
 
+        try:
+            self.project_controller.open_project(Path(path))
+        except Exception as exc:
+            self.show_error("Unable to open project", exc)
+            self.log(f"Open project failed: {exc}")
+
+    def save_project(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        try:
+            return self.project_controller.save_project()
+        except Exception as exc:
+            self.show_error("Unable to save project", exc)
+            self.log(f"Save project failed: {exc}")
+            return False
+
+    def save_project_as(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        path = ProjectDialogs.save_project_as(self)
+        if not path:
+            return False
+
+        try:
+            project = self.project_controller.save_project_as(path)
+            return project is not None
+        except Exception as exc:
+            self.show_error("Unable to save project", exc)
+            self.log(f"Save As failed: {exc}")
+            return False
+
+    def close_project(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return True
+
+        if not self._confirm_unsaved_changes():
+            return False
+
+        try:
+            return self.project_controller.close_project(force=True)
+        except Exception as exc:
+            self.show_error("Unable to close project", exc)
+            self.log(f"Close project failed: {exc}")
+            return False
+
+    def _prepare_for_project_switch(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return True
+
+        if not self._confirm_unsaved_changes():
+            return False
+
+        return self.project_controller.close_project(force=True)
+
+    def _confirm_unsaved_changes(self) -> bool:
+        if self.project_controller is None:
+            return True
+
+        if not self.project_controller.has_unsaved_changes():
+            return True
+
+        choice = ProjectDialogs.confirm_close(self)
+
+        if choice == "cancel":
+            return False
+
+        if choice == "save":
+            return self.save_project()
+
+        return choice == "discard"
+
+    # --------------------------------------------------
+    # Recent projects
+    # --------------------------------------------------
+
+    def add_recent_project(self, path: str) -> None:
+        if not path:
+            return
+
+        self.recent_projects.add(path)
         self.refresh_recent_projects_menu()
 
+    def refresh_recent_projects_menu(self) -> None:
+        if not hasattr(self, "recentProjectsMenu"):
+            return
 
-    def refresh_recent_projects_menu(
-        self,
-    ):
+        self.recentProjectsMenu.clear()
 
+        for project in self.recent_projects.get_all():
+            action = QAction(project, self)
+            action.triggered.connect(
+                lambda checked=False, p=project: self.open_project(p)
+            )
+            self.recentProjectsMenu.addAction(action)
+
+        if not self.recent_projects.get_all():
+            empty = QAction("No recent projects", self)
+            empty.setEnabled(False)
+            self.recentProjectsMenu.addAction(empty)
+
+    # --------------------------------------------------
+    # UI state
+    # --------------------------------------------------
+
+    def restore_ui_state(self) -> None:
         try:
-
-            if hasattr(
-                self,
-                "recentProjectsMenu"
-            ):
-
-                self.recentProjectsMenu.clear()
-
-                projects = (
-                    self.recent_projects.get_all()
-                )
-
-                for project in projects:
-
-                    action = QAction(
-                        project,
-                        self,
-                    )
-
-                    action.triggered.connect(
-                        lambda checked=False,
-                        p=project:
-                        self.open_project(p)
-                    )
-
-                    self.recentProjectsMenu.addAction(
-                        action
-                    )
-
-
+            self.ui_state.restore_main_window(self)
         except Exception as exc:
+            self.log(f"UI restore failed: {exc}")
 
-            self.log(
-                f"Recent projects refresh failed: {exc}"
-            )
-
-
-    # --------------------------------------------------
-    # UI State Management
-    # --------------------------------------------------
-
-    def restore_ui_state(
-        self,
-    ):
-
+    def save_ui_state(self) -> None:
         try:
-
-            geometry = (
-                self.ui_state.window_geometry()
-            )
-
-            if geometry:
-
-                self.restoreGeometry(
-                    geometry
-                )
-
-
-            state = (
-                self.ui_state.window_state()
-            )
-
-            if state:
-
-                self.restoreState(
-                    state
-                )
-
-
+            self.ui_state.save_main_window(self)
         except Exception as exc:
-
-            self.log(
-                f"UI restore failed: {exc}"
-            )
-
-
-    def save_ui_state(
-        self,
-    ):
-
-        try:
-
-            self.ui_state.set_window_geometry(
-                self.saveGeometry()
-            )
-
-            self.ui_state.set_window_state(
-                self.saveState()
-            )
-
-
-            self.ui_state.save()
-
-
-        except Exception as exc:
-
-            self.log(
-                f"UI state save failed: {exc}"
-            )
-
+            self.log(f"UI state save failed: {exc}")
 
     # --------------------------------------------------
-    # Window Title
+    # Window title / actions
     # --------------------------------------------------
 
-    def update_project_title(
-        self,
-    ):
+    def update_project_title(self) -> None:
+        title = "AI Content Studio"
 
-        title = (
-            "AI Content Studio"
-        )
-
-
-        if self.project_controller:
-
-            project = (
-                self.project_controller.project
-            )
-
-
-            if project:
-
-                name = getattr(
-                    project,
-                    "name",
-                    None,
-                )
-
-
-                if name:
-
-                    title = (
-                        f"{name} - "
-                        "AI Content Studio"
-                    )
-
-
-                if getattr(
-                    project,
-                    "is_modified",
-                    False,
-                ):
-
+        if self.project_controller is not None:
+            project = self.project_controller.project
+            if project is not None:
+                title = f"{project.name} - AI Content Studio"
+                if self.project_controller.modified:
                     title += " *"
 
+        self.setWindowTitle(title)
 
-        self.setWindowTitle(
-            title
-        )
+    def update_action_states(self) -> None:
+        has_project = self.has_project()
 
-
-    # --------------------------------------------------
-    # Action State Management
-    # --------------------------------------------------
-
-    def update_action_states(
-        self,
-    ):
-
-        has_project = (
-            self.project_controller
-            is not None
-        )
-
-
-        if hasattr(
-            self,
+        for name in (
             "saveAction",
-        ):
-
-            self.saveAction.setEnabled(
-                has_project
-            )
-
-
-        if hasattr(
-            self,
             "saveAsAction",
-        ):
-
-            self.saveAsAction.setEnabled(
-                has_project
-            )
-
-
-        if hasattr(
-            self,
             "closeProjectAction",
-        ):
-
-            self.closeProjectAction.setEnabled(
-                has_project
-            )
-
-
-        if hasattr(
-            self,
             "exportAction",
+            "toolbar_save",
+            "toolbar_save_as",
+            "toolbar_close",
         ):
+            action = getattr(self, name, None)
+            if action is not None:
+                action.setEnabled(has_project)
 
-            self.exportAction.setEnabled(
-                has_project
-            )
     # --------------------------------------------------
-    # Logging
+    # Logging / errors
     # --------------------------------------------------
 
-    def log(
-        self,
-        message: str,
-    ):
-
+    def log(self, message: str) -> None:
         try:
-
-            if hasattr(
-                self,
-                "logDock",
-            ):
-
-                self.logDock.append(
-                    message
-                )
-
-
+            if hasattr(self, "logDock"):
+                self.logDock.append(message)
         except Exception:
-
             pass
 
+    def show_error(self, title: str, error: Exception) -> None:
+        QMessageBox.critical(self, title, str(error))
 
     # --------------------------------------------------
-    # Error Handling
+    # Application close
     # --------------------------------------------------
 
-    def show_error(
-        self,
-        title: str,
-        error: Exception,
-    ):
-
-        from PySide6.QtWidgets import QMessageBox
-
-
-        QMessageBox.critical(
-            self,
-            title,
-            str(error),
-        )
-
-
-    # --------------------------------------------------
-    # Application Close
-    # --------------------------------------------------
-
-    def closeEvent(
-        self,
-        event,
-    ):
-
+    def closeEvent(self, event) -> None:
         try:
+            if not self._confirm_unsaved_changes():
+                event.ignore()
+                return
 
-            if self.project_controller:
-
-                if (
-                    hasattr(
-                        self.project_controller,
-                        "has_unsaved_changes",
-                    )
-                    and
-                    self.project_controller.has_unsaved_changes()
-                ):
-
-                    result = ProjectDialogs.confirm_close(
-                        self
-                    )
-
-                    if not result:
-
-                        event.ignore()
-
-                        return
-
-
-                self.project_controller.close()
-
+            if self.project_controller is not None and self.project_controller.has_project():
+                self.project_controller.close_project(force=True)
 
             self.save_ui_state()
-
-
             event.accept()
-
-
         except Exception as exc:
-
-            self.log(
-                f"Close failed: {exc}"
-            )
-
-            event.accept()
-
+            self.log(f"Close failed: {exc}")
+            event.ignore()
 
     # --------------------------------------------------
-    # Utility Methods
+    # Utility methods
     # --------------------------------------------------
 
-    def current_project(
-        self,
-    ):
+    def current_project(self):
+        if self.project_controller is None:
+            return None
+        return self.project_controller.project
 
-        if self.project_controller:
-
-            return (
-                self.project_controller.project
-            )
-
-        return None
-
-
-    def has_project(
-        self,
-    ) -> bool:
-
+    def has_project(self) -> bool:
         return (
-            self.project_controller
-            is not None
+            self.project_controller is not None
+            and self.project_controller.has_project()
         )
 
-
-    def refresh_project_ui(
-        self,
-    ):
-
-        """
-        Central UI refresh method.
-
-        Milestone 10.5 improvement:
-        Avoid repeated calls to:
-        - update_project_title()
-        - update_action_states()
-        - refresh_recent_projects_menu()
-        """
-
+    def refresh_project_ui(self) -> None:
         self.update_project_title()
-
         self.update_action_states()
-
         self.refresh_recent_projects_menu()
-
-
-    # --------------------------------------------------
-    # End of MainWindow
-    # --------------------------------------------------
