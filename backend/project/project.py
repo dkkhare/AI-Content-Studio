@@ -15,20 +15,22 @@ DEFAULT_PROJECT_SETTINGS = {
     "pipeline_translation_enabled": False,
     "translation_provider": "google",
     "translation_api_key_env": "GOOGLE_TRANSLATE_API_KEY",
-    "translation_source_language": "en",
-    "translation_target_language": "en",
-    "pipeline_ai_ocr_cleanup_enabled": False,
+    "translation_source_language": "hi",
+    "translation_target_language": "hi",
+    "pipeline_ai_ocr_cleanup_enabled": True,
     "pipeline_ai_translation_enabled": False,
     "pipeline_ai_summary_enabled": False,
-    "pipeline_ai_script_enabled": False,
+    "pipeline_ai_script_enabled": True,
     "pipeline_ai_subtitle_enabled": False,
-    "ai_provider": "",
+    "ai_provider": "ollama",
     "ai_model": "",
-    "ai_source_language": "en",
-    "ai_target_language": "en",
+    "ai_source_language": "hi",
+    "ai_target_language": "hi",
     "ai_summary_style": "concise",
-    "ai_script_style": "natural narration",
-    "ai_subtitle_language": "en",
+    "ai_script_style": "natural Hindi podcast narration",
+    "ai_subtitle_language": "hi",
+    "tts_provider": "f5tts",
+    "tts_language": "hi",
     "pipeline_narration_enabled": True,
     "pipeline_video_enabled": False,
     "video_fps": 30,
@@ -52,7 +54,7 @@ class Project:
     author: str = ""
 
     pdf_file: str = ""
-    language: str = "en"
+    language: str = "hi"
     voice: str = ""
     output_directory: str = "output"
     auto_save: bool = True
