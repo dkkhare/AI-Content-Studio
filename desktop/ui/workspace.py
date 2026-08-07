@@ -79,12 +79,16 @@ class Workspace(QWidget):
         controller.completed.connect(lambda state: self.set_busy(False))
         controller.cancelled.connect(lambda: self.set_busy(False))
         controller.failed.connect(lambda message: self.set_busy(False))
+        controller.queueChanged.connect(self._on_queue_changed)
+
+    def _on_queue_changed(self, records) -> None:
+        self._busy = any(
+            str(item.get("status", "")) in {"running", "paused"}
+            for item in (records or [])
+        )
 
     def start_processing(self) -> bool:
         if self.current_project is None or self.pipeline_controller is None:
-            return False
-        if self.pipeline_controller.running:
-            self.open_processing_tab()
             return False
 
         dialog = ProcessingSetupDialog(self.current_project, self)
@@ -95,25 +99,26 @@ class Workspace(QWidget):
         if self.current_project.get_setting("pipeline_ocr_enabled", True) and not data["ocr_images"]:
             QMessageBox.warning(
                 self,
-                "Start Processing",
+                "Queue Processing",
                 "OCR is enabled, but no source images were selected.",
             )
             return False
 
         try:
-            started = self.pipeline_controller.start_project(
+            job = self.pipeline_controller.submit_project(
                 self.current_project,
                 data=data,
+                priority=dialog.queue_priority(),
                 resume=True,
-                configure=True,
             )
         except Exception as exc:
-            QMessageBox.critical(self, "Unable to Start Processing", str(exc))
+            QMessageBox.critical(self, "Unable to Queue Processing", str(exc))
             return False
 
-        if started:
+        if job is not None:
             self.open_processing_tab()
-        return bool(started)
+            return True
+        return False
 
     def open_project(self, project) -> None:
         self.current_project = project
@@ -129,7 +134,10 @@ class Workspace(QWidget):
         self._busy = False
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
-            if not (self.pipeline_controller and self.pipeline_controller.running):
+            if not (
+                self.pipeline_controller
+                and (self.pipeline_controller.running or self.pipeline_controller.queue_running)
+            ):
                 self.workflow_panel.reset()
         self.clear()
         self.projectClosed.emit()
