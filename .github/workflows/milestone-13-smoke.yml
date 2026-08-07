@@ -8,6 +8,7 @@ on:
     paths:
       - "backend/ai/**"
       - "tests/test_ai_core.py"
+      - "tests/test_ai_providers.py"
       - ".github/workflows/milestone-13-smoke.yml"
 
 jobs:
@@ -26,8 +27,11 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q backend desktop tests
 
-      - name: Run Milestone 13 AI core tests
-        run: python -m unittest -v tests.test_ai_core
+      - name: Run Milestone 13 AI tests
+        run: >-
+          python -m unittest -v
+          tests.test_ai_core
+          tests.test_ai_providers
 
       - name: Re-run Milestone 12 processing regressions
         run: >-
