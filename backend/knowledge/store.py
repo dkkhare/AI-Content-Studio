@@ -14,17 +14,18 @@ class KnowledgeStore:
         "characters.json": [],
         "locations.json": [],
         "objects.json": [],
-        "events.json": [],
         "timeline.json": [],
         "relationships.json": [],
+        "events.json": [],
+        "analyses.json": [],
+        "merge_suggestions.json": [],
         "glossary.json": [],
         "pronunciation.json": [],
         "style.json": {},
         "scenes.json": [],
+        "scene_plans.json": [],
         "prompts.json": [],
         "assets.json": [],
-        "analyses.json": [],
-        "merge_suggestions.json": [],
     }
 
     def __init__(self, project_root: str | Path):
