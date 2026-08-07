@@ -14,6 +14,7 @@ class KnowledgeStore:
         "characters.json": [],
         "locations.json": [],
         "objects.json": [],
+        "events.json": [],
         "timeline.json": [],
         "relationships.json": [],
         "glossary.json": [],
@@ -22,6 +23,8 @@ class KnowledgeStore:
         "scenes.json": [],
         "prompts.json": [],
         "assets.json": [],
+        "analyses.json": [],
+        "merge_suggestions.json": [],
     }
 
     def __init__(self, project_root: str | Path):
