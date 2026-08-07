@@ -70,10 +70,14 @@ class PublishingMetadataTests(unittest.TestCase):
             self.assertIn("राम", manifest["youtube"]["tags"])
             self.assertIn("वन", manifest["youtube"]["tags"])
             self.assertEqual(manifest["podcast"]["language"], "hi-IN")
+            self.assertEqual(manifest["podcast"]["show"], "सरस्वती कथा")
+            self.assertEqual(manifest["podcast"]["episode_number"], 1)
             self.assertEqual(manifest["files"]["video"], "segments/episode_001/export/youtube.mp4")
             self.assertTrue(manifest["ready"])
             path = root / "segments" / "episode_001" / "publish" / "manifest.json"
             self.assertTrue(path.exists())
+            assets = KnowledgeStore(root).read("assets")
+            self.assertTrue(any(item.get("asset_type") == "publish_manifest" for item in assets if isinstance(item, dict)))
 
     def test_build_all_only_processes_approved_episodes(self):
         with tempfile.TemporaryDirectory() as tmp:
