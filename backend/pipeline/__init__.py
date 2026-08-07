@@ -11,6 +11,7 @@ from .progress import PipelineProgress
 from .queue import PipelineJob, PipelineJobQueue
 from .runner import PipelineRunner
 from .stage import FunctionStage, PipelineStage
+from .stages import OCRStage, NarrationStage, TranslationStage, VideoRenderStage
 from .state import PipelineState, PipelineStateStore
 
 __all__ = [
@@ -27,6 +28,10 @@ __all__ = [
     "PipelineRunner",
     "PipelineStage",
     "FunctionStage",
+    "OCRStage",
+    "TranslationStage",
+    "NarrationStage",
+    "VideoRenderStage",
     "PipelineState",
     "PipelineStateStore",
 ]
