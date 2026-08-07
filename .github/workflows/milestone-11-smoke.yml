@@ -1,0 +1,31 @@
+name: Milestone 11 Smoke
+
+on:
+  push:
+    branches:
+      - agent/milestone-11-project-lifecycle
+  pull_request:
+    paths:
+      - "backend/project/**"
+      - "desktop/**"
+      - "tests/test_project_lifecycle.py"
+      - ".github/workflows/milestone-11-smoke.yml"
+
+jobs:
+  project-lifecycle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: python -m compileall -q backend desktop tests
+
+      - name: Run project lifecycle smoke tests
+        run: python -m unittest -v tests.test_project_lifecycle
