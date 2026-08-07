@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QTabWidget, QVBoxLayout, QWidget
 
 from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
+from desktop.ui.widgets.episode_production_panel import EpisodeProductionPanel
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
@@ -67,8 +68,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.translation_page, "Translation")
         self.video_page = self._placeholder("Video Generation", "Video generation tools.")
         self.tabs.addTab(self.video_page, "Video")
-        self.export_page = self._placeholder("Export", "Export and publishing tools.")
-        self.tabs.addTab(self.export_page, "Export")
+        self.export_page = EpisodeProductionPanel(self)
+        self.tabs.addTab(self.export_page, "Production")
         self.workflow_panel = WorkflowPanel(self)
         self.workflow_panel.startRequested.connect(self.start_processing)
         self.tabs.addTab(self.workflow_panel, "Processing")
@@ -126,6 +127,8 @@ class Workspace(QWidget):
         self._busy = False
         if self.workflow_panel:
             self.workflow_panel.set_project_available(True)
+        if self.export_page:
+            self.export_page.set_project(project)
         if self.project_status_dashboard:
             self.project_status_dashboard.set_project(project)
         if self.story_review_panel:
@@ -153,6 +156,7 @@ class Workspace(QWidget):
     def refresh(self) -> None:
         for widget in (
             self.narration_panel,
+            self.export_page,
             self.project_status_dashboard,
             self.story_review_panel,
             self.scene_review_panel,
@@ -173,6 +177,7 @@ class Workspace(QWidget):
 
     def narration(self): return self.narration_panel
     def processing(self): return self.workflow_panel
+    def production(self): return self.export_page
     def overview(self): return self.project_status_dashboard
     def story_review(self): return self.story_review_panel
     def scene_review(self): return self.scene_review_panel
@@ -208,13 +213,14 @@ class Workspace(QWidget):
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
         for widget in (
+            self.export_page,
             self.project_status_dashboard,
             self.story_review_panel,
             self.scene_review_panel,
             self.visual_review_panel,
             self.video_review_panel,
         ):
-            if widget:
+            if widget and hasattr(widget, "clear"):
                 widget.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
             try:
