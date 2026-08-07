@@ -6,22 +6,24 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
 )
 
 
 class ProcessingSetupDialog(QDialog):
-    """Collect source images before starting the configured project pipeline."""
+    """Collect inputs and queue options for the configured project pipeline."""
 
     def __init__(self, project, parent=None):
         super().__init__(parent)
         self.project = project
         self._images: list[str] = []
-        self.setWindowTitle("Start Processing")
+        self.setWindowTitle("Queue Processing")
         self.setMinimumWidth(560)
 
         layout = QVBoxLayout(self)
@@ -42,6 +44,14 @@ class ProcessingSetupDialog(QDialog):
         row.addWidget(browse)
         layout.addLayout(row)
 
+        options = QFormLayout()
+        self.priority = QSpinBox(self)
+        self.priority.setRange(-100, 100)
+        self.priority.setValue(0)
+        self.priority.setToolTip("Higher values are processed before lower-priority queued jobs.")
+        options.addRow("Queue priority", self.priority)
+        layout.addLayout(options)
+
         self.summary = QLabel(self)
         self.summary.setWordWrap(True)
         self._refresh_summary()
@@ -51,7 +61,7 @@ class ProcessingSetupDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
             parent=self,
         )
-        buttons.button(QDialogButtonBox.Ok).setText("Start Processing")
+        buttons.button(QDialogButtonBox.Ok).setText("Add to Queue")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -86,3 +96,6 @@ class ProcessingSetupDialog(QDialog):
             "ocr_images": list(self._images),
             "video_images": list(self._images),
         }
+
+    def queue_priority(self) -> int:
+        return int(self.priority.value())
