@@ -6,6 +6,7 @@ from backend.episodes import EpisodeReviewStore
 
 from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
 from .pipeline import ProcessingPipeline
+from .story_stage import StoryIntelligenceStage
 from .stages import (
     AIOCRCleanupStage,
     AIScriptStage,
@@ -49,6 +50,7 @@ def build_project_pipeline(
             "pipeline_ai_summary_enabled",
             "pipeline_ai_script_enabled",
             "pipeline_ai_subtitle_enabled",
+            "pipeline_story_intelligence_enabled",
         )
     )
     ai_provider = str(project.get_setting("ai_provider", "ollama") or "ollama")
@@ -194,6 +196,23 @@ def build_project_pipeline(
             media_allowed = not review_required
         elif review_required:
             media_allowed = review_complete
+
+    story_enabled = bool(project.get_setting("pipeline_story_intelligence_enabled", True))
+    story_allowed = (
+        story_enabled
+        and segmentation_enabled
+        and manifest_exists
+        and media_allowed
+        and bool(review_store.approved())
+    )
+    if story_allowed:
+        pipeline.add_stage(
+            StoryIntelligenceStage(
+                ai_manager,
+                provider_id=ai_provider,
+                model=ai_model,
+            )
+        )
 
     if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)) and media_allowed:
         pipeline.add_stage(
