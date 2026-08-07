@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QTabWidget, QVBoxLay
 from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
+from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
 from desktop.ui.widgets.story_review_panel import StoryReviewPanel
 from desktop.ui.workflow_panel import WorkflowPanel
 
@@ -22,7 +23,6 @@ class Workspace(QWidget):
         self.current_project = None
         self.pipeline_controller = None
         self._busy = False
-
         self.tabs = QTabWidget(self)
         self.pdf_page = None
         self.ocr_page = None
@@ -33,6 +33,7 @@ class Workspace(QWidget):
         self.workflow_panel = None
         self.project_status_dashboard = None
         self.story_review_panel = None
+        self.scene_review_panel = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -54,31 +55,25 @@ class Workspace(QWidget):
     def _create_tabs(self) -> None:
         self.pdf_page = self._placeholder("PDF Viewer", "PDF processing workspace.")
         self.tabs.addTab(self.pdf_page, "PDF")
-
         self.ocr_page = self._placeholder("OCR Workspace", "OCR processing tools.")
         self.tabs.addTab(self.ocr_page, "OCR")
-
         self.narration_panel = NarrationPanel()
         self.tabs.addTab(self.narration_panel, "Narration")
-
         self.translation_page = self._placeholder("Translation", "Translation tools.")
         self.tabs.addTab(self.translation_page, "Translation")
-
         self.video_page = self._placeholder("Video Generation", "Video generation tools.")
         self.tabs.addTab(self.video_page, "Video")
-
         self.export_page = self._placeholder("Export", "Export and publishing tools.")
         self.tabs.addTab(self.export_page, "Export")
-
         self.workflow_panel = WorkflowPanel(self)
         self.workflow_panel.startRequested.connect(self.start_processing)
         self.tabs.addTab(self.workflow_panel, "Processing")
-
         self.project_status_dashboard = ProjectStatusDashboard(self)
         self.tabs.addTab(self.project_status_dashboard, "Overview")
-
         self.story_review_panel = StoryReviewPanel(self)
         self.tabs.addTab(self.story_review_panel, "Story Review")
+        self.scene_review_panel = SceneReviewPanel(self)
+        self.tabs.addTab(self.scene_review_panel, "Scene Review")
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -96,39 +91,23 @@ class Workspace(QWidget):
         self.refresh()
 
     def _on_queue_changed(self, records) -> None:
-        self._busy = any(
-            str(item.get("status", "")) in {"running", "paused"}
-            for item in (records or [])
-        )
+        self._busy = any(str(item.get("status", "")) in {"running", "paused"} for item in (records or []))
 
     def start_processing(self) -> bool:
         if self.current_project is None or self.pipeline_controller is None:
             return False
-
         dialog = ProcessingSetupDialog(self.current_project, self)
         if dialog.exec() != QDialog.Accepted:
             return False
-
         data = dialog.data()
         if self.current_project.get_setting("pipeline_ocr_enabled", True) and not data["ocr_images"]:
-            QMessageBox.warning(
-                self,
-                "Queue Processing",
-                "OCR is enabled, but no source images were selected.",
-            )
+            QMessageBox.warning(self, "Queue Processing", "OCR is enabled, but no source images were selected.")
             return False
-
         try:
-            job = self.pipeline_controller.submit_project(
-                self.current_project,
-                data=data,
-                priority=dialog.queue_priority(),
-                resume=True,
-            )
+            job = self.pipeline_controller.submit_project(self.current_project, data=data, priority=dialog.queue_priority(), resume=True)
         except Exception as exc:
             QMessageBox.critical(self, "Unable to Queue Processing", str(exc))
             return False
-
         if job is not None:
             self.open_processing_tab()
             return True
@@ -143,6 +122,8 @@ class Workspace(QWidget):
             self.project_status_dashboard.set_project(project)
         if self.story_review_panel:
             self.story_review_panel.set_project(project)
+        if self.scene_review_panel:
+            self.scene_review_panel.set_project(project)
         self.refresh()
         self.open_overview_tab()
         self.projectOpened.emit(str(project))
@@ -152,30 +133,18 @@ class Workspace(QWidget):
         self._busy = False
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
-            if not (
-                self.pipeline_controller
-                and (self.pipeline_controller.running or self.pipeline_controller.queue_running)
-            ):
+            if not (self.pipeline_controller and (self.pipeline_controller.running or self.pipeline_controller.queue_running)):
                 self.workflow_panel.reset()
         self.clear()
         self.projectClosed.emit()
 
     def refresh(self) -> None:
-        if self.narration_panel and hasattr(self.narration_panel, "refresh"):
-            try:
-                self.narration_panel.refresh()
-            except Exception:
-                pass
-        if self.project_status_dashboard and self.current_project is not None:
-            try:
-                self.project_status_dashboard.refresh()
-            except Exception:
-                pass
-        if self.story_review_panel and self.current_project is not None:
-            try:
-                self.story_review_panel.refresh()
-            except Exception:
-                pass
+        for widget in (self.narration_panel, self.project_status_dashboard, self.story_review_panel, self.scene_review_panel):
+            if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
+                try:
+                    widget.refresh()
+                except Exception:
+                    pass
 
     def set_busy(self, busy: bool) -> None:
         self._busy = bool(busy)
@@ -195,6 +164,9 @@ class Workspace(QWidget):
     def story_review(self):
         return self.story_review_panel
 
+    def scene_review(self):
+        return self.scene_review_panel
+
     def current_tab(self) -> int:
         return self.tabs.currentIndex()
 
@@ -205,42 +177,25 @@ class Workspace(QWidget):
     def current_tab_name(self) -> str:
         return self.tabs.tabText(self.tabs.currentIndex())
 
-    def open_pdf_tab(self) -> None:
-        self.set_current_tab(0)
-
-    def open_ocr_tab(self) -> None:
-        self.set_current_tab(1)
-
-    def open_narration_tab(self) -> None:
-        self.set_current_tab(2)
-
-    def open_translation_tab(self) -> None:
-        self.set_current_tab(3)
-
-    def open_video_tab(self) -> None:
-        self.set_current_tab(4)
-
-    def open_export_tab(self) -> None:
-        self.set_current_tab(5)
-
-    def open_processing_tab(self) -> None:
-        self.set_current_tab(6)
-
-    def open_overview_tab(self) -> None:
-        self.set_current_tab(7)
-
-    def open_story_review_tab(self) -> None:
-        self.set_current_tab(8)
+    def open_pdf_tab(self) -> None: self.set_current_tab(0)
+    def open_ocr_tab(self) -> None: self.set_current_tab(1)
+    def open_narration_tab(self) -> None: self.set_current_tab(2)
+    def open_translation_tab(self) -> None: self.set_current_tab(3)
+    def open_video_tab(self) -> None: self.set_current_tab(4)
+    def open_export_tab(self) -> None: self.set_current_tab(5)
+    def open_processing_tab(self) -> None: self.set_current_tab(6)
+    def open_overview_tab(self) -> None: self.set_current_tab(7)
+    def open_story_review_tab(self) -> None: self.set_current_tab(8)
+    def open_scene_review_tab(self) -> None: self.set_current_tab(9)
 
     def clear(self) -> None:
         self._busy = False
         self.current_project = None
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
-        if self.project_status_dashboard:
-            self.project_status_dashboard.clear()
-        if self.story_review_panel:
-            self.story_review_panel.clear()
+        for widget in (self.project_status_dashboard, self.story_review_panel, self.scene_review_panel):
+            if widget:
+                widget.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
             try:
                 self.narration_panel.clear()
