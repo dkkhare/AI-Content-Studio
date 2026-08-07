@@ -27,6 +27,7 @@ class KnowledgeStoreTests(unittest.TestCase):
                 "pronunciation.json",
                 "style.json",
                 "scenes.json",
+                "scene_plans.json",
                 "prompts.json",
                 "assets.json",
                 "analyses.json",
