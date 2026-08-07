@@ -13,6 +13,7 @@ on:
       - "backend/scenes/**"
       - "backend/images/**"
       - "backend/video/**"
+      - "backend/production/**"
       - "backend/pipeline/**"
       - "backend/tts/**"
       - "backend/project/project.py"
@@ -26,6 +27,7 @@ on:
       - "tests/test_episode_segmentation.py"
       - "tests/test_episode_review.py"
       - "tests/test_episode_narration.py"
+      - "tests/test_episode_production.py"
       - "tests/test_knowledge_store.py"
       - "tests/test_knowledge_review.py"
       - "tests/test_story_intelligence.py"
@@ -62,6 +64,7 @@ jobs:
           tests.test_episode_segmentation
           tests.test_episode_review
           tests.test_episode_narration
+          tests.test_episode_production
           tests.test_knowledge_store
           tests.test_knowledge_review
           tests.test_story_intelligence
