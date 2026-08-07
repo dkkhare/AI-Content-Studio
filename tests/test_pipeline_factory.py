@@ -38,10 +38,34 @@ class PipelineFactoryTests(unittest.TestCase):
             self.assertEqual(project.language, "hi")
             self.assertEqual(project.get_setting("ai_provider"), "ollama")
             self.assertEqual(project.get_setting("tts_provider"), "f5tts")
+            self.assertFalse(project.get_setting("pipeline_hindi_spelling_correction_enabled"))
+            self.assertFalse(project.get_setting("pipeline_hindi_grammar_correction_enabled"))
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "ai_ocr_cleanup", "ai_script", "narration"],
+                ["ocr", "ai_script", "narration"],
             )
+
+    def test_spelling_and_grammar_are_independently_optional(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Project("Demo", Path(temp)).initialize()
+            project.set_setting("pipeline_hindi_spelling_correction_enabled", True)
+            project.set_setting("pipeline_hindi_grammar_correction_enabled", True)
+            pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
+            self.assertEqual(
+                [stage.stage_id for stage in pipeline.stages],
+                [
+                    "ocr",
+                    "hindi_spelling_correction",
+                    "hindi_grammar_correction",
+                    "ai_script",
+                    "narration",
+                ],
+            )
+
+            project.set_setting("pipeline_hindi_spelling_correction_enabled", False)
+            pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
+            self.assertIn("hindi_grammar_correction", [stage.stage_id for stage in pipeline.stages])
+            self.assertNotIn("hindi_spelling_correction", [stage.stage_id for stage in pipeline.stages])
 
     def test_hindi_to_hindi_translation_is_skipped(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -64,7 +88,7 @@ class PipelineFactoryTests(unittest.TestCase):
             )
             self.assertEqual(
                 [stage.stage_id for stage in pipeline.stages],
-                ["ocr", "ai_ocr_cleanup", "translation", "ai_script", "narration", "video"],
+                ["ocr", "translation", "ai_script", "narration", "video"],
             )
 
     def test_all_stages_can_be_disabled(self):
@@ -72,6 +96,8 @@ class PipelineFactoryTests(unittest.TestCase):
             project = Project("Demo", Path(temp)).initialize()
             project.set_setting("pipeline_ocr_enabled", False)
             project.set_setting("pipeline_ai_ocr_cleanup_enabled", False)
+            project.set_setting("pipeline_hindi_spelling_correction_enabled", False)
+            project.set_setting("pipeline_hindi_grammar_correction_enabled", False)
             project.set_setting("pipeline_ai_script_enabled", False)
             project.set_setting("pipeline_narration_enabled", False)
             with self.assertRaises(ValueError):
