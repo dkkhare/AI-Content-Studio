@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 from .stage import PipelineStage
 
@@ -30,12 +30,7 @@ class OCRStage(PipelineStage):
     name = "OCR"
     weight = 2.0
 
-    def __init__(
-        self,
-        provider: str | None = None,
-        manager_factory: Callable[[], Any] | None = None,
-        image_key: str = "ocr_images",
-    ):
+    def __init__(self, provider: str | None = None, manager_factory: Callable[[], Any] | None = None, image_key: str = "ocr_images"):
         super().__init__()
         self.provider = provider
         self.manager_factory = manager_factory
@@ -45,7 +40,6 @@ class OCRStage(PipelineStage):
         if self.manager_factory is not None:
             return self.manager_factory()
         from backend.ocr.manager import OCRManager
-
         return OCRManager()
 
     def execute(self, context, progress=None):
@@ -54,9 +48,7 @@ class OCRStage(PipelineStage):
             images = [images]
         images = [str(Path(item)) for item in images]
         if not images:
-            raise ValueError(
-                f"OCR stage requires image paths in context['{self.image_key}']."
-            )
+            raise ValueError(f"OCR stage requires image paths in context['{self.image_key}'].")
 
         manager = self._manager()
         if self.provider:
@@ -68,10 +60,7 @@ class OCRStage(PipelineStage):
             result = manager.recognize(image)
             pages.append(_result_text(result))
             if progress:
-                progress(
-                    round(index / total * 100),
-                    f"OCR page {index} of {total}",
-                )
+                progress(round(index / total * 100), f"OCR page {index} of {total}")
 
         text = "\n\n".join(page for page in pages if page)
         context.set("ocr_pages", pages)
@@ -83,23 +72,229 @@ class OCRStage(PipelineStage):
         return text
 
 
-class TranslationStage(PipelineStage):
-    """Translate text through an injected translator/provider.
+class AIPromptStage(PipelineStage):
+    """Reusable AI-backed processing stage driven by a named prompt template."""
 
-    The translator may be a callable or an object exposing ``translate``.
-    This keeps the pipeline independent of a particular cloud/model provider.
-    """
+    stage_id = "ai_prompt"
+    name = "AI Prompt"
+    weight = 1.5
+
+    def __init__(
+        self,
+        ai_manager,
+        prompt_name: str,
+        *,
+        source_keys: tuple[str, ...],
+        variable_name: str = "text",
+        output_key: str,
+        output_filename: str,
+        provider_id: str | None = None,
+        model: str = "",
+        extra_variables: dict[str, Any] | None = None,
+        project_asset: str | None = None,
+        stage_id: str | None = None,
+        name: str | None = None,
+        weight: float | None = None,
+    ):
+        super().__init__()
+        self.ai_manager = ai_manager
+        self.prompt_name = prompt_name
+        self.source_keys = tuple(source_keys)
+        self.variable_name = variable_name
+        self.output_key = output_key
+        self.output_filename = output_filename
+        self.provider_id = provider_id or None
+        self.model = model
+        self.extra_variables = dict(extra_variables or {})
+        self.project_asset = project_asset
+        if stage_id:
+            self.stage_id = stage_id
+        if name:
+            self.name = name
+        if weight is not None:
+            self.weight = float(weight)
+
+    def _source_text(self, context) -> str:
+        for key in self.source_keys:
+            if key == "cleaned_text":
+                value = context.cleaned_text
+            elif key == "ocr_text":
+                value = context.ocr_text
+            else:
+                value = context.get(key)
+            if value:
+                return str(value)
+        return ""
+
+    def execute(self, context, progress=None):
+        source = self._source_text(context)
+        if not source:
+            raise ValueError(f"{self.name} stage has no source text.")
+
+        if progress:
+            progress(10, f"Preparing {self.name.lower()}")
+
+        variables = dict(self.extra_variables)
+        variables[self.variable_name] = source
+        response = self.ai_manager.execute_prompt(
+            self.prompt_name,
+            variables,
+            provider_id=self.provider_id,
+            model=self.model,
+        )
+        text = str(response.text).strip()
+        if not text:
+            raise ValueError(f"{self.name} returned no text.")
+
+        context.set(self.output_key, text)
+        output = context.path("output", self.output_filename, create_parent=True)
+        output.write_text(text, encoding="utf-8")
+
+        if self.project_asset:
+            try:
+                relative = str(output.relative_to(context.project_root))
+            except ValueError:
+                relative = str(output)
+            context.project.register_asset(self.project_asset, relative)
+
+        if progress:
+            progress(100, f"{self.name} completed")
+        return text
+
+
+class AIOCRCleanupStage(AIPromptStage):
+    stage_id = "ai_ocr_cleanup"
+    name = "AI OCR Cleanup"
+    weight = 1.5
+
+    def __init__(self, ai_manager, *, provider_id=None, model="", language="en"):
+        super().__init__(
+            ai_manager,
+            "ocr_cleanup",
+            source_keys=("ocr_text",),
+            variable_name="text",
+            output_key="cleaned_text",
+            output_filename="ocr_cleaned.txt",
+            provider_id=provider_id,
+            model=model,
+            extra_variables={"language": language},
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+    def execute(self, context, progress=None):
+        text = super().execute(context, progress)
+        context.cleaned_text = text
+        return text
+
+
+class AITranslationStage(AIPromptStage):
+    stage_id = "ai_translation"
+    name = "AI Translation"
+    weight = 1.5
+
+    def __init__(self, ai_manager, *, provider_id=None, model="", source_language="en", target_language="en"):
+        super().__init__(
+            ai_manager,
+            "translation",
+            source_keys=("cleaned_text", "ocr_text"),
+            variable_name="source_text",
+            output_key="translated_text",
+            output_filename="translation_ai.txt",
+            provider_id=provider_id,
+            model=model,
+            extra_variables={
+                "source_language": source_language,
+                "target_language": target_language,
+            },
+            project_asset="translation_file",
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+    def execute(self, context, progress=None):
+        text = super().execute(context, progress)
+        context.cleaned_text = text
+        return text
+
+
+class AISummaryStage(AIPromptStage):
+    stage_id = "ai_summary"
+    name = "AI Summary"
+    weight = 1.0
+
+    def __init__(self, ai_manager, *, provider_id=None, model="", style="concise"):
+        super().__init__(
+            ai_manager,
+            "chapter_summary",
+            source_keys=("translated_text", "cleaned_text", "ocr_text"),
+            variable_name="text",
+            output_key="summary_text",
+            output_filename="summary.txt",
+            provider_id=provider_id,
+            model=model,
+            extra_variables={"style": style},
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+
+class AIScriptStage(AIPromptStage):
+    stage_id = "ai_script"
+    name = "AI Script Generation"
+    weight = 1.5
+
+    def __init__(self, ai_manager, *, provider_id=None, model="", style="natural narration"):
+        super().__init__(
+            ai_manager,
+            "script_generation",
+            source_keys=("summary_text", "translated_text", "cleaned_text", "ocr_text"),
+            variable_name="text",
+            output_key="script_text",
+            output_filename="script.txt",
+            provider_id=provider_id,
+            model=model,
+            extra_variables={"style": style},
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+
+class AISubtitleStage(AIPromptStage):
+    stage_id = "ai_subtitles"
+    name = "AI Subtitle Generation"
+    weight = 1.0
+
+    def __init__(self, ai_manager, *, provider_id=None, model="", language="en"):
+        super().__init__(
+            ai_manager,
+            "subtitle_generation",
+            source_keys=("script_text", "translated_text", "cleaned_text", "ocr_text"),
+            variable_name="text",
+            output_key="subtitle_text",
+            output_filename="subtitles.srt",
+            provider_id=provider_id,
+            model=model,
+            extra_variables={"language": language},
+            project_asset="subtitle_file",
+            stage_id=self.stage_id,
+            name=self.name,
+            weight=self.weight,
+        )
+
+
+class TranslationStage(PipelineStage):
+    """Translate text through an injected translator/provider."""
 
     stage_id = "translation"
     name = "Translation"
     weight = 1.5
 
-    def __init__(
-        self,
-        translator,
-        source_language: str | None = None,
-        target_language: str | None = None,
-    ):
+    def __init__(self, translator, source_language: str | None = None, target_language: str | None = None):
         super().__init__()
         self.translator = translator
         self.source_language = source_language
@@ -108,13 +303,7 @@ class TranslationStage(PipelineStage):
     def _translate(self, text: str) -> str:
         function = getattr(self.translator, "translate", self.translator)
         try:
-            return str(
-                function(
-                    text,
-                    source_language=self.source_language,
-                    target_language=self.target_language,
-                )
-            )
+            return str(function(text, source_language=self.source_language, target_language=self.target_language))
         except TypeError:
             return str(function(text))
 
@@ -131,10 +320,7 @@ class TranslationStage(PipelineStage):
         for index, page in enumerate(pages, start=1):
             translated.append(self._translate(str(page)))
             if progress:
-                progress(
-                    round(index / total * 100),
-                    f"Translated page {index} of {total}",
-                )
+                progress(round(index / total * 100), f"Translated page {index} of {total}")
 
         text = "\n\n".join(translated)
         context.set("translated_pages", translated)
@@ -154,11 +340,7 @@ class NarrationStage(PipelineStage):
     name = "Narration / TTS"
     weight = 3.0
 
-    def __init__(
-        self,
-        pipeline_factory: Callable[[], Any] | None = None,
-        output_folder: str = "output/narration",
-    ):
+    def __init__(self, pipeline_factory: Callable[[], Any] | None = None, output_folder: str = "output/narration"):
         super().__init__()
         self.pipeline_factory = pipeline_factory
         self.output_folder = output_folder
@@ -167,12 +349,12 @@ class NarrationStage(PipelineStage):
         if self.pipeline_factory is not None:
             return self.pipeline_factory()
         from backend.narration.pipeline import NarrationPipeline
-
         return NarrationPipeline()
 
     def execute(self, context, progress=None):
         text = (
-            context.get("translated_text")
+            context.get("script_text")
+            or context.get("translated_text")
             or context.cleaned_text
             or context.ocr_text
         )
@@ -186,11 +368,7 @@ class NarrationStage(PipelineStage):
         output_folder.mkdir(parents=True, exist_ok=True)
         reference_voice = context.get("reference_voice") or context.project.voice
 
-        job = SimpleNamespace(
-            text=str(text),
-            reference_voice=str(reference_voice or ""),
-            output_folder=str(output_folder),
-        )
+        job = SimpleNamespace(text=str(text), reference_voice=str(reference_voice or ""), output_folder=str(output_folder))
         output = Path(self._pipeline().generate(job)).resolve()
 
         context.audio_file = str(output)
@@ -205,13 +383,7 @@ class NarrationStage(PipelineStage):
 
 
 class VideoRenderStage(PipelineStage):
-    """Generic video rendering adapter for the future media backend.
-
-    ``renderer`` may be a callable or an object exposing ``render``. The
-    renderer receives the pipeline context and may optionally accept a progress
-    callback. Keeping rendering injected avoids coupling the core to a video
-    engine that the repository does not yet provide.
-    """
+    """Generic video rendering adapter for the media backend."""
 
     stage_id = "video"
     name = "Video Render"
