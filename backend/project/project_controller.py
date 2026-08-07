@@ -2,101 +2,54 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend.project import ProjectManager
+from backend.project.manager import ProjectManager
 
 
 class ProjectController:
-    """
-    Desktop wrapper around ProjectManager.
-    """
+    """Compatibility wrapper around ProjectManager for non-Qt callers."""
 
     def __init__(self):
-
         self.manager = ProjectManager()
 
-    # --------------------------------------------------
-    # Create
-    # --------------------------------------------------
-
-    def create_project(
-
-        self,
-
-        name: str,
-
-        directory,
-
-    ):
-
-        return self.manager.create(
-
-            name,
-
-            Path(directory),
-
+    def create_project(self, name: str, directory) -> object:
+        return self.manager.create_project(
+            path=Path(directory),
+            name=name,
         )
 
-    # --------------------------------------------------
-    # Open
-    # --------------------------------------------------
-
-    def open_project(
-
-        self,
-
-        directory,
-
-    ):
-
-        return self.manager.open(
-
-            Path(directory),
-
+    def open_project(self, directory):
+        return self.manager.load_project(
+            Path(directory)
         )
 
-    # --------------------------------------------------
-    # Save
-    # --------------------------------------------------
+    def save_project(self) -> bool:
+        return self.manager.save_current()
 
-    def save_project(self):
-
-        return self.manager.save()
-
-    def save_project_as(
-
-        self,
-
-        directory,
-
-    ):
-
+    def save_project_as(self, directory):
         return self.manager.save_as(
-
-            Path(directory),
-
+            Path(directory)
         )
 
-    # --------------------------------------------------
-    # Close
-    # --------------------------------------------------
+    def close_project(self, force: bool = False) -> bool:
+        return self.manager.close_current(
+            force=force
+        )
 
-    def close_project(self):
-
-        self.manager.close()
-
-    # --------------------------------------------------
-    # Helpers
-    # --------------------------------------------------
+    def refresh(self):
+        return self.manager.reload_current()
 
     @property
     def current(self):
-
         return self.manager.current
 
-    def has_project(self):
-
+    def has_project(self) -> bool:
         return self.manager.has_project()
 
     def auto_save(self):
+        return self.manager.autosave()
 
-        return self.manager.auto_save()
+    def has_recovery(self) -> bool:
+        return self.manager.has_recovery()
+
+    def recover(self):
+        return self.manager.recover()
