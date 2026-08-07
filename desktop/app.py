@@ -45,6 +45,18 @@ class AIContentStudio:
 
         self.ui_state = UIState()
         self._restore_state()
+        self._recover_processing_queue()
+
+    def _recover_processing_queue(self) -> None:
+        if self.pipeline_controller is None:
+            return
+        try:
+            recovered = self.pipeline_controller.recover_pending_jobs()
+            if recovered and self.window is not None:
+                self.window.log(f"Recovered {recovered} queued processing job(s).")
+        except Exception as exc:
+            if self.window is not None:
+                self.window.log(f"Processing queue recovery failed: {exc}")
 
     def _restore_state(self) -> None:
         if self.ui_state is None or self.window is None:
@@ -72,10 +84,18 @@ class AIContentStudio:
         except Exception:
             pass
 
-        if self.pipeline_controller is not None and self.pipeline_controller.running:
+        if self.pipeline_controller is not None:
+            if self.pipeline_controller.running:
+                try:
+                    self.pipeline_controller.cancel()
+                    self.pipeline_controller.wait(5.0)
+                except Exception:
+                    pass
             try:
-                self.pipeline_controller.cancel()
-                self.pipeline_controller.wait(5.0)
+                self.pipeline_controller.shutdown_queue(
+                    cancel_current=True,
+                    wait=5.0,
+                )
             except Exception:
                 pass
 
