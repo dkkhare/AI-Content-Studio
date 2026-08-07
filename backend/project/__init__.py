@@ -4,8 +4,15 @@ from .serializer import ProjectSerializer
 from .validator import ProjectValidator
 from .exceptions import (
     ProjectError,
-    InvalidProjectError,
     ProjectExistsError,
+    ProjectNotFoundError,
+    ProjectClosedError,
+    ProjectSerializationError,
+    ProjectValidationError,
+    AssetNotFoundError,
+    InvalidAssetError,
+    ProjectBusyError,
+    ProjectCancelledError,
 )
 
 __all__ = [
@@ -14,6 +21,13 @@ __all__ = [
     "ProjectSerializer",
     "ProjectValidator",
     "ProjectError",
-    "InvalidProjectError",
     "ProjectExistsError",
+    "ProjectNotFoundError",
+    "ProjectClosedError",
+    "ProjectSerializationError",
+    "ProjectValidationError",
+    "AssetNotFoundError",
+    "InvalidAssetError",
+    "ProjectBusyError",
+    "ProjectCancelledError",
 ]
