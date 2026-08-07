@@ -6,12 +6,14 @@ from backend.episodes import EpisodeReviewStore
 from backend.images import VisualAssetReviewStore
 from backend.knowledge import KnowledgeReviewStore, KnowledgeStore
 from backend.scenes import SceneReviewStore
+from backend.video import VideoAssetReviewStore
 
 from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
 from .image_stage import ReferenceImageGenerationStage, SceneImageGenerationStage
 from .pipeline import ProcessingPipeline
 from .scene_stage import SceneDirectorStage
 from .story_stage import StoryIntelligenceStage
+from .video_scene_stage import EpisodeVideoAssemblyStage, SceneVideoGenerationStage
 from .stages import (
     AIOCRCleanupStage,
     AIScriptStage,
@@ -133,13 +135,12 @@ def build_project_pipeline(
         elif scene_review_required and not scene_review_complete:
             media_allowed = False
 
-    # Local image generation is optional. When enabled it has two human-review gates:
-    # reusable character/location references first, then scene images using approved references.
     image_enabled = bool(project.get_setting("pipeline_image_generation_enabled", False))
+    visual_review = VisualAssetReviewStore(project.root)
+    scene_visual_review_complete = False
     if image_enabled and scene_review_complete:
         knowledge = KnowledgeStore(project.root)
         knowledge.initialize()
-        visual_review = VisualAssetReviewStore(project.root)
         visual_assets = visual_review.items()
         reference_assets = [item for item in visual_assets if str(item.get("asset_type", "")) in {"character_reference", "location_reference"}]
         approved_visual_entities = sum(
@@ -161,15 +162,43 @@ def build_project_pipeline(
                 media_allowed = False
             elif not visual_review.scene_review_complete():
                 media_allowed = False
+            else:
+                scene_visual_review_complete = True
+
+    # For segmented projects, local video generation creates per-scene clips and
+    # stops for human review. Only reviewed clips can advance to final assembly.
+    local_video_enabled = bool(project.get_setting("pipeline_video_enabled", False)) and segmentation_enabled
+    video_review_complete = False
+    if local_video_enabled:
+        if not image_enabled:
+            raise ValueError("Segmented local video generation requires local scene image generation to be enabled.")
+        if scene_visual_review_complete:
+            video_review = VideoAssetReviewStore(project.root)
+            existing_clips = video_review.items("scene_video")
+            if not existing_clips:
+                pipeline.add_stage(SceneVideoGenerationStage())
+                media_allowed = False
+            elif not video_review.clip_review_complete():
+                media_allowed = False
+            else:
+                video_review_complete = True
+        else:
+            media_allowed = False
 
     if bool(project.get_setting("pipeline_ai_subtitle_enabled", False)) and media_allowed:
         pipeline.add_stage(AISubtitleStage(ai_manager, provider_id=ai_provider, model=ai_model, language=str(project.get_setting("ai_subtitle_language", "hi") or "hi")))
 
-    if bool(project.get_setting("pipeline_narration_enabled", True)) and media_allowed:
+    narration_enabled = bool(project.get_setting("pipeline_narration_enabled", True))
+    if narration_enabled and media_allowed:
         tts_provider = str(project.get_setting("tts_provider", "f5tts") or "f5tts")
         if tts_provider.lower() != "f5tts":
             raise ValueError(f"Unsupported local TTS provider: {tts_provider}. F5-TTS is the configured local narration engine.")
         pipeline.add_stage(EpisodeNarrationStage() if segmentation_enabled and review_required else NarrationStage())
+
+    if local_video_enabled and media_allowed and video_review_complete:
+        if not narration_enabled:
+            raise ValueError("Episode video assembly requires narration to be enabled.")
+        pipeline.add_stage(EpisodeVideoAssemblyStage())
 
     if bool(project.get_setting("pipeline_video_enabled", False)) and media_allowed and not segmentation_enabled:
         if renderer is None:
