@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from .config import AIConfig
 from .exceptions import AIAllProvidersFailedError, AIConfigurationError, AIError
 from .models import AIRequest, AIResponse, AIStreamChunk
+from .prompts import PromptLibrary, create_builtin_library
 from .registry import AIProviderRegistry
 from .usage import AIUsageTracker
 
@@ -17,6 +18,7 @@ class AIManager:
         registry: AIProviderRegistry | None = None,
         config: AIConfig | None = None,
         usage: AIUsageTracker | None = None,
+        prompt_library: PromptLibrary | None = None,
     ):
         if registry is None:
             from .providers import create_default_registry
@@ -25,6 +27,7 @@ class AIManager:
         self.registry = registry
         self.config = config or AIConfig.from_environment()
         self.usage = usage or AIUsageTracker()
+        self.prompt_library = prompt_library or create_builtin_library()
 
     def _provider_chain(self, provider_id: str | None = None) -> list[str]:
         chain: list[str] = []
@@ -101,6 +104,54 @@ class AIManager:
             except Exception as exc:
                 errors.append(f"{key}: {exc}")
         raise AIAllProvidersFailedError("All AI providers failed: " + " | ".join(errors))
+
+    def execute_prompt(
+        self,
+        template: str,
+        variables: dict | None = None,
+        *,
+        version: str | None = None,
+        provider_id: str | None = None,
+        model: str = "",
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> AIResponse:
+        prompt = self.prompt_library.get(template, version)
+        request = prompt.render(
+            variables,
+            model=model,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            metadata={"prompt": prompt.name, "prompt_version": prompt.version},
+        )
+        return self.generate(request, provider_id=provider_id)
+
+    def stream_prompt(
+        self,
+        template: str,
+        variables: dict | None = None,
+        *,
+        version: str | None = None,
+        provider_id: str | None = None,
+        model: str = "",
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> Iterable[AIStreamChunk]:
+        prompt = self.prompt_library.get(template, version)
+        request = prompt.render(
+            variables,
+            model=model,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            metadata={"prompt": prompt.name, "prompt_version": prompt.version},
+        )
+        yield from self.stream(request, provider_id=provider_id)
+
+    def list_prompts(self) -> list[str]:
+        return self.prompt_library.names()
+
+    def get_prompt(self, name: str, version: str | None = None):
+        return self.prompt_library.get(name, version)
 
     def providers(self) -> list[str]:
         return self.registry.providers()
