@@ -12,6 +12,7 @@ on:
       - "backend/story/**"
       - "backend/scenes/**"
       - "backend/images/**"
+      - "backend/video/**"
       - "backend/pipeline/**"
       - "backend/tts/**"
       - "backend/project/project.py"
@@ -30,6 +31,7 @@ on:
       - "tests/test_story_intelligence.py"
       - "tests/test_scene_director.py"
       - "tests/test_visual_assets.py"
+      - "tests/test_local_video_generation.py"
       - "tests/test_f5tts_runtime.py"
       - "tests/test_pipeline_factory.py"
       - ".github/workflows/milestone-13-smoke.yml"
@@ -65,6 +67,7 @@ jobs:
           tests.test_story_intelligence
           tests.test_scene_director
           tests.test_visual_assets
+          tests.test_local_video_generation
           tests.test_f5tts_runtime
 
       - name: Re-run Milestone 12 processing regressions
