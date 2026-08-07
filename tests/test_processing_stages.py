@@ -47,7 +47,15 @@ class ProcessingStageTests(unittest.TestCase):
                 image.write_bytes(b"fake")
                 images.append(str(image))
 
-            context = PipelineContext(project, {"ocr_images": images})
+            reference_voice = root / "hindi-reference.wav"
+            reference_voice.write_bytes(b"voice")
+            context = PipelineContext(
+                project,
+                {
+                    "ocr_images": images,
+                    "reference_voice": str(reference_voice),
+                },
+            )
 
             OCRStage(
                 provider="fake",
@@ -68,6 +76,7 @@ class ProcessingStageTests(unittest.TestCase):
             ).execute(context)
             self.assertTrue(Path(audio).exists())
             self.assertTrue(project.narration_file)
+            self.assertTrue(project.podcast_file)
 
             def renderer(ctx, progress=None):
                 output = ctx.path("output", "video.mp4", create_parent=True)
