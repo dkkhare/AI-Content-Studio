@@ -80,6 +80,18 @@ class ProjectSettingsDialog(QDialog):
         self.translation_enabled.setChecked(
             bool(project.get_setting("pipeline_translation_enabled", False))
         )
+        self.translation_provider = QComboBox(self)
+        self.translation_provider.addItems(["google"])
+        translation_provider = str(project.get_setting("translation_provider", "google"))
+        translation_provider_index = self.translation_provider.findText(translation_provider)
+        if translation_provider_index >= 0:
+            self.translation_provider.setCurrentIndex(translation_provider_index)
+
+        self.translation_api_key_env = QLineEdit(
+            str(project.get_setting("translation_api_key_env", "GOOGLE_TRANSLATE_API_KEY")),
+            self,
+        )
+        self.translation_api_key_env.setPlaceholderText("Environment variable containing API key")
         self.translation_source = QLineEdit(
             str(project.get_setting("translation_source_language", project.language)), self
         )
@@ -115,6 +127,8 @@ class ProjectSettingsDialog(QDialog):
         processing.addRow("OCR enabled", self.ocr_enabled)
         processing.addRow("OCR provider", self.ocr_provider)
         processing.addRow("Translation enabled", self.translation_enabled)
+        processing.addRow("Translation provider", self.translation_provider)
+        processing.addRow("Translation API key env", self.translation_api_key_env)
         processing.addRow("Translation source", self.translation_source)
         processing.addRow("Translation target", self.translation_target)
         processing.addRow("Narration/TTS enabled", self.narration_enabled)
@@ -146,6 +160,11 @@ class ProjectSettingsDialog(QDialog):
                 "pipeline_ocr_enabled": self.ocr_enabled.isChecked(),
                 "ocr_provider": self.ocr_provider.currentText(),
                 "pipeline_translation_enabled": self.translation_enabled.isChecked(),
+                "translation_provider": self.translation_provider.currentText(),
+                "translation_api_key_env": (
+                    self.translation_api_key_env.text().strip()
+                    or "GOOGLE_TRANSLATE_API_KEY"
+                ),
                 "translation_source_language": self.translation_source.text().strip() or "en",
                 "translation_target_language": self.translation_target.text().strip() or "en",
                 "pipeline_narration_enabled": self.narration_enabled.isChecked(),
