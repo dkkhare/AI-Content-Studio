@@ -16,6 +16,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from backend.episodes import EpisodeReviewStore
+from desktop.ui.dialogs.episode_review_dialog import EpisodeReviewDialog
+
 
 class ProcessingSetupDialog(QDialog):
     """Collect inputs and per-run processing choices for the project pipeline."""
@@ -74,6 +77,10 @@ class ProcessingSetupDialog(QDialog):
         options.addRow("Queue priority", self.priority)
         layout.addLayout(options)
 
+        self.review_button = QPushButton("Review Episodes...", self)
+        self.review_button.clicked.connect(self._review_episodes)
+        layout.addWidget(self.review_button)
+
         self.summary = QLabel(self)
         self.summary.setWordWrap(True)
         self._refresh_summary()
@@ -100,6 +107,11 @@ class ProcessingSetupDialog(QDialog):
             self._images = files
             self.images_edit.setText(f"{len(files)} image(s) selected")
 
+    def _review_episodes(self) -> None:
+        dialog = EpisodeReviewDialog(self.project, self)
+        dialog.exec()
+        self._refresh_summary()
+
     def _refresh_summary(self, *_args) -> None:
         project = self.project
         stages = []
@@ -117,11 +129,27 @@ class ProcessingSetupDialog(QDialog):
             stages.append("AI Summary")
         if project.get_setting("pipeline_ai_script_enabled", False):
             stages.append("Hindi Podcast Script")
-        if project.get_setting("pipeline_ai_subtitle_enabled", False):
+
+        store = EpisodeReviewStore(project.root)
+        self.review_button.setEnabled(store.exists())
+        if project.get_setting("pipeline_episode_segmentation_enabled", True):
+            if not store.exists():
+                stages.append("Episode Planning (~15 min)")
+            elif not store.review_complete():
+                stages.append(f"Episode Review ({len(store.pending())} pending)")
+            else:
+                stages.append("Episodes Approved")
+
+        media_allowed = (
+            not project.get_setting("pipeline_episode_segmentation_enabled", True)
+            or not project.get_setting("episode_review_required", True)
+            or (store.exists() and store.review_complete())
+        )
+        if project.get_setting("pipeline_ai_subtitle_enabled", False) and media_allowed:
             stages.append("Hindi Subtitle Preparation")
-        if project.get_setting("pipeline_narration_enabled", True):
+        if project.get_setting("pipeline_narration_enabled", True) and media_allowed:
             stages.append("F5-TTS Hindi Narration")
-        if project.get_setting("pipeline_video_enabled", False):
+        if project.get_setting("pipeline_video_enabled", False) and media_allowed:
             stages.append("Video Render")
         self.summary.setText("This run: " + (" → ".join(stages) if stages else "None"))
 
