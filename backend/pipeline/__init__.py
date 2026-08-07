@@ -12,7 +12,19 @@ from .progress import PipelineProgress
 from .queue import PipelineJob, PipelineJobQueue
 from .runner import PipelineRunner
 from .stage import FunctionStage, PipelineStage
-from .stages import OCRStage, NarrationStage, TranslationStage, VideoRenderStage
+from .stages import (
+    AIOCRCleanupStage,
+    AIScriptStage,
+    AISubtitleStage,
+    AISummaryStage,
+    AITranslationStage,
+    HindiGrammarCorrectionStage,
+    HindiSpellingCorrectionStage,
+    NarrationStage,
+    OCRStage,
+    TranslationStage,
+    VideoRenderStage,
+)
 from .state import PipelineState, PipelineStateStore
 
 __all__ = [
@@ -30,6 +42,13 @@ __all__ = [
     "PipelineStage",
     "FunctionStage",
     "OCRStage",
+    "AIOCRCleanupStage",
+    "HindiSpellingCorrectionStage",
+    "HindiGrammarCorrectionStage",
+    "AITranslationStage",
+    "AISummaryStage",
+    "AIScriptStage",
+    "AISubtitleStage",
     "TranslationStage",
     "NarrationStage",
     "VideoRenderStage",
