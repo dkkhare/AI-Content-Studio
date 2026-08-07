@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 class WorkflowPanel(QWidget):
     """Live monitor and controls for the Milestone 12 processing pipeline."""
 
+    startRequested = Signal()
     pauseRequested = Signal()
     resumeRequested = Signal()
     cancelRequested = Signal()
@@ -24,13 +25,13 @@ class WorkflowPanel(QWidget):
         self.current_stage = ""
         self._running = False
         self._paused = False
+        self._has_project = False
         self._build_ui()
         self.reset()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
-
         layout.addWidget(QLabel("<h2>AI Processing Pipeline</h2>"))
 
         self.status_label = QLabel("Ready")
@@ -52,16 +53,19 @@ class WorkflowPanel(QWidget):
         layout.addWidget(self.message_label)
 
         controls = QHBoxLayout()
+        self.start_button = QPushButton("Start Processing", self)
         self.pause_button = QPushButton("Pause", self)
         self.resume_button = QPushButton("Resume", self)
         self.cancel_button = QPushButton("Cancel", self)
         self.reset_button = QPushButton("Reset", self)
 
+        self.start_button.clicked.connect(self.startRequested.emit)
         self.pause_button.clicked.connect(self.pauseRequested.emit)
         self.resume_button.clicked.connect(self.resumeRequested.emit)
         self.cancel_button.clicked.connect(self.cancelRequested.emit)
         self.reset_button.clicked.connect(self._request_reset)
 
+        controls.addWidget(self.start_button)
         controls.addWidget(self.pause_button)
         controls.addWidget(self.resume_button)
         controls.addWidget(self.cancel_button)
@@ -71,11 +75,9 @@ class WorkflowPanel(QWidget):
         layout.addStretch(1)
 
     def bind_controller(self, controller) -> None:
-        """Connect this panel to a PipelineController instance."""
         self.pauseRequested.connect(controller.pause)
         self.resumeRequested.connect(controller.resume)
         self.cancelRequested.connect(controller.cancel)
-
         controller.started.connect(self.processing_started)
         controller.progressChanged.connect(self.update_progress)
         controller.paused.connect(self.processing_paused)
@@ -83,6 +85,10 @@ class WorkflowPanel(QWidget):
         controller.cancelled.connect(self.processing_cancelled)
         controller.completed.connect(self.processing_completed)
         controller.failed.connect(self.processing_failed)
+
+    def set_project_available(self, available: bool) -> None:
+        self._has_project = bool(available)
+        self._update_controls()
 
     def processing_started(self) -> None:
         self._running = True
@@ -96,7 +102,6 @@ class WorkflowPanel(QWidget):
         self.overall_progress.setValue(int(getattr(progress, "percent", 0)))
         self.stage_progress.setValue(int(getattr(progress, "stage_percent", 0)))
         self.message_label.setText(str(getattr(progress, "message", "") or ""))
-
         status = str(getattr(progress, "status", "") or "")
         if status:
             self.status_label.setText(status.replace("_", " ").title())
@@ -150,6 +155,7 @@ class WorkflowPanel(QWidget):
         self._update_controls()
 
     def _update_controls(self) -> None:
+        self.start_button.setEnabled(self._has_project and not self._running)
         self.pause_button.setEnabled(self._running and not self._paused)
         self.resume_button.setEnabled(self._running and self._paused)
         self.cancel_button.setEnabled(self._running)
