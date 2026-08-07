@@ -18,7 +18,11 @@ class AIManager:
         config: AIConfig | None = None,
         usage: AIUsageTracker | None = None,
     ):
-        self.registry = registry or AIProviderRegistry()
+        if registry is None:
+            from .providers import create_default_registry
+
+            registry = create_default_registry()
+        self.registry = registry
         self.config = config or AIConfig.from_environment()
         self.usage = usage or AIUsageTracker()
 
@@ -39,6 +43,15 @@ class AIManager:
                 deduped.append(key)
         if not deduped:
             available = self.registry.providers()
+            configured = []
+            for key in available:
+                try:
+                    if self.registry.create(key).configured():
+                        configured.append(key)
+                except Exception:
+                    continue
+            if len(configured) == 1:
+                return configured
             if len(available) == 1:
                 return available
             raise AIConfigurationError(
@@ -88,3 +101,18 @@ class AIManager:
             except Exception as exc:
                 errors.append(f"{key}: {exc}")
         raise AIAllProvidersFailedError("All AI providers failed: " + " | ".join(errors))
+
+    def providers(self) -> list[str]:
+        return self.registry.providers()
+
+    def capabilities(self, provider_id: str) -> set[str]:
+        return set(self.registry.create(provider_id).capabilities())
+
+    def health_check(self, provider_id: str) -> tuple[bool, str]:
+        return self.registry.create(provider_id).health_check()
+
+    def list_models(self, provider_id: str) -> list[str]:
+        provider = self.registry.create(provider_id)
+        if not provider.configured():
+            raise AIConfigurationError(f"AI provider is not configured: {provider_id}")
+        return provider.list_models()
