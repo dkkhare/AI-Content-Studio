@@ -12,6 +12,7 @@ from .episode_stage import EpisodeNarrationStage, EpisodePlanningStage
 from .image_stage import ReferenceImageGenerationStage, SceneImageGenerationStage
 from .pipeline import ProcessingPipeline
 from .production_stage import EpisodeProductionStage
+from .publishing_stage import PublishingMetadataStage
 from .scene_stage import SceneDirectorStage
 from .story_stage import StoryIntelligenceStage
 from .video_scene_stage import EpisodeVideoAssemblyStage, SceneVideoGenerationStage
@@ -200,6 +201,8 @@ def build_project_pipeline(
         pipeline.add_stage(EpisodeVideoAssemblyStage())
         if bool(project.get_setting("pipeline_episode_production_enabled", True)):
             pipeline.add_stage(EpisodeProductionStage())
+            if bool(project.get_setting("pipeline_publishing_metadata_enabled", True)):
+                pipeline.add_stage(PublishingMetadataStage())
 
     if bool(project.get_setting("pipeline_video_enabled", False)) and media_allowed and not segmentation_enabled:
         if renderer is None:
