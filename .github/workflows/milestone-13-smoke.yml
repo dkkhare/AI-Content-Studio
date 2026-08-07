@@ -11,11 +11,14 @@ on:
       - "backend/pipeline/**"
       - "backend/tts/**"
       - "backend/project/project.py"
+      - "desktop/ui/dialogs/**"
       - "tests/test_ai_core.py"
       - "tests/test_ai_providers.py"
       - "tests/test_ai_prompts.py"
       - "tests/test_ai_pipeline_stages.py"
       - "tests/test_episode_segmentation.py"
+      - "tests/test_episode_review.py"
+      - "tests/test_episode_narration.py"
       - "tests/test_f5tts_runtime.py"
       - "tests/test_pipeline_factory.py"
       - ".github/workflows/milestone-13-smoke.yml"
@@ -44,6 +47,8 @@ jobs:
           tests.test_ai_prompts
           tests.test_ai_pipeline_stages
           tests.test_episode_segmentation
+          tests.test_episode_review
+          tests.test_episode_narration
           tests.test_f5tts_runtime
 
       - name: Re-run Milestone 12 processing regressions
