@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .episode_stage import EpisodePlanningStage
 from .pipeline import ProcessingPipeline
 from .stages import (
     AIOCRCleanupStage,
@@ -164,6 +165,16 @@ def build_project_pipeline(
                     )
                     or "natural Hindi podcast narration"
                 ),
+            )
+        )
+
+    if bool(project.get_setting("pipeline_episode_segmentation_enabled", True)):
+        pipeline.add_stage(
+            EpisodePlanningStage(
+                target_minutes=float(project.get_setting("episode_target_minutes", 15.0)),
+                min_minutes=float(project.get_setting("episode_min_minutes", 12.0)),
+                max_minutes=float(project.get_setting("episode_max_minutes", 18.0)),
+                words_per_minute=float(project.get_setting("hindi_narration_words_per_minute", 130.0)),
             )
         )
 
