@@ -36,6 +36,16 @@ class EpisodeProductionPanel(QWidget):
         self.watermark_enabled = QCheckBox("Overlay channel watermark", self)
         self.watermark_path = QLineEdit(self)
         self.thumbnail_path = QLineEdit(self)
+
+        self.metadata_enabled = QCheckBox("Generate publish-ready YouTube and podcast metadata", self)
+        self.channel_name = QLineEdit(self)
+        self.title_prefix = QLineEdit(self)
+        self.title_suffix = QLineEdit(self)
+        self.description_intro = QLineEdit(self)
+        self.default_keywords = QLineEdit(self)
+        self.thumbnail_text = QLineEdit(self)
+        self.podcast_explicit = QCheckBox("Mark podcast episodes as explicit", self)
+
         self.save_button = QPushButton("Save Production Settings", self)
         self.refresh_button = QPushButton("Refresh Status", self)
         self.status = QLabel("Open a project to configure episode production.", self)
@@ -61,6 +71,18 @@ class EpisodeProductionPanel(QWidget):
         form.addRow("Watermark image", self.watermark_path)
         form.addRow("Thumbnail image override", self.thumbnail_path)
         layout.addWidget(box)
+
+        metadata = QGroupBox("Publishing & Metadata", self)
+        metadata_form = QFormLayout(metadata)
+        metadata_form.addRow(self.metadata_enabled)
+        metadata_form.addRow("Channel / podcast show name", self.channel_name)
+        metadata_form.addRow("Episode title prefix", self.title_prefix)
+        metadata_form.addRow("Episode title suffix", self.title_suffix)
+        metadata_form.addRow("Description intro", self.description_intro)
+        metadata_form.addRow("Default keywords (comma-separated)", self.default_keywords)
+        metadata_form.addRow("Thumbnail text override", self.thumbnail_text)
+        metadata_form.addRow(self.podcast_explicit)
+        layout.addWidget(metadata)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.save_button)
@@ -90,6 +112,14 @@ class EpisodeProductionPanel(QWidget):
         self.watermark_enabled.setChecked(bool(get("channel_watermark_enabled", False)))
         self.watermark_path.setText(str(get("channel_watermark_path", "") or ""))
         self.thumbnail_path.setText(str(get("channel_thumbnail_path", "") or ""))
+        self.metadata_enabled.setChecked(bool(get("pipeline_publishing_metadata_enabled", True)))
+        self.channel_name.setText(str(get("publishing_channel_name", "") or ""))
+        self.title_prefix.setText(str(get("publishing_title_prefix", "") or ""))
+        self.title_suffix.setText(str(get("publishing_title_suffix", "") or ""))
+        self.description_intro.setText(str(get("publishing_description_intro", "") or ""))
+        self.default_keywords.setText(str(get("publishing_default_keywords", "") or ""))
+        self.thumbnail_text.setText(str(get("publishing_thumbnail_text", "") or ""))
+        self.podcast_explicit.setChecked(bool(get("publishing_podcast_explicit", False)))
 
     def save_settings(self) -> None:
         if self.project is None:
@@ -106,8 +136,16 @@ class EpisodeProductionPanel(QWidget):
             "channel_watermark_enabled": self.watermark_enabled.isChecked(),
             "channel_watermark_path": self.watermark_path.text().strip(),
             "channel_thumbnail_path": self.thumbnail_path.text().strip(),
+            "pipeline_publishing_metadata_enabled": self.metadata_enabled.isChecked(),
+            "publishing_channel_name": self.channel_name.text().strip(),
+            "publishing_title_prefix": self.title_prefix.text().strip(),
+            "publishing_title_suffix": self.title_suffix.text().strip(),
+            "publishing_description_intro": self.description_intro.text().strip(),
+            "publishing_default_keywords": self.default_keywords.text().strip(),
+            "publishing_thumbnail_text": self.thumbnail_text.text().strip(),
+            "publishing_podcast_explicit": self.podcast_explicit.isChecked(),
         })
-        self.status.setText("Production settings saved for this project.")
+        self.status.setText("Production and publishing settings saved for this project.")
 
     def refresh(self) -> None:
         if self.project is None:
@@ -118,9 +156,10 @@ class EpisodeProductionPanel(QWidget):
         subtitles = sum(1 for item in assets if item.get("asset_type") == "episode_subtitles")
         thumbnails = sum(1 for item in assets if item.get("asset_type") == "episode_thumbnail")
         exports = sum(1 for item in assets if item.get("asset_type") == "youtube_export")
+        manifests = sum(1 for item in assets if item.get("asset_type") == "publish_manifest")
         self.status.setText(
-            f"Production outputs: {exports} YouTube export(s) • "
-            f"{subtitles} subtitle file(s) • {thumbnails} thumbnail(s)."
+            f"Production outputs: {exports} YouTube export(s) • {subtitles} subtitle file(s) • "
+            f"{thumbnails} thumbnail(s) • {manifests} publish manifest(s)."
         )
 
     def clear(self) -> None:
