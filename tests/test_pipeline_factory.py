@@ -40,6 +40,7 @@ class PipelineFactoryTests(unittest.TestCase):
             self.assertEqual(project.get_setting("ai_provider"), "ollama")
             self.assertEqual(project.get_setting("tts_provider"), "f5tts")
             self.assertTrue(project.get_setting("episode_review_required"))
+            self.assertTrue(project.get_setting("pipeline_story_intelligence_enabled"))
             self.assertFalse(project.get_setting("pipeline_hindi_spelling_correction_enabled"))
             self.assertFalse(project.get_setting("pipeline_hindi_grammar_correction_enabled"))
             self.assertEqual(
@@ -69,18 +70,19 @@ class PipelineFactoryTests(unittest.TestCase):
             self.assertIn("hindi_grammar_correction", [stage.stage_id for stage in pipeline.stages])
             self.assertNotIn("hindi_spelling_correction", [stage.stage_id for stage in pipeline.stages])
 
-    def test_pending_episode_review_blocks_media(self):
+    def test_pending_episode_review_blocks_media_and_story_analysis(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Demo", Path(temp)).initialize()
             planner = SegmentPlanner(target_minutes=1, min_minutes=1, max_minutes=2, words_per_minute=20)
             planner.persist(project.root, planner.plan("अध्याय 1\n\n" + "शब्द " * 25))
             pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
             stage_ids = [stage.stage_id for stage in pipeline.stages]
+            self.assertNotIn("story_intelligence", stage_ids)
             self.assertNotIn("narration", stage_ids)
             self.assertNotIn("episode_narration", stage_ids)
             self.assertNotIn("episode_planning", stage_ids)
 
-    def test_completed_episode_review_enables_episode_narration(self):
+    def test_completed_episode_review_enables_story_intelligence_before_narration(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Project("Demo", Path(temp)).initialize()
             planner = SegmentPlanner(target_minutes=1, min_minutes=1, max_minutes=2, words_per_minute=20)
@@ -91,7 +93,9 @@ class PipelineFactoryTests(unittest.TestCase):
 
             pipeline = build_project_pipeline(project, ai_manager=FakeAIManager())
             stage_ids = [stage.stage_id for stage in pipeline.stages]
+            self.assertIn("story_intelligence", stage_ids)
             self.assertIn("episode_narration", stage_ids)
+            self.assertLess(stage_ids.index("story_intelligence"), stage_ids.index("episode_narration"))
             self.assertNotIn("narration", stage_ids)
             self.assertNotIn("episode_planning", stage_ids)
 
@@ -128,6 +132,7 @@ class PipelineFactoryTests(unittest.TestCase):
             project.set_setting("pipeline_hindi_spelling_correction_enabled", False)
             project.set_setting("pipeline_hindi_grammar_correction_enabled", False)
             project.set_setting("pipeline_ai_script_enabled", False)
+            project.set_setting("pipeline_story_intelligence_enabled", False)
             project.set_setting("pipeline_episode_segmentation_enabled", False)
             project.set_setting("pipeline_narration_enabled", False)
             with self.assertRaises(ValueError):
