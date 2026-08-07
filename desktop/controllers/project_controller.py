@@ -20,11 +20,11 @@ class ProjectController(QObject):
     projectBackupRestored = Signal(object)
     projectRecoveryAvailable = Signal(object)
     projectRecovered = Signal(object)
+    projectSettingsChanged = Signal(dict)
     recentProjectsChanged = Signal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.manager = ProjectManager()
         self._modified = False
         self._recent_projects: list[Path] = []
@@ -78,7 +78,6 @@ class ProjectController(QObject):
 
     def mark_modified(self, value: bool = True) -> None:
         value = bool(value)
-
         if value:
             self.manager.mark_modified()
         else:
@@ -120,10 +119,18 @@ class ProjectController(QObject):
         if self._autosave_enabled:
             self._autosave_timer.start(self._autosave_interval)
 
+    def _apply_project_preferences(self) -> None:
+        project = self.project
+        if project is None:
+            return
+
+        seconds = int(project.get_setting("autosave_interval_seconds", 300))
+        self.set_autosave_interval(max(10, seconds) * 1000)
+        self.enable_autosave(bool(project.auto_save))
+
     def auto_save(self) -> bool:
         if not self._autosave_enabled or not self.has_project():
             return False
-
         self.sync_modified_state()
         if not self._modified:
             return False
@@ -131,9 +138,6 @@ class ProjectController(QObject):
         recovery = self.manager.autosave()
         if recovery is None:
             return False
-
-        # Autosave is informational. Recovery prompting is reserved
-        # for project-open detection so the UI is not interrupted.
         self.projectAutoSaved.emit(recovery)
         return True
 
@@ -149,10 +153,9 @@ class ProjectController(QObject):
     def recover_project(self) -> bool:
         if not self.has_project() or not self.manager.has_recovery():
             return False
-
         project = self.manager.recover()
+        self._apply_project_preferences()
         self._modified = True
-        self._last_saved = self.manager.last_saved
         self.projectModified.emit(True)
         self.projectRecovered.emit(project.root)
         return True
@@ -196,7 +199,6 @@ class ProjectController(QObject):
         recovery = self.manager.recovery_path()
         if recovery is not None and recovery.exists():
             self.projectRecoveryAvailable.emit(recovery)
-
         return project
 
     def open_recent_project(self, path: str | Path):
@@ -209,17 +211,17 @@ class ProjectController(QObject):
     def refresh(self):
         if not self.has_project():
             return None
-
         project = self.manager.reload_current()
+        self._apply_project_preferences()
         self._modified = False
         self._last_saved = self.manager.last_saved
         self.projectModified.emit(False)
-        self.projectSaved.emit(project.root)
         return project
 
     reload = refresh
 
     def _sync_after_open(self, root: Path) -> None:
+        self._apply_project_preferences()
         self._modified = False
         self._last_saved = self.manager.last_saved
         self.add_recent_project(root)
@@ -227,31 +229,27 @@ class ProjectController(QObject):
         self.projectModified.emit(False)
 
     # --------------------------------------------------
-    # Save
+    # Save / settings
     # --------------------------------------------------
 
     def save_project(self) -> bool:
         if not self.has_project():
             return False
-
         if not self.manager.save_current():
             return False
 
         self._modified = False
         self._last_saved = self.manager.last_saved
         self.projectModified.emit(False)
-
         root = self.project_root()
         if root is not None:
             self.projectSaved.emit(root)
-
         self.manager.clear_recovery()
         return True
 
     def save_project_as(self, path: str | Path):
         if not self.has_project():
             return None
-
         project = self.manager.save_as(path)
         self._modified = False
         self._last_saved = self.manager.last_saved
@@ -263,6 +261,33 @@ class ProjectController(QObject):
     save = save_project
     save_as = save_project_as
 
+    def update_project_settings(self, values: dict, save: bool = True) -> bool:
+        project = self.project
+        if project is None:
+            return False
+
+        project.language = str(values.get("language", project.language))
+        project.voice = str(values.get("voice", project.voice))
+        project.output_directory = str(
+            values.get("output_directory", project.output_directory)
+        ) or "output"
+        project.auto_save = bool(values.get("auto_save", project.auto_save))
+
+        settings = values.get("settings", {})
+        if isinstance(settings, dict):
+            project.update_settings(settings)
+        else:
+            project.touch()
+
+        project.output_path().mkdir(parents=True, exist_ok=True)
+        self.manager.mark_modified()
+        self._modified = True
+        self._apply_project_preferences()
+        self.projectModified.emit(True)
+        self.projectSettingsChanged.emit(dict(project.settings))
+
+        return self.save_project() if save else True
+
     # --------------------------------------------------
     # Backups
     # --------------------------------------------------
@@ -270,7 +295,6 @@ class ProjectController(QObject):
     def create_backup(self) -> Path | None:
         if not self.has_project():
             return None
-
         backup = self.manager.create_backup()
         self.projectBackupCreated.emit(backup)
         return backup
@@ -281,11 +305,9 @@ class ProjectController(QObject):
     def restore_backup(self, backup: str | Path) -> bool:
         if not self.has_project():
             return False
-
-        # Preserve the current state before replacing project.json.
         self.manager.create_backup()
         project = self.manager.restore_backup(backup)
-
+        self._apply_project_preferences()
         self._modified = False
         self._last_saved = self.manager.last_saved
         self.add_recent_project(project.root)
@@ -297,8 +319,12 @@ class ProjectController(QObject):
     def delete_backup(self, backup: str | Path) -> bool:
         return self.manager.delete_backup(backup) if self.has_project() else False
 
-    def cleanup_backups(self, keep: int = 10) -> int:
-        return self.manager.cleanup_backups(keep=keep) if self.has_project() else 0
+    def cleanup_backups(self, keep: int | None = None) -> int:
+        if not self.has_project():
+            return 0
+        if keep is None:
+            keep = int(self.project.get_setting("backup_retention", 10))
+        return self.manager.cleanup_backups(keep=max(0, int(keep)))
 
     # --------------------------------------------------
     # Validation / information
@@ -313,6 +339,7 @@ class ProjectController(QObject):
         stats.update(
             {
                 "autosave_enabled": self._autosave_enabled,
+                "autosave_interval_ms": self._autosave_interval,
                 "recent_projects": len(self._recent_projects),
             }
         )
@@ -325,16 +352,15 @@ class ProjectController(QObject):
     def close_project(self, force: bool = False) -> bool:
         if not self.has_project():
             return True
-
         self.sync_modified_state()
         if self._modified and not force:
             return False
-
         if not self.manager.close_current(force=force):
             return False
 
         self._modified = False
         self._last_saved = None
+        self.enable_autosave(False)
         self.projectClosed.emit()
         return True
 
@@ -356,13 +382,11 @@ class ProjectController(QObject):
 
     def dispose(self) -> None:
         self._autosave_timer.stop()
-
         if self.has_project() and self.has_unsaved_changes():
             try:
                 self.manager.autosave()
             except Exception:
                 pass
-
         self.manager.dispose()
         self._modified = False
         self._last_saved = None
