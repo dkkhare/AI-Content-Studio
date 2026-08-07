@@ -279,6 +279,10 @@ class PipelineController(QObject):
         project = job.context.project
         project.set_status(str(getattr(progress, "status", "processing")))
         project.set_progress(int(getattr(progress, "percent", 0)))
+        # Qt signals are safe to emit from the queue worker; receivers in the
+        # GUI thread are delivered through Qt's queued connection semantics.
+        # Reuse the existing stage-level monitor for queued processing too.
+        self.progressChanged.emit(progress)
         self.jobUpdated.emit(job.to_dict())
         self.queueChanged.emit(self.queue_records())
 
