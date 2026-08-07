@@ -72,25 +72,30 @@ class MainWindow(QMainWindow):
         controller.projectModified.connect(self._on_project_modified)
         controller.projectAutoSaved.connect(self._on_project_autosaved)
         controller.projectBackupCreated.connect(self._on_project_backup_created)
+        controller.projectBackupRestored.connect(self._on_project_backup_restored)
         controller.projectRecoveryAvailable.connect(self._on_recovery_available)
+        controller.projectRecovered.connect(self._on_project_recovered)
 
         self.update_project_title()
         self.update_action_states()
 
     def _on_project_opened(self, root) -> None:
         self.add_recent_project(str(root))
+        self.projectDock.load_project(root)
         self.show_workspace()
         self.refresh_project_ui()
         self.statusBar().showMessage("Project opened.")
         self.log(f"Project opened: {root}")
 
     def _on_project_closed(self) -> None:
+        self.projectDock.clear()
         self.show_dashboard()
         self.refresh_project_ui()
         self.statusBar().showMessage("Project closed.")
         self.log("Project closed.")
 
     def _on_project_saved(self, root) -> None:
+        self.projectDock.refresh(root)
         self.refresh_project_ui()
         self.statusBar().showMessage("Project saved.")
         self.log(f"Project saved: {root}")
@@ -100,14 +105,47 @@ class MainWindow(QMainWindow):
         self.update_action_states()
 
     def _on_project_autosaved(self, recovery) -> None:
-        self.statusBar().showMessage("Recovery snapshot saved.")
+        self.statusBar().showMessage("Recovery snapshot saved.", 3000)
         self.log(f"Autosave recovery snapshot: {recovery}")
 
     def _on_project_backup_created(self, backup) -> None:
+        self.statusBar().showMessage("Project backup created.", 3000)
         self.log(f"Project backup created: {backup}")
 
+    def _on_project_backup_restored(self, root) -> None:
+        self.projectDock.refresh(root)
+        self.refresh_project_ui()
+        self.statusBar().showMessage("Project backup restored.", 3000)
+        self.log(f"Project backup restored: {root}")
+
+    def _on_project_recovered(self, root) -> None:
+        self.projectDock.refresh(root)
+        self.refresh_project_ui()
+        self.statusBar().showMessage("Recovery snapshot restored.", 3000)
+        self.log(f"Project recovered: {root}")
+
     def _on_recovery_available(self, recovery) -> None:
-        self.log(f"Project recovery available: {recovery}")
+        if self.project_controller is None:
+            return
+
+        choice = ProjectDialogs.confirm_recovery(self, recovery)
+
+        try:
+            if choice == "recover":
+                if not self.project_controller.recover_project():
+                    raise RuntimeError("Unable to recover project snapshot.")
+                return
+
+            if choice == "discard":
+                self.project_controller.clear_recovery()
+                self.log(f"Recovery snapshot discarded: {recovery}")
+                return
+
+            self.log(f"Recovery snapshot kept for later: {recovery}")
+
+        except Exception as exc:
+            self.show_error("Project Recovery Failed", exc)
+            self.log(f"Recovery failed: {exc}")
 
     # --------------------------------------------------
     # Dashboard / workspace
@@ -150,7 +188,6 @@ class MainWindow(QMainWindow):
         if self.project_controller is None:
             return
 
-        # QAction.triggered may pass False when no explicit path is supplied.
         if isinstance(path, bool):
             path = None
 
@@ -210,6 +247,34 @@ class MainWindow(QMainWindow):
             self.log(f"Close project failed: {exc}")
             return False
 
+    def refresh_project(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        if self.project_controller.has_unsaved_changes():
+            result = QMessageBox.question(
+                self,
+                "Reload Project",
+                "Reloading will discard unsaved in-memory changes. Continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if result != QMessageBox.Yes:
+                return False
+
+        try:
+            project = self.project_controller.refresh()
+            if project is None:
+                return False
+            self.projectDock.refresh(project.root)
+            self.refresh_project_ui()
+            self.statusBar().showMessage("Project refreshed.", 3000)
+            return True
+        except Exception as exc:
+            self.show_error("Unable to refresh project", exc)
+            self.log(f"Refresh project failed: {exc}")
+            return False
+
     def _prepare_for_project_switch(self) -> bool:
         if self.project_controller is None or not self.project_controller.has_project():
             return True
@@ -237,6 +302,86 @@ class MainWindow(QMainWindow):
         return choice == "discard"
 
     # --------------------------------------------------
+    # Backup management
+    # --------------------------------------------------
+
+    def create_project_backup(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        try:
+            backup = self.project_controller.create_backup()
+            if backup is None:
+                return False
+            self.statusBar().showMessage(f"Backup created: {backup.name}", 4000)
+            return True
+        except Exception as exc:
+            self.show_error("Unable to Create Backup", exc)
+            self.log(f"Create backup failed: {exc}")
+            return False
+
+    def restore_project_backup(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        backups = self.project_controller.list_backups()
+        backup = ProjectDialogs.choose_backup(self, backups, "Restore Backup")
+        if backup is None:
+            return False
+
+        if not ProjectDialogs.confirm_restore_backup(self, backup):
+            return False
+
+        try:
+            return self.project_controller.restore_backup(backup)
+        except Exception as exc:
+            self.show_error("Unable to Restore Backup", exc)
+            self.log(f"Restore backup failed: {exc}")
+            return False
+
+    def delete_project_backup(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        backups = self.project_controller.list_backups()
+        backup = ProjectDialogs.choose_backup(self, backups, "Delete Backup")
+        if backup is None:
+            return False
+
+        if not ProjectDialogs.confirm_delete_backup(self, backup):
+            return False
+
+        try:
+            deleted = self.project_controller.delete_backup(backup)
+            if deleted:
+                self.statusBar().showMessage(f"Backup deleted: {backup.name}", 3000)
+                self.log(f"Backup deleted: {backup}")
+            return deleted
+        except Exception as exc:
+            self.show_error("Unable to Delete Backup", exc)
+            self.log(f"Delete backup failed: {exc}")
+            return False
+
+    def cleanup_project_backups(self) -> bool:
+        if self.project_controller is None or not self.project_controller.has_project():
+            return False
+
+        backups = self.project_controller.list_backups()
+        keep = ProjectDialogs.backup_cleanup_count(self, len(backups))
+        if keep is None:
+            return False
+
+        try:
+            removed = self.project_controller.cleanup_backups(keep=keep)
+            self.statusBar().showMessage(f"Removed {removed} old backup(s).", 4000)
+            self.log(f"Backup cleanup removed {removed} file(s); kept {keep}.")
+            return True
+        except Exception as exc:
+            self.show_error("Unable to Cleanup Backups", exc)
+            self.log(f"Backup cleanup failed: {exc}")
+            return False
+
+    # --------------------------------------------------
     # Recent projects
     # --------------------------------------------------
 
@@ -252,15 +397,16 @@ class MainWindow(QMainWindow):
             return
 
         self.recentProjectsMenu.clear()
+        projects = self.recent_projects.get_all()
 
-        for project in self.recent_projects.get_all():
+        for project in projects:
             action = QAction(project, self)
             action.triggered.connect(
                 lambda checked=False, p=project: self.open_project(p)
             )
             self.recentProjectsMenu.addAction(action)
 
-        if not self.recent_projects.get_all():
+        if not projects:
             empty = QAction("No recent projects", self)
             empty.setEnabled(False)
             self.recentProjectsMenu.addAction(empty)
@@ -308,10 +454,19 @@ class MainWindow(QMainWindow):
             "toolbar_save",
             "toolbar_save_as",
             "toolbar_close",
+            "refreshProjectAction",
+            "createBackupAction",
+            "restoreBackupAction",
+            "deleteBackupAction",
+            "cleanupBackupsAction",
         ):
             action = getattr(self, name, None)
             if action is not None:
                 action.setEnabled(has_project)
+
+        backup_menu = getattr(self, "backupMenu", None)
+        if backup_menu is not None:
+            backup_menu.setEnabled(has_project)
 
     # --------------------------------------------------
     # Logging / errors
