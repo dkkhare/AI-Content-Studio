@@ -24,6 +24,7 @@ on:
       - "tests/test_episode_review.py"
       - "tests/test_episode_narration.py"
       - "tests/test_knowledge_store.py"
+      - "tests/test_knowledge_review.py"
       - "tests/test_story_intelligence.py"
       - "tests/test_f5tts_runtime.py"
       - "tests/test_pipeline_factory.py"
@@ -56,6 +57,7 @@ jobs:
           tests.test_episode_review
           tests.test_episode_narration
           tests.test_knowledge_store
+          tests.test_knowledge_review
           tests.test_story_intelligence
           tests.test_f5tts_runtime
 
