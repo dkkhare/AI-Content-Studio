@@ -10,6 +10,16 @@ DEFAULT_PROJECT_SETTINGS = {
     "autosave_interval_seconds": 300,
     "backup_retention": 10,
     "theme": "dark",
+    "pipeline_ocr_enabled": True,
+    "ocr_provider": "paddle",
+    "pipeline_translation_enabled": False,
+    "translation_source_language": "en",
+    "translation_target_language": "en",
+    "pipeline_narration_enabled": True,
+    "pipeline_video_enabled": False,
+    "video_fps": 30,
+    "video_seconds_per_image": 3.0,
+    "ffmpeg_path": "",
 }
 
 
@@ -33,9 +43,6 @@ class Project:
     output_directory: str = "output"
     auto_save: bool = True
 
-    # Project-specific preferences are persisted in project.json.
-    # Keeping them in a dictionary lets Milestone 11+ add settings without
-    # breaking older project files.
     settings: dict[str, Any] = field(
         default_factory=lambda: dict(DEFAULT_PROJECT_SETTINGS)
     )
@@ -54,10 +61,6 @@ class Project:
     cover_image: str = ""
     thumbnail: str = ""
 
-    # --------------------------------------------------
-    # Path helpers
-    # --------------------------------------------------
-
     def project_path(self) -> Path:
         return self.root
 
@@ -66,10 +69,6 @@ class Project:
 
     def asset_path(self, filename: str) -> Path:
         return self.output_path() / filename
-
-    # --------------------------------------------------
-    # Metadata / settings
-    # --------------------------------------------------
 
     def touch(self) -> None:
         self.modified = datetime.now().isoformat()
@@ -81,11 +80,10 @@ class Project:
         self.touch()
 
     def get_setting(self, key: str, default=None):
-        defaults = DEFAULT_PROJECT_SETTINGS
         if key in self.settings:
             return self.settings[key]
-        if key in defaults:
-            return defaults[key]
+        if key in DEFAULT_PROJECT_SETTINGS:
+            return DEFAULT_PROJECT_SETTINGS[key]
         return default
 
     def set_setting(self, key: str, value: Any) -> None:
@@ -95,10 +93,6 @@ class Project:
     def update_settings(self, values: dict[str, Any]) -> None:
         self.settings.update(values)
         self.touch()
-
-    # --------------------------------------------------
-    # Processing state
-    # --------------------------------------------------
 
     def set_status(self, status: str) -> None:
         self.status = status
@@ -133,10 +127,6 @@ class Project:
         self.progress = 0
         self.error_message = ""
         self.touch()
-
-    # --------------------------------------------------
-    # Asset management
-    # --------------------------------------------------
 
     @staticmethod
     def asset_fields() -> tuple[str, ...]:
@@ -177,18 +167,21 @@ class Project:
 
     def asset_exists(self, asset_name: str) -> bool:
         file_path = self.get_asset(asset_name)
-        return bool(file_path and Path(file_path).exists())
+        if not file_path:
+            return False
+        path = Path(file_path)
+        if not path.is_absolute():
+            path = self.root / path
+        return path.exists()
 
     def delete_output_files(self) -> None:
         for file_path in self.get_output_files().values():
             path = Path(file_path)
+            if not path.is_absolute():
+                path = self.root / path
             if path.exists() and path.is_file():
                 path.unlink()
         self.touch()
-
-    # --------------------------------------------------
-    # Project lifecycle
-    # --------------------------------------------------
 
     def initialize(self):
         self.root.mkdir(parents=True, exist_ok=True)
@@ -198,10 +191,6 @@ class Project:
 
     def is_ready(self) -> bool:
         return self.root.exists() and self.root.is_dir()
-
-    # --------------------------------------------------
-    # Serialization
-    # --------------------------------------------------
 
     def to_dict(self) -> dict:
         data = {}
