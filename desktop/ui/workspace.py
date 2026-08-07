@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QTabWidget, QVBoxLay
 
 from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.narration_panel import NarrationPanel
+from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
 from desktop.ui.workflow_panel import WorkflowPanel
 
 
@@ -29,6 +30,7 @@ class Workspace(QWidget):
         self.video_page = None
         self.export_page = None
         self.workflow_panel = None
+        self.project_status_dashboard = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -70,16 +72,25 @@ class Workspace(QWidget):
         self.workflow_panel.startRequested.connect(self.start_processing)
         self.tabs.addTab(self.workflow_panel, "Processing")
 
+        # Appended after the existing Milestone 11/12 tabs so their numeric indexes
+        # remain stable. Open projects land here by default.
+        self.project_status_dashboard = ProjectStatusDashboard(self)
+        self.tabs.addTab(self.project_status_dashboard, "Overview")
+
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
             return
         self.pipeline_controller = controller
         self.workflow_panel.bind_controller(controller)
         controller.started.connect(lambda: self.set_busy(True))
-        controller.completed.connect(lambda state: self.set_busy(False))
-        controller.cancelled.connect(lambda: self.set_busy(False))
-        controller.failed.connect(lambda message: self.set_busy(False))
+        controller.completed.connect(lambda state: self._processing_finished())
+        controller.cancelled.connect(lambda: self._processing_finished())
+        controller.failed.connect(lambda message: self._processing_finished())
         controller.queueChanged.connect(self._on_queue_changed)
+
+    def _processing_finished(self) -> None:
+        self.set_busy(False)
+        self.refresh()
 
     def _on_queue_changed(self, records) -> None:
         self._busy = any(
@@ -125,8 +136,10 @@ class Workspace(QWidget):
         self._busy = False
         if self.workflow_panel:
             self.workflow_panel.set_project_available(True)
+        if self.project_status_dashboard:
+            self.project_status_dashboard.set_project(project)
         self.refresh()
-        self.open_pdf_tab()
+        self.open_overview_tab()
         self.projectOpened.emit(str(project))
 
     def close_project(self) -> None:
@@ -148,6 +161,11 @@ class Workspace(QWidget):
                 self.narration_panel.refresh()
             except Exception:
                 pass
+        if self.project_status_dashboard and self.current_project is not None:
+            try:
+                self.project_status_dashboard.refresh()
+            except Exception:
+                pass
 
     def set_busy(self, busy: bool) -> None:
         self._busy = bool(busy)
@@ -160,6 +178,9 @@ class Workspace(QWidget):
 
     def processing(self):
         return self.workflow_panel
+
+    def overview(self):
+        return self.project_status_dashboard
 
     def current_tab(self) -> int:
         return self.tabs.currentIndex()
@@ -192,11 +213,16 @@ class Workspace(QWidget):
     def open_processing_tab(self) -> None:
         self.set_current_tab(6)
 
+    def open_overview_tab(self) -> None:
+        self.set_current_tab(7)
+
     def clear(self) -> None:
         self._busy = False
         self.current_project = None
         if self.workflow_panel:
             self.workflow_panel.set_project_available(False)
+        if self.project_status_dashboard:
+            self.project_status_dashboard.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
             try:
                 self.narration_panel.clear()
