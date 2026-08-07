@@ -1,4 +1,5 @@
+from .review import KnowledgeReviewStore
 from .status import ProjectStatusService
 from .store import KnowledgeStore
 
-__all__ = ["KnowledgeStore", "ProjectStatusService"]
+__all__ = ["KnowledgeReviewStore", "KnowledgeStore", "ProjectStatusService"]
