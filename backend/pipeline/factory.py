@@ -25,14 +25,18 @@ def build_project_pipeline(
 
     if bool(project.get_setting("pipeline_translation_enabled", False)):
         if translator is None:
-            raise ValueError(
-                "Translation is enabled for this project but no translator provider is configured."
-            )
+            from backend.translation import create_translation_provider
+
+            translator = create_translation_provider(project)
         pipeline.add_stage(
             TranslationStage(
                 translator=translator,
-                source_language=str(project.get_setting("translation_source_language", project.language)),
-                target_language=str(project.get_setting("translation_target_language", project.language)),
+                source_language=str(
+                    project.get_setting("translation_source_language", project.language)
+                ),
+                target_language=str(
+                    project.get_setting("translation_target_language", project.language)
+                ),
             )
         )
 
@@ -41,8 +45,14 @@ def build_project_pipeline(
 
     if bool(project.get_setting("pipeline_video_enabled", False)):
         if renderer is None:
-            raise ValueError(
-                "Video rendering is enabled for this project but no renderer is configured."
+            from backend.video import FFmpegRenderer
+
+            renderer = FFmpegRenderer(
+                ffmpeg_path=str(project.get_setting("ffmpeg_path", "")) or None,
+                fps=int(project.get_setting("video_fps", 30)),
+                seconds_per_image=float(
+                    project.get_setting("video_seconds_per_image", 3.0)
+                ),
             )
         pipeline.add_stage(VideoRenderStage(renderer))
 
