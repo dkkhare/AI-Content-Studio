@@ -7,9 +7,15 @@ on:
   pull_request:
     paths:
       - "backend/ai/**"
+      - "backend/pipeline/**"
+      - "backend/tts/**"
+      - "backend/project/project.py"
       - "tests/test_ai_core.py"
       - "tests/test_ai_providers.py"
       - "tests/test_ai_prompts.py"
+      - "tests/test_ai_pipeline_stages.py"
+      - "tests/test_f5tts_runtime.py"
+      - "tests/test_pipeline_factory.py"
       - ".github/workflows/milestone-13-smoke.yml"
 
 jobs:
@@ -28,12 +34,14 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q backend desktop tests
 
-      - name: Run Milestone 13 AI tests
+      - name: Run Milestone 13 AI and local media tests
         run: >-
           python -m unittest -v
           tests.test_ai_core
           tests.test_ai_providers
           tests.test_ai_prompts
+          tests.test_ai_pipeline_stages
+          tests.test_f5tts_runtime
 
       - name: Re-run Milestone 12 processing regressions
         run: >-
