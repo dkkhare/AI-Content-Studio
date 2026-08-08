@@ -1,0 +1,46 @@
+name: Milestone 16 Subtitles
+
+on:
+  push:
+    branches:
+      - agent/milestone-16-subtitles
+  pull_request:
+    paths:
+      - "backend/subtitles/**"
+      - "desktop/controllers/subtitle_controller.py"
+      - "desktop/ui/widgets/subtitle_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_subtitle*.py"
+      - ".github/workflows/milestone-16-smoke.yml"
+
+jobs:
+  subtitles:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Qt system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1
+
+      - name: Install desktop test runtime
+        run: python -m pip install --disable-pip-version-check PySide6 numpy soundfile pydub
+
+      - name: Compile subtitle integration
+        run: python -m compileall -q backend desktop tests
+
+      - name: Run subtitle core and desktop regressions
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: >-
+          python -m unittest -v
+          tests.test_subtitles
+          tests.test_subtitle_desktop
+          tests.test_desktop_ai_qt
