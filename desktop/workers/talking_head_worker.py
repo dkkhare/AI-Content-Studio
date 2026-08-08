@@ -7,13 +7,13 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 from backend.talking_head import (
     BookImporter,
-    F5TTSAdapter,
     LongFormTalkingHeadPipeline,
     SadTalkerAdapter,
     SadTalkerConfig,
     SeriesRequest,
     TalkingHeadSeriesPipeline,
 )
+from backend.tts.adapters import F5TTSAdapter
 
 
 class TalkingHeadWorker(QObject):
