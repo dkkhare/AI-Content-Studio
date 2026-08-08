@@ -696,6 +696,302 @@ include:
 Do not upload copyrighted/private source media unless you are authorized to
 share it.
 
+## Cross-platform Python application guide
+
+AI Content Studio can run directly from its Python source checkout on Windows,
+Ubuntu, and macOS. Building or installing the Windows EXE is optional.
+
+> **Packaging note:** the repository is currently a Python application, not a
+> published PyPI package. Do not expect `pip install ai-content-studio` to
+> work. Clone this repository, install its requirements in a virtual
+> environment, and start it with `python -m desktop.main`.
+
+Windows is the release-validated desktop platform. Ubuntu and macOS are
+source-mode platforms and should be tested with a small project before important
+work. F5-TTS, SadTalker, GPU acceleration, native OCR, and media codecs require
+their own platform-specific validation.
+
+### Cross-platform hardware requirements
+
+| Component | Minimum for basic source use | Recommended for OCR, media, and local AI |
+| --- | --- | --- |
+| CPU | 64-bit 4-core processor | Modern 6–8 core Intel, AMD, or Apple Silicon |
+| RAM | 8 GB | 16 GB; 32 GB for large books or concurrent local models |
+| GPU | Integrated graphics; cloud AI needs no GPU | NVIDIA CUDA GPU with 8 GB+ VRAM for F5-TTS/SadTalker |
+| 4 GB NVIDIA GPU | Core app, OCR, and video tools; short low-memory AI tests | Use SadTalker 256px/crop, short TTS chunks, and close other GPU apps |
+| Apple Silicon | Supported Python/Qt environment | M-series with 16 GB+ unified memory |
+| Display | 1366×768 | 1920×1080 or higher |
+| App/environment disk | 5 GB free | 10–30 GB for Python, PyTorch, and model caches |
+| Project working disk | 10 GB free for small tests | SSD with 50 GB+ free for long talking-head series |
+| Network | Optional for local project operations | Required for setup, model downloads, updates, and cloud AI |
+| Audio | Speakers/headphones | Clean microphone or authorized voice recording |
+
+A 300-page talking-head project can temporarily use much more storage than its
+final videos because it retains narration WAVs, segment MP4s, manifests,
+checksums, and resumable checkpoints.
+
+### Cross-platform software requirements
+
+| Software | Windows | Ubuntu | macOS |
+| --- | --- | --- | --- |
+| Operating system | Windows 10/11 64-bit; Windows 11 recommended | Ubuntu 22.04+ recommended | Recent supported 64-bit macOS |
+| Python | CPython 3.11 64-bit | CPython 3.11 with `venv` | Homebrew/native CPython 3.11 |
+| Git | Git for Windows | `apt install git` | Command Line Tools or Homebrew Git |
+| Qt desktop runtime | Installed by `requirements.txt` | Installed by `requirements.txt`; desktop session required | Installed by `requirements.txt` |
+| FFmpeg | Add `ffmpeg.exe` to `PATH` | `apt install ffmpeg` | `brew install ffmpeg` |
+| OCR tools | Optional Tesseract/Poppler | Optional Tesseract/Poppler packages | Optional Homebrew Tesseract/Poppler |
+| F5-TTS | Optional, same project Python 3.11 environment | Optional, same project Python 3.11 environment | Optional/experimental, same environment |
+| SadTalker | Optional separate Python 3.8 environment | Optional separate Python 3.8 environment | Optional and experimental |
+| Ollama | Separate optional service | Separate optional service | Separate optional service |
+| GPU runtime | Matching NVIDIA driver/PyTorch CUDA build | CUDA, supported ROCm, XPU, or CPU | Stable PyTorch; MPS support varies |
+
+Core installation uses:
+
+```text
+requirements.txt          Core application
+requirements-tts.txt      Optional F5-TTS inference
+requirements-build.txt    Windows release builders only
+```
+
+OpenAI and Gemini need provider keys. FFmpeg, F5-TTS, SadTalker, Ollama,
+Tesseract, and Poppler do not need API keys.
+
+### Install on Windows from Python source
+
+Open PowerShell as a normal user:
+
+```powershell
+py -3.11 --version
+git --version
+cd D:\
+git clone https://github.com/dkkhare/AI-Content-Studio.git
+cd AI-Content-Studio
+py -3.11 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python -m desktop.main
+```
+
+For video output, install FFmpeg, add its `bin` directory to `PATH`, open a
+new PowerShell window, and run `ffmpeg -version`.
+
+Optional F5-TTS in the same environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-tts.txt
+python scripts/tts_smoke.py --reference-audio "C:\voices\sample.wav" --reference-text "Exact words in the recording" --text "नमस्ते, यह एक परीक्षण है।" --output "D:\AIProjects\tts-test"
+```
+
+SadTalker must use its separate environment. Follow the
+[SadTalker Windows guide](docs/sadtalker-installation.md#windows-installation).
+
+### Install on Ubuntu from Python source
+
+```bash
+sudo apt update
+sudo apt install -y git ffmpeg python3.11 python3.11-venv python3.11-dev build-essential
+mkdir -p "$HOME/Projects"
+cd "$HOME/Projects"
+git clone https://github.com/dkkhare/AI-Content-Studio.git
+cd AI-Content-Studio
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python -m desktop.main
+```
+
+Run the application from a graphical desktop session. On a headless server,
+PySide6 needs a display server or a properly configured virtual display; normal
+interactive use is intended for a desktop.
+
+Optional F5-TTS:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements-tts.txt
+python scripts/tts_smoke.py \
+  --reference-audio "$HOME/voices/sample.wav" \
+  --reference-text "Exact words in the recording" \
+  --text "नमस्ते, यह एक परीक्षण है।" \
+  --output "$HOME/AIProjects/tts-test"
+```
+
+Use a PyTorch build matched to CUDA, supported ROCm, XPU, or CPU. Follow the
+[F5-TTS Ubuntu guide](docs/tts.md#ubuntu-installation) and
+[SadTalker Ubuntu guide](docs/sadtalker-installation.md#ubuntu-installation).
+
+### Install on macOS from Python source
+
+macOS is experimental. Use a native Apple Silicon terminal on an M-series Mac.
+
+```bash
+xcode-select --install
+brew install python@3.11 git ffmpeg
+mkdir -p "$HOME/Projects"
+cd "$HOME/Projects"
+git clone https://github.com/dkkhare/AI-Content-Studio.git
+cd AI-Content-Studio
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python -m desktop.main
+```
+
+Do not use `sudo pip` or mix Rosetta x86_64 and arm64 packages.
+
+Optional F5-TTS:
+
+```bash
+source .venv/bin/activate
+python -m pip install torch torchaudio
+python -m pip install -r requirements-tts.txt
+python scripts/tts_smoke.py \
+  --reference-audio "$HOME/voices/sample.wav" \
+  --reference-text "Exact words in the recording" \
+  --text "नमस्ते, यह एक परीक्षण है।" \
+  --output "$HOME/AIProjects/tts-test"
+```
+
+See the [F5-TTS macOS guide](docs/tts.md#macos-installation) and
+[experimental SadTalker macOS guide](docs/sadtalker-installation.md#macos-installation-experimental).
+
+### Daily start and update commands
+
+Windows:
+
+```powershell
+cd D:\AI-Content-Studio
+.\.venv\Scripts\Activate.ps1
+git pull --ff-only
+python -m pip install -r requirements.txt
+python -m desktop.main
+```
+
+Ubuntu/macOS:
+
+```bash
+cd "$HOME/Projects/AI-Content-Studio"
+source .venv/bin/activate
+git pull --ff-only
+python -m pip install -r requirements.txt
+python -m desktop.main
+```
+
+Do not pull updates while the application or a render job is running. Preserve
+or commit your own source changes first. You only need to reinstall optional
+requirements when their files change.
+
+### Python source user guide
+
+1. Start the application from the repository root with the virtual environment
+   active: `python -m desktop.main`.
+2. Select **File → New Project**.
+3. Enter a project name and select a writable parent folder.
+4. Save once and confirm that `project.json` and `output` exist.
+5. Open the relevant workspace:
+   - OCR/document tools for searchable text
+   - AI Workbench for OpenAI, Gemini, or Ollama processing
+   - Narration for F5-TTS reference-voice audio
+   - Subtitles for SRT/VTT
+   - Video Composer for ordinary MP4 assembly
+   - Talking Head Series for multi-episode F5-TTS + SadTalker video
+6. Select inputs and configure the provider/runtime.
+7. For cloud AI, enter the provider key under **AI → Provider Settings**.
+8. For Talking Head Series, click **Check Setup**, confirm usage rights, and
+   preview the complete episode plan before generation.
+9. Generate a short test before a large book or long video.
+10. Inspect output, save the project, and use Generate/Resume after an
+    interruption rather than deleting checkpoints.
+11. Close the application normally. Review any unsaved-changes prompt.
+
+To reopen a project, select the folder containing `project.json`, not only its
+`output` folder.
+
+### Inputs required by feature
+
+| Feature | Required inputs | Optional inputs/settings |
+| --- | --- | --- |
+| New project | Project name and writable parent folder | Description/metadata |
+| OCR | Supported PDF, document, or image | Language and native OCR engine |
+| AI text processing | Text/document content, provider, accessible model | Prompt template and failover |
+| OpenAI | API key, model access, internet, billing/quota | Custom compatible endpoint |
+| Gemini | API key, allowed model, internet/quota | Backend key alias |
+| Ollama | Running local service and installed model | Custom base URL |
+| F5-TTS narration | Authorized reference audio, exact transcript, generation text | Language/style and output folder |
+| Subtitles | Script/transcript or supported audio/video source | Timing/style settings |
+| Video Composer | Visual media, narration/audio, writable `.mp4` path | SRT/VTT subtitles |
+| Talking Head Series | Complete PDF/DOCX/TXT/MD book, writer portrait, authorized voice recording, exact voice transcript, rights confirmation | Episode target, segment duration, WPM, subtitles |
+| SadTalker runtime | Folder containing `inference.py`, dedicated Python executable, checkpoints | 256/512 size, crop/full preprocessing, enhancer |
+
+Supported Talking Head book input must contain extractable text. Run OCR before
+importing a scanned PDF. Portrait input should be a clear front-facing PNG,
+JPEG, or WebP. Clean voice audio and an exact transcript improve narration and
+lip-sync quality.
+
+### Output details and paths
+
+The normal project layout is:
+
+```text
+<Project root>/
+├── project.json
+├── output/
+├── backups/       created when project backups exist
+└── .autosave/     temporary recovery state when needed
+```
+
+| Output | Default location or behavior |
+| --- | --- |
+| Project metadata | `<Project root>/project.json` |
+| Generated assets | `<Project root>/output` unless a panel selects another path |
+| OCR/extracted text | Registered under the project output and recorded in `project.json` |
+| Narration/audio | WAV or configured supported audio below project output |
+| Subtitles | SRT/VTT below project output or the selected export path |
+| Standard video | Selected writable `.mp4` path |
+| Talking-head episodes | Numbered, logically titled MP4 files inside the series output |
+| Talking-head metadata | Series JSON manifest, source ranges, statuses, checksums, and M3U playlist |
+| Resume working files | Per-segment narration WAVs, MP4s, and checkpoint manifests |
+| Project backups | `<Project root>/backups` |
+| Crash/shutdown recovery | `<Project root>/.autosave` |
+| Support bundle | User-selected ZIP path |
+| CLI diagnostics | Exact path supplied to `--diagnostics` |
+
+Application-local settings/log paths are platform-dependent:
+
+| Platform | Typical application data |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\AIContentStudio` |
+| Ubuntu/macOS source fallback | `~/.aicontentstudio` |
+
+An explicit output selected in a panel takes precedence over the default
+`output` directory. Do not move source files, project folders, model folders,
+or active outputs during generation. Verify every final MP4 and keep independent
+backups of the book, portrait, voice sample, project root, and external inputs.
+
+### Cross-platform verification
+
+With the project environment active:
+
+```bash
+python -m compileall -q backend desktop
+python -m unittest discover -v
+python -m desktop.main --diagnostics ./diagnostics.json
+```
+
+On Windows, view the diagnostic file with
+`Get-Content .\diagnostics.json`; on Ubuntu/macOS use
+`cat ./diagnostics.json`.
+
+Model-free tests do not prove that a particular GPU, F5-TTS model, SadTalker
+checkpoint, FFmpeg build, OCR executable, or cloud account works. Run the
+documented smoke test for each optional runtime before processing valuable
+inputs.
+
 ## Run directly as a Python project (no EXE)
 
 Building an EXE is optional. You can clone the repository, install its Python
