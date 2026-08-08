@@ -440,6 +440,12 @@ class Workspace(QWidget):
         self,
     ):
 
+        if self.narration_panel and hasattr(self.narration_panel, "cleanup"):
+            try:
+                self.narration_panel.cleanup()
+            except Exception:
+                pass
+
         self.clear()
 
         self.tabs = None
