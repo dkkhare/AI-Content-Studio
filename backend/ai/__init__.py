@@ -5,6 +5,7 @@ from .exceptions import (
     AIError,
     AIProviderError,
     AIProviderNotFoundError,
+    AIStreamInterruptedError,
 )
 from .manager import AIManager
 from .models import AIMessage, AIRequest, AIResponse, AIStreamChunk, AIUsage
@@ -34,6 +35,7 @@ __all__ = [
     "AIRequest",
     "AIResponse",
     "AIStreamChunk",
+    "AIStreamInterruptedError",
     "AIUsage",
     "AIUsageTracker",
     "GeminiProvider",
