@@ -97,9 +97,7 @@ class Project:
 
     podcast_file: str = ""
 
-    video_file: str = ""
-
-    subtitle_file: str = ""
+    video_file: str = ""\n\n    talking_head_series_manifest: str = ""\n\n    subtitle_file: str = ""
 
     cover_image: str = ""
 
@@ -247,8 +245,7 @@ class Project:
 
         Example:
         add_output_file(
-            "video_file",
-            "output/video.mp4"
+            "video_file",\n            "talking_head_series_manifest",\n            "output/video.mp4"
         )
         """
 
@@ -258,8 +255,7 @@ class Project:
             "narration_file",
             "audiobook_file",
             "podcast_file",
-            "video_file",
-            "subtitle_file",
+            "video_file",\n            "talking_head_series_manifest",\n            "subtitle_file",
             "cover_image",
             "thumbnail",
         ]
@@ -295,8 +291,7 @@ class Project:
             "narration_file",
             "audiobook_file",
             "podcast_file",
-            "video_file",
-            "subtitle_file",
+            "video_file",\n            "talking_head_series_manifest",\n            "subtitle_file",
             "cover_image",
             "thumbnail",
         ]
