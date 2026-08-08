@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-import unittest
-from pathlib import Path
-
+import unittest\nimport wave\nfrom pathlib import Path\nfrom types import SimpleNamespace\n
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -13,6 +11,15 @@ from backend.project.project import Project
 from desktop.controllers.subtitle_controller import SubtitleDesktopController
 from desktop.ui.widgets.subtitle_panel import SubtitlePanel
 from desktop.ui.workspace import Workspace
+
+
+def write_wav(path, seconds=2, rate=8000):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(rate)
+        audio.writeframes(b"\\x00\\x00" * int(seconds * rate))
 
 
 class SubtitleDesktopControllerTests(unittest.TestCase):
@@ -42,6 +49,27 @@ class SubtitleDesktopControllerTests(unittest.TestCase):
             self.assertGreaterEqual(len(loaded.cues), 1)
 
 
+    def test_project_context_duration_text_and_cue_lookup(self):
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            project = Project("Context", root_path).initialize()
+            audio = root_path / "output" / "narration.wav"
+            text = root_path / "output" / "script.txt"
+            write_wav(audio, seconds=2.5)
+            text.write_text("परियोजना का कथन", encoding="utf-8")
+            project.narration_file = str(audio)
+            controller = SubtitleDesktopController()
+            controller.set_project(project)
+            context = controller.project_context()
+            self.assertEqual(context["text"], "परियोजना का कथन")
+            self.assertAlmostEqual(context["duration_seconds"], 2.5, places=3)
+
+            document = controller.generate(context["text"], 2.5)
+            first = document.cues[0]
+            self.assertEqual(controller.cue_at(first.start_ms), first)
+            self.assertIsNone(controller.cue_at(document.cues[-1].end_ms))
+
+
 class SubtitlePanelQtTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -65,6 +93,29 @@ class SubtitlePanelQtTests(unittest.TestCase):
                 "बदला हुआ पाठ",
             )
             self.assertIn("Applied edits", panel.status.text())
+            panel.dispose()
+
+
+    def test_project_context_populates_duration_and_syncs_preview(self):
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            project = Project("Preview", root_path).initialize()
+            audio = root_path / "output" / "narration.wav"
+            text = root_path / "output" / "script.txt"
+            write_wav(audio, seconds=4)
+            text.write_text("पहला वाक्य। दूसरा वाक्य।", encoding="utf-8")
+            project.narration_file = str(audio)
+
+            panel = SubtitlePanel()
+            panel.set_project(project)
+            self.assertEqual(panel.source_text.toPlainText(), text.read_text(encoding="utf-8"))
+            self.assertAlmostEqual(panel.duration.value(), 4.0, places=2)
+            panel.generate_subtitles()
+            cue = panel.controller.document.cues[0]
+            panel._position_changed(SimpleNamespace(position=cue.start_ms))
+            self.assertEqual(panel.table.currentRow(), 0)
+            self.assertEqual(panel.preview_text.text(), cue.text)
+            self.assertGreater(panel.timeline.maximum(), 0)
             panel.dispose()
 
     def test_workspace_exposes_subtitle_tab_in_pipeline_order(self):
