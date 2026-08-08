@@ -7,25 +7,108 @@ thumbnails, and video assets.
 
 ## Download
 
-### Windows 0.19.0 release candidate
+### Latest verified Windows package (current `main`)
 
-[**Download milestone-23-windows-0.19.0**](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31249379767/artifacts/9019969816)
+[**Download AIContentStudio-main-0.19.0-windows-x64**](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31273471004/artifacts/9026360099)
 
-The download is a GitHub Actions ZIP of approximately 103 MB containing the
-portable Windows bundle, `AIContentStudio-Setup-0.19.0-windows-x64.exe`, and
-`SHA256SUMS.txt`.
+This GitHub Actions artifact was built from the current application source and
+passed release contract tests, portable diagnostics, offscreen GUI
+startup/shutdown, installer compilation, silent installation, installed-runtime
+diagnostics, and uninstall verification.
 
-- GitHub sign-in and repository access are required.
-- On a phone, open the link in a browser and enable **Desktop site**; the GitHub
-  mobile app may not show workflow artifacts.
-- This temporary CI artifact expires on **November 6, 2026**.
-- Workflow artifact digest:
-  `sha256:c388fac88d7759609306ea853ac54b508b8d8994fe515c0f28e37b98295715d0`
+| Item | Details |
+| --- | --- |
+| Artifact name | `AIContentStudio-main-0.19.0-windows-x64` |
+| Artifact size | Approximately 103 MB |
+| Workflow run | [Latest Windows Release run #2](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31273471004) |
+| Built commit | `db8e855d40e404b146b7060c42675570fbc7e37d` |
+| Artifact digest | `sha256:deac70fe82400b01d36ca5f22d5b252d432a9fdd35e01114ecf2951a0685df3d` |
+| Created | August 9, 2026 (India time) |
+| Expires | November 7, 2026 (India time) |
+| Account requirement | GitHub sign-in and repository access may be required |
 
-If the direct link is unavailable, open
-[Milestone 23 Release Candidate run #3](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31249379767),
-select **Summary**, and download `milestone-23-windows-0.19.0` under
-**Artifacts**.
+On a mobile device, open the link in a browser and enable **Desktop site** if
+the GitHub app does not display the artifact download.
+
+The downloaded ZIP contains:
+
+- the portable `AIContentStudio` application folder with
+  `AIContentStudio.exe`
+- `AIContentStudio-Setup-0.19.0-windows-x64.exe`
+- `SHA256SUMS.txt` for the installer
+- a checksum manifest inside the portable application folder
+
+#### Verify the download
+
+1. Extract the downloaded ZIP.
+2. Open PowerShell in the extracted folder.
+3. Display the expected installer checksum:
+
+```powershell
+Get-Content .\SHA256SUMS.txt
+```
+
+4. Calculate the installer checksum:
+
+```powershell
+Get-FileHash .\AIContentStudio-Setup-0.19.0-windows-x64.exe -Algorithm SHA256
+```
+
+The calculated hash must match the value in `SHA256SUMS.txt`. The artifact
+digest shown above verifies the complete GitHub artifact archive and is
+different from the installer file's checksum.
+
+#### Install with the Windows installer
+
+1. Download and extract the artifact ZIP.
+2. Verify `SHA256SUMS.txt`.
+3. Double-click `AIContentStudio-Setup-0.19.0-windows-x64.exe`.
+4. Review the destination and complete the installer.
+5. Start **AI Content Studio** from the Start menu.
+
+The normal per-user installation folder is:
+
+```text
+%LOCALAPPDATA%\Programs\AIContentStudio
+```
+
+Windows SmartScreen may warn because the installer is checksum-verified but not
+currently Authenticode-signed. Download only from this repository and verify the
+checksum before continuing.
+
+#### Run the portable EXE without installation
+
+1. Extract the complete portable `AIContentStudio` folder.
+2. Keep all included files and subfolders together.
+3. Run `AIContentStudio.exe` from that folder.
+4. Do not copy only the EXE; its bundled runtime files are required.
+
+The portable application and installed application use the same project format.
+Neither method deletes external project folders during normal uninstall.
+
+#### First-use guide
+
+1. Open AI Content Studio.
+2. Select **File → New Project**.
+3. Enter a project name and choose a writable parent folder.
+4. Save once and confirm the project contains `project.json` and `output`.
+5. Use the required workspace for OCR, AI processing, narration, subtitles,
+   video composition, or Talking Head Series.
+6. Install/configure optional external tools before using their features:
+   - FFmpeg for video
+   - Ollama for local text AI
+   - OpenAI or Gemini key for cloud AI
+   - Python source mode plus F5-TTS for sampled-voice narration
+   - external SadTalker environment/checkpoints for talking-head lip sync
+7. Generate a short test before processing a large book.
+8. Inspect the output under `<Project root>\output`, save the project, and
+   back up the project folder and original inputs.
+
+The current packaged EXE does not embed F5-TTS or SadTalker model runtimes.
+Those advanced local-model features require the documented Python source setup.
+See the [cross-platform Python application guide](#cross-platform-python-application-guide),
+[F5-TTS guide](docs/tts.md), and
+[SadTalker guide](docs/sadtalker-installation.md).
 
 ### Stable releases
 
