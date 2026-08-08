@@ -95,7 +95,7 @@ def split_script(
     cleaned = re.sub(r"\s+", " ", text).strip()
     if not cleaned:
         return []
-    limit = max(120, round(segment_seconds * characters_per_second))
+    limit = max(1, round(segment_seconds * characters_per_second))
     sentences = [
         value.strip()
         for value in re.split(r"(?<=[.!?।॥])\s+", cleaned)
