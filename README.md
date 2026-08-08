@@ -45,16 +45,90 @@ Prefer the Releases page over an Actions artifact for normal distribution.
 - Safe application updates
 - Redacted local support diagnostics
 
-## System requirements
+## Hardware and software requirements
 
-- Windows 11, 64-bit
-- Sufficient free storage for source media and generated output
-- Internet connection when using an online AI provider
-- An API key when using a provider that requires one
-- FFmpeg installed and available on `PATH` for video composition and export
+Requirements depend strongly on whether you use only the desktop/project tools,
+cloud AI, local Ollama models, F5-TTS, or high-resolution video rendering. The
+figures below are practical planning guidance, not guarantees for every model or
+project.
 
-The packaged installer includes the application runtime. Python 3.11 and
-PySide6 are required only when running or developing from source.
+### Core packaged application
+
+| Component | Minimum for basic use | Recommended |
+| --- | --- | --- |
+| Operating system | Windows 11 64-bit | Current fully updated Windows 11 64-bit |
+| Processor | Modern 4-core x64 CPU | 6-core or better Intel Core i5/i7 or AMD Ryzen 5/7 |
+| Memory | 8 GB RAM | 16 GB RAM; 32 GB for large media/local AI |
+| Graphics | DirectX-capable integrated graphics | Dedicated NVIDIA/AMD GPU for media and local AI |
+| Display | 1366×768 | 1920×1080 or higher |
+| Application storage | About 500 MB free | 2 GB free for installation, logs, and updates |
+| Project storage | Depends on source media | SSD with at least 20–50 GB free |
+| Network | Not required for basic local project work | Broadband for cloud AI, models, and updates |
+| Audio | Optional | Headphones/speakers and a good microphone for voice work |
+
+An SSD is strongly recommended. Video, generated audio, model caches, project
+backups, and temporary files can consume far more space than the application
+itself.
+
+### Workload-specific hardware
+
+| Workload | CPU/RAM guidance | GPU guidance | Storage guidance |
+| --- | --- | --- | --- |
+| Project editing, subtitles, support tools | 4 cores, 8 GB RAM | Integrated graphics is sufficient | 2–10 GB plus projects |
+| OCR and PDF processing | 4–6 cores, 8–16 GB RAM | Usually optional | Enough for source PDFs and page images |
+| FFmpeg 1080p video | 6 cores, 16 GB RAM | Optional; current renderer uses software-compatible codecs | 20 GB or more free working space |
+| Cloud OpenAI/Gemini | 4 cores, 8 GB RAM | Not required | Minimal local model storage |
+| Small Ollama model | 16 GB system RAM recommended | GPU optional but faster | Model-dependent; allow several GB |
+| Larger Ollama model | 32 GB+ RAM may be needed | Sufficient supported VRAM strongly recommended | Models can consume tens of GB |
+| F5-TTS source mode | 16 GB RAM recommended | CUDA-capable NVIDIA GPU recommended; 8 GB+ VRAM is a practical target | Allow 10–30 GB for Python, PyTorch, and model caches |
+| CPU-only F5-TTS | 16 GB+ RAM | None | Same model storage; generation may be very slow |
+
+A 4 GB VRAM GPU can run the core application and video tools, but may be
+insufficient for some F5-TTS or Ollama model/configuration combinations. Choose
+smaller models, shorter jobs, CPU fallback, or a higher-memory GPU if an
+out-of-memory error occurs.
+
+### Packaged installer software requirements
+
+- Windows 11 64-bit user account
+- Permission to install per-user applications under
+  `%LOCALAPPDATA%\Programs`
+- FFmpeg on `PATH` only for video composition/export
+- Ollama installed and running only when using local AI
+- Tesseract/Poppler only for OCR routes that require native executables
+- Internet access and a valid key only for OpenAI or Gemini
+- Current GPU drivers when using GPU-accelerated third-party software
+
+The packaged installer includes the Python/Qt application runtime. It does not
+bundle FFmpeg, Ollama, F5-TTS models, Tesseract, Poppler, cloud keys, or GPU
+drivers.
+
+### Source-development software requirements
+
+| Software | Requirement |
+| --- | --- |
+| Python | CPython 3.11, 64-bit |
+| Python packages | `python -m pip install -r requirements.txt` |
+| Optional F5-TTS | `python -m pip install -r requirements-tts.txt` |
+| Windows installer build | Inno Setup 6 |
+| Windows application build | PyInstaller from `requirements-build.txt` |
+| Version control | Git recommended |
+| GPU acceleration | Compatible driver plus a matching PyTorch/CUDA build |
+
+Use a virtual environment for source development and F5-TTS. Do not install
+optional model runtimes into the packaged application's installation directory.
+
+### Network and account requirements
+
+- OpenAI: internet access, an API account/project, model access, available
+  billing or credits, and `OPENAI_API_KEY`.
+- Gemini: internet access, an enabled API project, model quota/access, and
+  `GEMINI_API_KEY` (or the backend alias `GOOGLE_API_KEY`).
+- Ollama: no cloud account or key; its local service must be reachable, normally
+  at `http://localhost:11434`.
+- F5-TTS: no API key; initial model download requires internet unless models are
+  pre-cached.
+- FFmpeg, Tesseract, and Poppler: no accounts or API keys.
 
 ## Third-party applications and service keys
 
