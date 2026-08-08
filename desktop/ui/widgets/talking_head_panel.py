@@ -85,9 +85,11 @@ class TalkingHeadPanel(QWidget):
         root.addWidget(self.rights)
         actions = QHBoxLayout()
         self.preview_button = QPushButton("Preview Episodes")
+        self.check_button = QPushButton("Check Setup")
         self.generate_button = QPushButton("Generate / Resume Series")
         self.cancel_button = QPushButton("Cancel")
         actions.addWidget(self.preview_button)
+        actions.addWidget(self.check_button)
         actions.addStretch()
         actions.addWidget(self.generate_button)
         actions.addWidget(self.cancel_button)
@@ -99,6 +101,13 @@ class TalkingHeadPanel(QWidget):
             "Preview displays ordered episode titles and estimated durations."
         )
         root.addWidget(self.preview_text)
+        self.preflight_text = QTextEdit()
+        self.preflight_text.setReadOnly(True)
+        self.preflight_text.setMaximumHeight(170)
+        self.preflight_text.setPlaceholderText(
+            "Check Setup verifies SadTalker, models, F5-TTS, FFmpeg, disk, and GPU."
+        )
+        root.addWidget(self.preflight_text)
         self.progress = QProgressBar()
         self.status = QLabel("Open a project and select the required inputs.")
         root.addWidget(self.progress)
@@ -124,6 +133,7 @@ class TalkingHeadPanel(QWidget):
             )
         )
         self.preview_button.clicked.connect(self.preview)
+        self.check_button.clicked.connect(self.check_setup)
         self.generate_button.clicked.connect(self.generate)
         self.cancel_button.clicked.connect(self.controller.cancel)
         self.controller.generationStarted.connect(self._started)
@@ -211,11 +221,34 @@ class TalkingHeadPanel(QWidget):
             "enhancer": "",
         }
 
+    def check_setup(self, *, show_message=True):
+        try:
+            report = self.controller.preflight(**self.settings())
+            self.preflight_text.setPlainText("\n".join(report.lines()))
+            self.status.setText(
+                "Setup is ready."
+                if report.ready
+                else f"Setup has {len(report.failures)} blocking problem(s)."
+            )
+            if show_message and not report.ready:
+                QMessageBox.warning(
+                    self,
+                    "Talking Head Setup",
+                    "Fix all FAIL items before generation.",
+                )
+            return report
+        except Exception as exc:
+            self._failed(str(exc))
+            return None
+
     def generate(self):
         error = self.validation_error()
         if error:
             QMessageBox.warning(self, "Talking Head Series", error)
             self.status.setText(error)
+            return
+        report = self.check_setup(show_message=True)
+        if report is None or not report.ready:
             return
         try:
             self.controller.start(**self.settings())
@@ -249,6 +282,7 @@ class TalkingHeadPanel(QWidget):
     def refresh(self):
         running = self.controller.is_running()
         self.preview_button.setEnabled(not running)
+        self.check_button.setEnabled(not running)
         self.generate_button.setEnabled(
             self.controller.project is not None and not running
         )
@@ -265,6 +299,7 @@ class TalkingHeadPanel(QWidget):
         self.transcript.clear()
         self.rights.setChecked(False)
         self.preview_text.clear()
+        self.preflight_text.clear()
         self.progress.setValue(0)
         self.status.setText("Open a project and select the required inputs.")
         self.refresh()
