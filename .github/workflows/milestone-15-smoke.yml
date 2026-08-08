@@ -25,7 +25,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install TTS core runtime\n        run: python -m pip install --disable-pip-version-check numpy pydub soundfile\n\n      - name: Compile TTS integration\n        run: python -m compileall -q backend/tts desktop tests
+      - name: Install TTS core runtime
+        run: python -m pip install --disable-pip-version-check numpy pydub soundfile
+
+      - name: Compile TTS integration
+        run: python -m compileall -q backend/tts desktop tests
 
       - name: Run TTS core regressions
         run: python -m unittest -v tests.test_tts_core
