@@ -48,7 +48,10 @@ class VideoDesktopControllerTests(unittest.TestCase):
         subtitles = root / "output" / "subtitles.srt"
         image.write_bytes(b"image")
         write_wav(audio, seconds=seconds)
-        subtitles.write_text("captions", encoding="utf-8")
+        subtitles.write_text(
+            "1\n00:00:00,000 --> 00:00:01,000\nनमस्ते\n",
+            encoding="utf-8",
+        )
         project.cover_image = str(image)
         project.narration_file = str(audio)
         project.subtitle_file = str(subtitles)
