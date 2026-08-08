@@ -21,6 +21,20 @@ class ReleaseManager:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
 
+    @staticmethod
+    def _normalize_publish_at(value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        normalized = text.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError("Scheduled publish time must be ISO-8601, for example 2026-08-10T18:00:00+05:30.") from exc
+        if parsed.tzinfo is None:
+            raise ValueError("Scheduled publish time must include a timezone offset.")
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
     def _publish_dir(self, episode_id: str) -> Path:
         return self.root / "segments" / episode_id / "publish"
 
@@ -80,13 +94,15 @@ class ReleaseManager:
     def _default_record(self, episode_id: str) -> dict[str, Any]:
         episode = self.episodes.get(episode_id)
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "episode_id": episode_id,
             "title": str(episode.get("title", episode_id)),
             "state": "draft",
             "destination": "",
             "external_id": "",
             "external_url": "",
+            "scheduled_publish_at": "",
+            "playlist_id": "",
             "error": "",
             "created_at": self._now(),
             "updated_at": self._now(),
@@ -102,15 +118,15 @@ class ReleaseManager:
             raise ValueError(f"Release record is invalid for {episode_id}.")
         payload.setdefault("history", [])
         payload.setdefault("state", "draft")
+        payload.setdefault("scheduled_publish_at", "")
+        payload.setdefault("playlist_id", "")
         return payload
 
     def _save(self, episode_id: str, record: dict[str, Any]) -> dict[str, Any]:
         folder = self._publish_dir(episode_id)
         folder.mkdir(parents=True, exist_ok=True)
         record["updated_at"] = self._now()
-        self._release_path(episode_id).write_text(
-            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        self._release_path(episode_id).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
         return record
 
     def _transition(self, episode_id: str, state: str, *, note: str = "", **fields) -> dict[str, Any]:
@@ -118,31 +134,32 @@ class ReleaseManager:
             raise ValueError(f"Unsupported release state: {state}")
         record = self.get(episode_id)
         previous = str(record.get("state", "draft"))
-        entry = {
-            "from": previous,
-            "to": state,
-            "at": self._now(),
-            "note": str(note or ""),
-        }
+        entry = {"from": previous, "to": state, "at": self._now(), "note": str(note or "")}
         record.update(fields)
         record["state"] = state
         record.setdefault("history", []).append(entry)
         return self._save(episode_id, record)
 
+    def configure_distribution(self, episode_id: str, *, publish_at: str = "", playlist_id: str = "") -> dict[str, Any]:
+        record = self.get(episode_id)
+        if str(record.get("state", "draft")) == "published":
+            raise ValueError("Published releases cannot be rescheduled.")
+        normalized = self._normalize_publish_at(publish_at) if str(publish_at or "").strip() else ""
+        record["scheduled_publish_at"] = normalized
+        record["playlist_id"] = str(playlist_id or "").strip()
+        record.setdefault("history", []).append({
+            "from": str(record.get("state", "draft")),
+            "to": str(record.get("state", "draft")),
+            "at": self._now(),
+            "note": "Updated publishing schedule / playlist",
+        })
+        return self._save(episode_id, record)
+
     def mark_ready(self, episode_id: str, *, note: str = "") -> dict[str, Any]:
         check = self.validation(episode_id)
         if not check["ready"]:
-            raise ValueError(
-                "Episode is not publish-ready: " + ", ".join(check["errors"])
-            )
-        return self._transition(
-            episode_id,
-            "ready",
-            note=note,
-            error="",
-            validation=check,
-            ready_at=self._now(),
-        )
+            raise ValueError("Episode is not publish-ready: " + ", ".join(check["errors"]))
+        return self._transition(episode_id, "ready", note=note, error="", validation=check, ready_at=self._now())
 
     def mark_draft(self, episode_id: str, *, note: str = "") -> dict[str, Any]:
         return self._transition(episode_id, "draft", note=note, error="")
@@ -153,15 +170,7 @@ class ReleaseManager:
             raise ValueError("A release failure requires an error message.")
         return self._transition(episode_id, "failed", note=note, error=message)
 
-    def mark_published(
-        self,
-        episode_id: str,
-        *,
-        destination: str,
-        external_id: str = "",
-        external_url: str = "",
-        note: str = "",
-    ) -> dict[str, Any]:
+    def mark_published(self, episode_id: str, *, destination: str, external_id: str = "", external_url: str = "", note: str = "") -> dict[str, Any]:
         record = self.get(episode_id)
         if str(record.get("state", "draft")) != "ready":
             raise ValueError("Episode must be Ready before it can be marked Published.")
@@ -169,14 +178,9 @@ class ReleaseManager:
         if not target:
             raise ValueError("Published releases require a destination.")
         return self._transition(
-            episode_id,
-            "published",
-            note=note,
-            destination=target,
-            external_id=str(external_id or "").strip(),
-            external_url=str(external_url or "").strip(),
-            error="",
-            published_at=self._now(),
+            episode_id, "published", note=note, destination=target,
+            external_id=str(external_id or "").strip(), external_url=str(external_url or "").strip(),
+            error="", published_at=self._now(),
         )
 
     def items(self) -> list[dict[str, Any]]:
@@ -186,8 +190,10 @@ class ReleaseManager:
             if not episode_id:
                 continue
             record = self.get(episode_id)
+            record["episode_number"] = int(episode.get("episode_number", episode.get("sequence", 0)) or 0)
             record["validation"] = self.validation(episode_id)
             rows.append(record)
+        rows.sort(key=lambda item: (int(item.get("episode_number", 0) or 0), str(item.get("episode_id", ""))))
         return rows
 
     def summary(self) -> dict[str, int]:
