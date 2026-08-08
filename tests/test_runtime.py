@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend import runtime
-from desktop.main import main, parse_args
+from desktop.main import main, parse_args, write_json_report
 
 
 class RuntimeTests(unittest.TestCase):
@@ -51,6 +51,20 @@ class RuntimeTests(unittest.TestCase):
             runtime.resource_path("../secret")
         with self.assertRaises(ValueError):
             runtime.resource_path(Path.cwd().anchor + "secret")
+
+    def test_json_report_is_atomic(self):
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "smoke.json"
+            write_json_report(output, {"started": True, "shutdown": True})
+            self.assertEqual(
+                json.loads(output.read_text(encoding="utf-8"))["shutdown"],
+                True,
+            )
+            self.assertFalse(output.with_suffix(".json.tmp").exists())
+
+    def test_cli_modes_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            parse_args(["--diagnostics", "one.json", "--smoke-gui", "two.json"])
 
     def test_cli_rejects_unknown_arguments(self):
         with self.assertRaises(SystemExit):
