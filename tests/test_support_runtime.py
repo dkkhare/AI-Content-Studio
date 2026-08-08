@@ -123,7 +123,8 @@ class SupportRuntimeTests(unittest.TestCase):
                     None,
                 )
             )
-            self.assertFalse(Path(temporary).exists())
+            self.assertEqual((), reporter.reports())
+            self.assertFalse(list(Path(temporary).iterdir()))
 
     def test_crash_hooks_capture_main_and_thread_then_restore(self):
         calls = []
