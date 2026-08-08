@@ -10,6 +10,7 @@ on:
       - "packaging/**"
       - "scripts/build_installer.ps1"
       - "scripts/release_version.py"
+      - "tests/test_release_version.py"
       - ".github/workflows/milestone-20-windows-installer.yml"
   workflow_dispatch:
 
@@ -31,6 +32,8 @@ jobs:
           }
           "APP_VERSION=$Version" | Out-File $env:GITHUB_ENV -Append
           "version=$Version" | Out-File $env:GITHUB_OUTPUT -Append
+      - name: Test release metadata
+        run: python -m unittest -v tests.test_release_version
       - name: Install build tools
         shell: pwsh
         run: |
