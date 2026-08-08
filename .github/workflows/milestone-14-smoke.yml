@@ -9,6 +9,8 @@ on:
       - "desktop/ai/**"
       - "desktop/controllers/ai_controller.py"
       - "desktop/ui/dialogs/ai_settings_dialog.py"
+      - "desktop/ui/docks/ai_assistant_dock.py"
+      - "desktop/workers/ai_stream_worker.py"
       - "desktop/ui/main_window.py"
       - "desktop/ui/menu_bar.py"
       - "tests/test_desktop_ai.py"
