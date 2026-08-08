@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - "desktop/ai/**"
+      - "desktop/app.py"
+      - "desktop/project/project_dialog.py"
+      - "desktop/controllers/project_controller.py"
       - "desktop/controllers/ai_controller.py"
       - "desktop/ui/dialogs/ai_settings_dialog.py"
       - "desktop/ui/docks/ai_assistant_dock.py"
