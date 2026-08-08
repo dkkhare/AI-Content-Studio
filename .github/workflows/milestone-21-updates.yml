@@ -8,9 +8,13 @@ on:
       - "desktop/controllers/update_controller.py"
       - "desktop/settings/update_preferences.py"
       - "desktop/settings/__init__.py"
+      - "desktop/ui/dialogs/update_dialog.py"
+      - "desktop/ui/main_window.py"
+      - "desktop/ui/menu_bar.py"
       - "tests/test_updating.py"
       - "tests/test_update_download.py"
       - "tests/test_update_desktop.py"
+      - "tests/test_update_dialog.py"
       - ".github/workflows/milestone-21-updates.yml"
   workflow_dispatch:
 
@@ -27,6 +31,6 @@ jobs:
       - name: Install desktop test dependency
         run: python -m pip install PySide6
       - name: Compile update modules and tests
-        run: python -m compileall -q backend/updating desktop/controllers/update_controller.py desktop/settings/update_preferences.py tests/test_updating.py tests/test_update_download.py tests/test_update_desktop.py
+        run: python -m compileall -q backend/updating desktop/controllers/update_controller.py desktop/settings/update_preferences.py desktop/ui/dialogs/update_dialog.py desktop/ui/main_window.py desktop/ui/menu_bar.py tests/test_updating.py tests/test_update_download.py tests/test_update_desktop.py tests/test_update_dialog.py
       - name: Run update regressions
-        run: python -m unittest -v tests.test_updating tests.test_update_download tests.test_update_desktop
+        run: python -m unittest -v tests.test_updating tests.test_update_download tests.test_update_desktop tests.test_update_dialog
