@@ -64,6 +64,24 @@ class ExportDesktopControllerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             controller.export_sync("package")
 
+    def test_queue_persists_and_recovers_interrupted_job_on_reopen(self):
+        with tempfile.TemporaryDirectory() as root:
+            project = make_project(root)
+            controller = ExportDesktopController()
+            controller.set_project(project)
+            destination = Path(root) / "queued-package"
+            job = controller.enqueue_current(destination, "publishing")
+            self.assertTrue(Path(root, "project.json").is_file())
+            self.assertTrue(Path(root, "output", "export_queue.json").is_file())
+            self.assertEqual(controller.queue_rows()[0]["status"], "pending")
+
+            controller.queue.replace(job.transition("running", attempts=1))
+            reopened = ExportDesktopController()
+            context = reopened.set_project(project)
+            self.assertEqual(context["jobs"][0]["status"], "pending")
+            self.assertEqual(context["jobs"][0]["attempts"], 1)
+            self.assertIn("interrupted shutdown", context["jobs"][0]["error"])
+
 
 class ExportPanelQtTests(unittest.TestCase):
     @classmethod
@@ -80,6 +98,29 @@ class ExportPanelQtTests(unittest.TestCase):
             self.assertIn("hindi-publishing-publishing", panel.destination.text())
             self.assertEqual(panel.validation_error(), "")
             self.assertTrue(panel.export_button.isEnabled())
+            panel.dispose()
+
+
+    def test_panel_enqueue_status_and_retry_controls(self):
+        with tempfile.TemporaryDirectory() as root:
+            project = make_project(root)
+            panel = ExportPanel()
+            panel.set_project(project)
+            panel.destination.setText(str(Path(root) / "queued"))
+            panel.enqueue_current()
+            self.assertEqual(panel.queue_table.rowCount(), 1)
+            self.assertTrue(panel.run_batch_button.isEnabled())
+            job = panel.controller.queue.jobs[0]
+            panel.controller.queue.replace(
+                job.transition("failed", attempts=1, error="temporary failure")
+            )
+            panel.refresh_queue()
+            panel.queue_table.selectRow(0)
+            panel.refresh()
+            self.assertTrue(panel.retry_button.isEnabled())
+            panel.retry_selected()
+            self.assertEqual(panel.controller.queue.jobs[0].status, "pending")
+            self.assertEqual(panel.queue_table.item(0, 0).text(), "pending")
             panel.dispose()
 
     def test_workspace_replaces_export_placeholder_and_propagates_project(self):
