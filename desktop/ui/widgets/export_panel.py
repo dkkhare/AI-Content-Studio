@@ -42,6 +42,11 @@ class ExportPanel(QWidget):
         self.preset = QComboBox()
         form.addRow("Preset", self.preset)
 
+        self.batch_mode = QComboBox()
+        self.batch_mode.addItem("Export only", "export")
+        self.batch_mode.addItem("Render then export", "render_export")
+        form.addRow("Batch mode", self.batch_mode)
+
         destination_row = QHBoxLayout()
         self.destination = QLineEdit()
         self.destination_button = QPushButton("Choose Parent...")
@@ -72,9 +77,17 @@ class ExportPanel(QWidget):
         layout.addWidget(self.status)
 
         layout.addWidget(QLabel("Persistent Batch Queue"))
-        self.queue_table = QTableWidget(0, 5)
+        self.queue_table = QTableWidget(0, 7)
         self.queue_table.setHorizontalHeaderLabels(
-            ["Status", "Preset", "Destination", "Attempts", "Error"]
+            [
+                "Status",
+                "Phase",
+                "Mode",
+                "Preset",
+                "Destination",
+                "Attempts",
+                "Error",
+            ]
         )
         self.queue_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.queue_table)
@@ -199,7 +212,9 @@ class ExportPanel(QWidget):
             return
         try:
             self.controller.start_export(
-                self.destination.text().strip(), self.preset.currentText()
+                self.destination.text().strip(),
+                self.preset.currentText(),
+                mode=self.batch_mode.currentData(),
             )
         except Exception as exc:
             self._failed(str(exc))
@@ -235,6 +250,8 @@ class ExportPanel(QWidget):
         for row, job in enumerate(rows):
             values = (
                 job["status"],
+                job["phase"],
+                job["mode"],
                 job["preset"],
                 Path(job["destination"]).name,
                 job["attempts"],
@@ -330,6 +347,7 @@ class ExportPanel(QWidget):
         self.cancel_batch_button.setEnabled(running)
         for widget in (
             self.preset,
+            self.batch_mode,
             self.destination,
             self.destination_button,
             self.refresh_button,
