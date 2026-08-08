@@ -45,6 +45,9 @@ DEFAULT_PROJECT_SETTINGS = {
     "video_fps": 30,
     "video_seconds_per_image": 3.0,
     "ffmpeg_path": "",
+    "publishing_provider": "manual",
+    "youtube_client_secrets_path": "",
+    "youtube_token_path": "",
 }
 
 
