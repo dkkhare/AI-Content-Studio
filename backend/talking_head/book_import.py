@@ -135,7 +135,8 @@ class BookImporter:
     def _pdf(self, source: Path) -> BookImportResult:
         document = self._open_pdf(source)
         try:
-            count = int(getattr(document, "page_count", len(document)))
+            page_count = getattr(document, "page_count", None)
+            count = int(page_count if page_count is not None else len(document))
             pages = [self._page_text(document, index) for index in range(count)]
             readable = sum(char.isalnum() for text in pages for char in text)
             if readable < 100:
