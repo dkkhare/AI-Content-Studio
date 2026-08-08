@@ -40,7 +40,10 @@ class Workspace(QWidget):
 
         self.ocr_page = None
 
-        self.subtitle_panel = None\n\n        self.translation_page = None\n
+        self.subtitle_panel = None
+
+        self.translation_page = None
+
         self.video_page = None
 
         self.export_page = None
@@ -95,7 +98,11 @@ class Workspace(QWidget):
 
         self._create_ocr_tab()
 
-        self._create_narration_tab()\n\n        self._create_subtitle_tab()\n\n        self._create_translation_tab()
+        self._create_narration_tab()
+
+        self._create_subtitle_tab()
+
+        self._create_translation_tab()
 
         self._create_video_tab()
 
@@ -250,7 +257,12 @@ class Workspace(QWidget):
         Load project into workspace.
         """
 
-        self.current_project = project\n\n        if self.subtitle_panel:\n            self.subtitle_panel.set_project(project)\n\n        self._busy = False
+        self.current_project = project
+
+        if self.subtitle_panel:
+            self.subtitle_panel.set_project(project)
+
+        self._busy = False
 
         self.refresh()
 
@@ -385,11 +397,14 @@ class Workspace(QWidget):
         self,
     ):
 
-        self.set_current_tab(5)\n\n    def open_export_tab(
+        self.set_current_tab(5)
+
+    def open_export_tab(
         self,
     ):
 
-        self.set_current_tab(6)\n    # --------------------------------------------------
+        self.set_current_tab(6)
+    # --------------------------------------------------
     # Cleanup
     # --------------------------------------------------
 
