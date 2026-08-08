@@ -33,9 +33,9 @@ class ReleaseManagerPanel(QWidget):
         self.publisher = None
         self.summary = QLabel("Open a project to manage releases.", self)
         self.summary.setWordWrap(True)
-        self.table = QTableWidget(0, 7, self)
+        self.table = QTableWidget(0, 9, self)
         self.table.setHorizontalHeaderLabels([
-            "Episode", "Title", "State", "Ready", "Video", "Thumbnail", "ID"
+            "Episode", "Title", "State", "Ready", "Schedule", "Playlist", "Video", "Thumbnail", "ID"
         ])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -48,8 +48,12 @@ class ReleaseManagerPanel(QWidget):
         self.youtube_token_path = QLineEdit(self)
         self.save_provider_button = QPushButton("Save Publishing Settings", self)
         self.publish_button = QPushButton("Publish Ready Episode", self)
+        self.bulk_publish_button = QPushButton("Publish All Ready", self)
+        self.schedule_button = QPushButton("Set Schedule / Playlist", self)
         self.save_provider_button.clicked.connect(self.save_provider_settings)
         self.publish_button.clicked.connect(self.publish_selected)
+        self.bulk_publish_button.clicked.connect(self.publish_all_ready)
+        self.schedule_button.clicked.connect(self.configure_distribution)
 
         self.ready_button = QPushButton("Mark Ready", self)
         self.draft_button = QPushButton("Back to Draft", self)
@@ -66,30 +70,22 @@ class ReleaseManagerPanel(QWidget):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.addWidget(self.summary)
-
         provider_box = QGroupBox("Publishing Provider", self)
         provider_form = QFormLayout(provider_box)
         provider_form.addRow("Provider", self.provider_combo)
         provider_form.addRow("YouTube OAuth client-secrets JSON", self.youtube_client_secrets)
         provider_form.addRow("YouTube OAuth token JSON", self.youtube_token_path)
         provider_buttons = QHBoxLayout()
-        provider_buttons.addWidget(self.save_provider_button)
-        provider_buttons.addWidget(self.publish_button)
+        for button in (self.save_provider_button, self.publish_button, self.bulk_publish_button):
+            provider_buttons.addWidget(button)
         provider_buttons.addStretch()
         provider_form.addRow(provider_buttons)
         layout.addWidget(provider_box)
-
         layout.addWidget(self.table, 2)
         layout.addWidget(QLabel("Publish Manifest / Release History", self))
         layout.addWidget(self.details, 2)
         buttons = QHBoxLayout()
-        for button in (
-            self.ready_button,
-            self.draft_button,
-            self.published_button,
-            self.failed_button,
-            self.refresh_button,
-        ):
+        for button in (self.schedule_button, self.ready_button, self.draft_button, self.published_button, self.failed_button, self.refresh_button):
             buttons.addWidget(button)
         buttons.addStretch()
         layout.addLayout(buttons)
@@ -151,22 +147,18 @@ class ReleaseManagerPanel(QWidget):
             status = statuses.get(selected, {})
             provider_text = f" • Provider: {status.get('name', selected)} ({'configured' if status.get('configured') else 'not configured'})"
         self.summary.setText(
-            f"Releases: {summary['total']} total • {summary['draft']} draft • "
-            f"{summary['ready']} ready • {summary['published']} published • "
-            f"{summary['failed']} failed{provider_text}"
+            f"Releases: {summary['total']} total • {summary['draft']} draft • {summary['ready']} ready • "
+            f"{summary['published']} published • {summary['failed']} failed{provider_text}"
         )
         for item in self.manager.items():
             validation = item.get("validation", {})
             row = self.table.rowCount()
             self.table.insertRow(row)
             values = [
-                str(item.get("episode_id", "")),
-                str(item.get("title", "")),
-                str(item.get("state", "draft")),
-                "Yes" if validation.get("ready") else "No",
-                "Yes" if validation.get("video_exists") else "No",
-                "Yes" if validation.get("thumbnail_exists") else "No",
-                str(item.get("episode_id", "")),
+                str(item.get("episode_id", "")), str(item.get("title", "")), str(item.get("state", "draft")),
+                "Yes" if validation.get("ready") else "No", str(item.get("scheduled_publish_at", "")),
+                str(item.get("playlist_id", "")), "Yes" if validation.get("video_exists") else "No",
+                "Yes" if validation.get("thumbnail_exists") else "No", str(item.get("episode_id", "")),
             ]
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
@@ -178,7 +170,7 @@ class ReleaseManagerPanel(QWidget):
         row = self.table.currentRow()
         if row < 0:
             return ""
-        item = self.table.item(row, 6)
+        item = self.table.item(row, 8)
         return item.text().strip() if item else ""
 
     def _load_selected(self) -> None:
@@ -192,12 +184,7 @@ class ReleaseManagerPanel(QWidget):
             manifest = self.manager.manifest(episode_id)
         except Exception as exc:
             manifest = {"error": str(exc)}
-        payload = {
-            "validation": validation,
-            "release": release,
-            "manifest": manifest,
-        }
-        self.details.setPlainText(json.dumps(payload, ensure_ascii=False, indent=2))
+        self.details.setPlainText(json.dumps({"validation": validation, "release": release, "manifest": manifest}, ensure_ascii=False, indent=2))
 
     def _run(self, action) -> None:
         episode_id = self._selected_id()
@@ -210,22 +197,49 @@ class ReleaseManagerPanel(QWidget):
             return
         self.refresh()
 
+    def configure_distribution(self) -> None:
+        episode_id = self._selected_id()
+        if not episode_id or self.manager is None:
+            return
+        current = self.manager.get(episode_id)
+        publish_at, ok = QInputDialog.getText(
+            self, "Schedule Episode", "ISO-8601 publish time with timezone (blank = unscheduled)",
+            text=str(current.get("scheduled_publish_at", "")),
+        )
+        if not ok:
+            return
+        playlist_id, ok = QInputDialog.getText(
+            self, "YouTube Playlist", "Playlist ID (blank = none)", text=str(current.get("playlist_id", "")),
+        )
+        if not ok:
+            return
+        self._run(lambda selected: self.manager.configure_distribution(selected, publish_at=publish_at.strip(), playlist_id=playlist_id.strip()))
+
     def publish_selected(self) -> None:
         episode_id = self._selected_id()
         if not episode_id or self.publisher is None:
             return
         provider_id = str(self.provider_combo.currentData() or "manual")
         if provider_id == "manual":
-            QMessageBox.information(
-                self,
-                "Manual Publishing",
-                "Publish the episode externally, then use Mark Published Manually to record the destination and URL.",
-            )
+            QMessageBox.information(self, "Manual Publishing", "Publish externally, then use Mark Published Manually.")
             return
         try:
             self.publisher.publish_episode(episode_id, provider_id)
         except Exception as exc:
             QMessageBox.warning(self, "Publishing Failed", str(exc))
+        self.refresh()
+
+    def publish_all_ready(self) -> None:
+        if self.publisher is None:
+            return
+        provider_id = str(self.provider_combo.currentData() or "manual")
+        if provider_id == "manual":
+            QMessageBox.information(self, "Manual Publishing", "Bulk upload requires an automated provider such as YouTube.")
+            return
+        results = self.publisher.publish_ready(provider_id)
+        succeeded = sum(1 for item in results if item.get("ok"))
+        failed = len(results) - succeeded
+        QMessageBox.information(self, "Bulk Publishing", f"Processed {len(results)} Ready episode(s): {succeeded} succeeded, {failed} failed.")
         self.refresh()
 
     def mark_ready(self) -> None:
@@ -239,24 +253,15 @@ class ReleaseManagerPanel(QWidget):
         if not episode_id or self.manager is None:
             return
         error, accepted = QInputDialog.getText(self, "Mark Release Failed", "Error / reason")
-        if not accepted or not error.strip():
-            return
-        self._run(lambda selected: self.manager.mark_failed(selected, error.strip()))
+        if accepted and error.strip():
+            self._run(lambda selected: self.manager.mark_failed(selected, error.strip()))
 
     def mark_published(self) -> None:
         episode_id = self._selected_id()
         if not episode_id or self.manager is None:
             return
-        destination, accepted = QInputDialog.getText(
-            self, "Mark Published", "Destination (for example YouTube or Podcast RSS)"
-        )
+        destination, accepted = QInputDialog.getText(self, "Mark Published", "Destination (for example YouTube or Podcast RSS)")
         if not accepted or not destination.strip():
             return
         external_url, _ = QInputDialog.getText(self, "Published URL", "External URL (optional)")
-        self._run(
-            lambda selected: self.manager.mark_published(
-                selected,
-                destination=destination.strip(),
-                external_url=external_url.strip(),
-            )
-        )
+        self._run(lambda selected: self.manager.mark_published(selected, destination=destination.strip(), external_url=external_url.strip()))
