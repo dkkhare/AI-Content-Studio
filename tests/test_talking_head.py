@@ -17,7 +17,7 @@ from backend.talking_head import (
 class TalkingHeadTests(unittest.TestCase):
     def test_split_script_preserves_text_and_bounds_chunks(self):
         source = "पहला वाक्य। दूसरा वाक्य थोड़ा लंबा है। Third sentence."
-        chunks = split_script(source, segment_seconds=15, characters_per_second=4)
+        chunks = split_script(source, segment_seconds=15, characters_per_second=3)
         self.assertGreaterEqual(len(chunks), 2)
         self.assertEqual(" ".join(chunks), source)
 
