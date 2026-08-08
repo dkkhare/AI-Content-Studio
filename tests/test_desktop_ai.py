@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
+from pathlib import Path
 
 from backend.ai import AIResponse, AIStreamChunk
 from desktop.ai.configuration import AIProfile, AISettingsStore
+from desktop.ai.project_text import ProjectTextService
 from desktop.controllers.ai_controller import AIDesktopController
 
 
@@ -52,6 +55,49 @@ class FakeManager:
         self.requests.append((request, provider_id))
         yield AIStreamChunk("one", provider_id, request.model)
         yield AIStreamChunk("two", provider_id, request.model, done=True)
+
+
+class FakeProject:
+    def __init__(self, root):
+        self.root = Path(root)
+        self.output_directory = "output"
+        self.ocr_file = ""
+        self.translation_file = ""
+        self.subtitle_file = ""
+        self.touched = False
+
+    def touch(self):
+        self.touched = True
+
+
+class ProjectTextServiceTests(unittest.TestCase):
+    def test_discovers_reads_and_saves_project_text(self):
+        with tempfile.TemporaryDirectory() as root:
+            project = FakeProject(root)
+            source = Path(root) / "output" / "ocr_cleaned.txt"
+            source.parent.mkdir(parents=True)
+            source.write_text("हिन्दी पाठ", encoding="utf-8")
+            service = ProjectTextService()
+            sources = service.sources(project)
+            self.assertEqual(len(sources), 1)
+            self.assertEqual(service.read(sources[0][1]), "हिन्दी पाठ")
+
+            target = service.save_output(project, "सुधारा गया")
+            self.assertEqual(target.read_text(encoding="utf-8"), "सुधारा गया")
+            self.assertFalse(target.with_suffix(".tmp").exists())
+            self.assertTrue(project.touched)
+
+    def test_rejects_unsupported_or_large_files(self):
+        with tempfile.TemporaryDirectory() as root:
+            service = ProjectTextService(max_bytes=4)
+            binary = Path(root) / "data.bin"
+            binary.write_bytes(b"123")
+            with self.assertRaises(ValueError):
+                service.read(binary)
+            text = Path(root) / "large.txt"
+            text.write_text("12345", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                service.read(text)
 
 
 class DesktopAIConfigurationTests(unittest.TestCase):
