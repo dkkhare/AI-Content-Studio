@@ -210,7 +210,10 @@ No API key is required. Optional smoke test:
 python scripts/tts_smoke.py --reference-audio "C:\voices\sample.wav" --reference-text "Exact words in sample.wav" --text "नमस्ते, AI Content Studio तैयार है।" --output "D:\AIProjects\tts-smoke"
 ```
 
-See [the detailed F5-TTS guide](docs/tts.md).
+See the [complete F5-TTS hardware, software, Windows, Ubuntu, and macOS
+installation guide](docs/tts.md). It also covers CUDA, ROCm, Apple MPS, CPU
+fallback, model storage, reference-audio preparation, licensing, smoke tests,
+and troubleshooting.
 
 ### Install SadTalker for talking-head and lip-sync video
 
