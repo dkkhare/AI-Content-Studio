@@ -44,6 +44,9 @@ class Workspace(QWidget):
 
         self.translation_page = None
 
+        if self.video_page and hasattr(self.video_page, "dispose"):
+            self.video_page.dispose()
+
         self.video_page = None
 
         self.export_page = None
@@ -210,16 +213,9 @@ class Workspace(QWidget):
         self,
     ):
 
-        self.video_page = QLabel(
-            "Video Generation\n\n"
-            "Video generation tools."
-        )
+        from desktop.ui.widgets.video_panel import VideoPanel
 
-        self.video_page.setAlignment(
-            Qt.AlignTop | Qt.AlignLeft
-        )
-
-        self.video_page.setWordWrap(True)
+        self.video_page = VideoPanel()
 
         self.tabs.addTab(
             self.video_page,
@@ -261,6 +257,9 @@ class Workspace(QWidget):
 
         if self.subtitle_panel:
             self.subtitle_panel.set_project(project)
+
+        if self.video_page:
+            self.video_page.set_project(project)
 
         self._busy = False
 
@@ -436,6 +435,9 @@ class Workspace(QWidget):
 
         if self.subtitle_panel:
             self.subtitle_panel.clear()
+
+        if self.video_page:
+            self.video_page.clear()
 
         self.set_current_tab(0)
 
