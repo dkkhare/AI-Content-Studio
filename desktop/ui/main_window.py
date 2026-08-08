@@ -689,22 +689,13 @@ class MainWindow(QMainWindow):
 
         try:
             root = app_data_dir()
-            sources = []
-            for directory in (root / "logs", root / "crashes"):
-                if directory.is_dir():
-                    sources.extend(
-                        path
-                        for path in sorted(
-                            directory.iterdir(),
-                            key=lambda item: item.stat().st_mtime_ns,
-                            reverse=True,
-                        )
-                        if path.is_file()
-                    )
             service = SupportBundleService()
+            sources = service.discover_log_paths(
+                (root / "logs", root / "crashes")
+            )
             path, manifest = service.create(
                 destination,
-                log_paths=sources[: service.max_logs],
+                log_paths=sources,
                 settings={
                     "automatic_upload": False,
                     "included_log_count": min(
