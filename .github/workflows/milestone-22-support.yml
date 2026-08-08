@@ -1,0 +1,23 @@
+name: Milestone 22 Support Diagnostics
+
+on:
+  pull_request:
+    paths:
+      - "backend/supporting/**"
+      - "backend/runtime.py"
+      - "tests/test_supporting.py"
+      - ".github/workflows/milestone-22-support.yml"
+  workflow_dispatch:
+
+jobs:
+  support-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile support modules and tests
+        run: python -m compileall -q backend/supporting tests/test_supporting.py
+      - name: Run support bundle regressions
+        run: python -m unittest -v tests.test_supporting
