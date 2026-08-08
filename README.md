@@ -667,22 +667,201 @@ include:
 Do not upload copyrighted/private source media unless you are authorized to
 share it.
 
-## Development
+## Run directly as a Python project (no EXE)
 
-Source development uses Python 3.11:
+Building an EXE is optional. You can clone the repository, install its Python
+dependencies in a virtual environment, and launch the same desktop application
+from source.
+
+### 1. Install source prerequisites
+
+Install 64-bit Python 3.11 and Git. Install FFmpeg, Ollama, OCR tools, or GPU
+software only for the corresponding optional features.
+
+Verify the basic tools:
 
 ```powershell
+py -3.11 --version
+git --version
+```
+
+If using video:
+
+```powershell
+ffmpeg -version
+```
+
+### 2. Clone the repository
+
+Choose a writable development location:
+
+```powershell
+cd D:\
+git clone https://github.com/dkkhare/AI-Content-Studio.git
+cd AI-Content-Studio
+```
+
+The default checkout is `main`. To test the current Milestone 23 candidate before
+it is merged:
+
+```powershell
+git switch agent/milestone-23-release-readiness
+```
+
+Do not switch branches while the application is running or while you have
+uncommitted source changes.
+
+### 3. Create and activate a virtual environment
+
+```powershell
+py -3.11 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+The PowerShell prompt should show `(.venv)`. The execution-policy command affects
+only the current PowerShell process.
+
+### 4. Install Python dependencies
+
+```powershell
+python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+```
+
+This can take time and significant disk space because the source requirements
+include Qt, PyTorch, Transformers, OCR, PDF, image, and audio packages.
+
+### 5. Install optional F5-TTS
+
+Install F5-TTS into the same activated environment only if you need local
+reference-voice narration:
+
+```powershell
+python -m pip install -r requirements-tts.txt
+```
+
+Test it with a short clean recording and exact transcript:
+
+```powershell
+python scripts/tts_smoke.py --reference-audio "C:\voices\sample.wav" --reference-text "Exact words spoken in the sample" --text "नमस्ते, यह एक परीक्षण है।" --output "D:\AIProjects\tts-test"
+```
+
+The first run may download model files. F5-TTS does not need an API key.
+
+### 6. Configure an AI provider
+
+The safest interactive method is **AI → Provider Settings**. For source testing,
+you may instead set temporary variables in the current PowerShell session.
+
+OpenAI:
+
+```powershell
+$env:OPENAI_API_KEY = "replace-with-your-key"
+$env:OPENAI_DEFAULT_MODEL = "replace-with-an-available-model"
+```
+
+Gemini:
+
+```powershell
+$env:GEMINI_API_KEY = "replace-with-your-key"
+$env:GEMINI_DEFAULT_MODEL = "replace-with-an-available-model"
+```
+
+Ollama:
+
+```powershell
+ollama pull llama3.2
+$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+$env:OLLAMA_DEFAULT_MODEL = "llama3.2"
+```
+
+Variables set with `$env:` disappear when that PowerShell session closes. This
+is useful for testing and avoids storing keys permanently.
+
+### 7. Start the application
+
+Run from the repository root with the virtual environment active:
+
+```powershell
 python -m desktop.main
 ```
 
-To build the Windows installer with Inno Setup 6 installed:
+Use module execution as shown. Do not double-click `desktop\main.py`, because
+the repository root may not be added to Python's import path correctly.
+
+Generated project assets normally appear under:
+
+```text
+<Project root>\output
+```
+
+### 8. Generate diagnostics without opening the GUI
 
 ```powershell
+python -m desktop.main --diagnostics ".\diagnostics.json"
+Get-Content ".\diagnostics.json"
+```
+
+Use an absolute output path if you want the report in another directory.
+
+### 9. Run automated tests
+
+Run the complete discovered unittest suite:
+
+```powershell
+python -m unittest discover -v
+```
+
+Run selected core regressions:
+
+```powershell
+python -m unittest -v tests.test_project_lifecycle tests.test_ai_core tests.test_supporting tests.test_support_runtime
+```
+
+Some live model, network, GPU, OCR, and FFmpeg checks require their optional
+external dependencies and may be intentionally excluded from deterministic CI.
+
+### 10. Daily startup after initial setup
+
+You do not need to reinstall dependencies each day:
+
+```powershell
+cd D:\AI-Content-Studio
+.\.venv\Scripts\Activate.ps1
+python -m desktop.main
+```
+
+When finished, close the application before deactivating:
+
+```powershell
+deactivate
+```
+
+### Update the source checkout
+
+Preserve or commit your own source changes before updating:
+
+```powershell
+git switch main
+git pull --ff-only
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+Rerun the optional TTS requirements command if `requirements-tts.txt` changed.
+
+### Optional: build the Windows installer
+
+Only developers producing a packaged release need PyInstaller and Inno Setup 6:
+
+```powershell
+python -m pip install -r requirements-build.txt
 powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 ```
 
-The installer is written to the repository's `release\` directory.
+The installer is written to the repository's `release\` directory. Normal
+source users do not need this step.
 
 ## Project status
 
