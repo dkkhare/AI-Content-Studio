@@ -9,6 +9,7 @@ on:
       - "requirements-build.txt"
       - "packaging/**"
       - "scripts/build_installer.ps1"
+      - "scripts/release_version.py"
       - ".github/workflows/milestone-20-windows-installer.yml"
   workflow_dispatch:
 
@@ -20,6 +21,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $Version = python scripts/release_version.py
+          if ($LASTEXITCODE -ne 0 -or -not $Version) {
+            throw "Unable to resolve application version"
+          }
+          "APP_VERSION=$Version" | Out-File $env:GITHUB_ENV -Append
+          "version=$Version" | Out-File $env:GITHUB_OUTPUT -Append
       - name: Install build tools
         shell: pwsh
         run: |
@@ -41,14 +52,14 @@ jobs:
           if (-not $Compiler) {
             throw "Inno Setup 6 compiler was not found."
           }
-          & $Compiler "packaging\AIContentStudio.iss"
+          & $Compiler "/DMyAppVersion=$env:APP_VERSION" "packaging\AIContentStudio.iss"
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup failed with exit code $LASTEXITCODE"
           }
       - name: Install and verify application
         shell: pwsh
         run: |
-          $Installer = Resolve-Path "release\AIContentStudio-Setup-0.19.0-windows-x64.exe"
+          $Installer = Resolve-Path "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe"
           $InstallDir = Join-Path $env:RUNNER_TEMP "AIContentStudio-installed"
           $Install = Start-Process -FilePath $Installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=$InstallDir" -Wait -PassThru
           if ($Install.ExitCode -ne 0) {
@@ -79,14 +90,14 @@ jobs:
       - name: Generate installer checksum
         shell: pwsh
         run: |
-          $Installer = Resolve-Path "release\AIContentStudio-Setup-0.19.0-windows-x64.exe"
+          $Installer = Resolve-Path "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe"
           $Hash = (Get-FileHash $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
           "$Hash  $($Installer.Path | Split-Path -Leaf)" | Set-Content "release\SHA256SUMS.txt" -Encoding utf8
       - name: Upload verified installer
         uses: actions/upload-artifact@v4
         with:
-          name: AIContentStudio-Setup-0.19.0-windows-x64
+          name: AIContentStudio-Setup-${{ steps.version.outputs.version }}-windows-x64
           path: |
-            release/AIContentStudio-Setup-0.19.0-windows-x64.exe
+            release/AIContentStudio-Setup-*-windows-x64.exe
             release/SHA256SUMS.txt
           if-no-files-found: error
