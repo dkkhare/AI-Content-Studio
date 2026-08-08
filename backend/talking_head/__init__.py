@@ -17,10 +17,17 @@ from .pipeline import (
     SegmentRecord,
     split_script,
 )
+from .series import (
+    EpisodeOutput,
+    SeriesRequest,
+    SeriesResult,
+    TalkingHeadSeriesPipeline,
+)
 
 __all__ = [
     "Episode",
     "EpisodeFragment",
+    "EpisodeOutput",
     "LongFormTalkingHeadPipeline",
     "PipelineCancelled",
     "PodcastRequest",
@@ -29,7 +36,10 @@ __all__ = [
     "SadTalkerConfig",
     "SegmentRecord",
     "SeriesPlan",
+    "SeriesRequest",
+    "SeriesResult",
     "SourceBlock",
+    "TalkingHeadSeriesPipeline",
     "plan_episodes",
     "split_script",
 ]
