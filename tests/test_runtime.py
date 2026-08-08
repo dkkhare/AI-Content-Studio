@@ -7,7 +7,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend import runtime
-from desktop.main import main, parse_args, write_json_report
+from desktop.main import (
+    _restore_environment,
+    main,
+    parse_args,
+    write_json_report,
+)
 
 
 class RuntimeTests(unittest.TestCase):
@@ -62,9 +67,27 @@ class RuntimeTests(unittest.TestCase):
             )
             self.assertFalse(output.with_suffix(".json.tmp").exists())
 
+    def test_smoke_environment_is_restored(self):
+        with patch.dict("os.environ", {"UPDATE_TEST": "original"}):
+            _restore_environment("UPDATE_TEST", "previous")
+            self.assertEqual(__import__("os").environ["UPDATE_TEST"], "previous")
+            _restore_environment("UPDATE_TEST", None)
+            self.assertNotIn("UPDATE_TEST", __import__("os").environ)
+
+    def test_update_ui_smoke_mode_parses(self):
+        args = parse_args(["--smoke-update-ui", "update-smoke.json"])
+        self.assertEqual(args.smoke_update_ui, "update-smoke.json")
+
     def test_cli_modes_are_mutually_exclusive(self):
         with self.assertRaises(SystemExit):
-            parse_args(["--diagnostics", "one.json", "--smoke-gui", "two.json"])
+            parse_args(
+                [
+                    "--diagnostics",
+                    "one.json",
+                    "--smoke-update-ui",
+                    "two.json",
+                ]
+            )
 
     def test_cli_rejects_unknown_arguments(self):
         with self.assertRaises(SystemExit):
