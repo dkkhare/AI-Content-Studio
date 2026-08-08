@@ -7,6 +7,7 @@ from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.episode_production_panel import EpisodeProductionPanel
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
+from desktop.ui.widgets.readiness_panel import ReadinessPanel
 from desktop.ui.widgets.release_calendar_panel import ReleaseCalendarPanel
 from desktop.ui.widgets.release_manager_panel import ReleaseManagerPanel
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
@@ -43,6 +44,7 @@ class Workspace(QWidget):
         self.video_review_panel = None
         self.release_manager_panel = None
         self.release_calendar_panel = None
+        self.readiness_panel = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -91,6 +93,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.release_manager_panel, "Release Manager")
         self.release_calendar_panel = ReleaseCalendarPanel(self)
         self.tabs.addTab(self.release_calendar_panel, "Release Calendar")
+        self.readiness_panel = ReadinessPanel(self)
+        self.tabs.addTab(self.readiness_panel, "Setup & Readiness")
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -144,6 +148,7 @@ class Workspace(QWidget):
             self.video_review_panel,
             self.release_manager_panel,
             self.release_calendar_panel,
+            self.readiness_panel,
         ):
             if widget:
                 widget.set_project(project)
@@ -172,6 +177,7 @@ class Workspace(QWidget):
             self.video_review_panel,
             self.release_manager_panel,
             self.release_calendar_panel,
+            self.readiness_panel,
         ):
             if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
                 try:
@@ -179,12 +185,8 @@ class Workspace(QWidget):
                 except Exception:
                     pass
 
-    def set_busy(self, busy: bool) -> None:
-        self._busy = bool(busy)
-
-    def is_busy(self) -> bool:
-        return self._busy
-
+    def set_busy(self, busy: bool) -> None: self._busy = bool(busy)
+    def is_busy(self) -> bool: return self._busy
     def narration(self): return self.narration_panel
     def processing(self): return self.workflow_panel
     def production(self): return self.export_page
@@ -195,17 +197,12 @@ class Workspace(QWidget):
     def video_review(self): return self.video_review_panel
     def release_manager(self): return self.release_manager_panel
     def release_calendar(self): return self.release_calendar_panel
+    def readiness(self): return self.readiness_panel
 
-    def current_tab(self) -> int:
-        return self.tabs.currentIndex()
-
+    def current_tab(self) -> int: return self.tabs.currentIndex()
     def set_current_tab(self, index: int) -> None:
-        if 0 <= index < self.tabs.count():
-            self.tabs.setCurrentIndex(index)
-
-    def current_tab_name(self) -> str:
-        return self.tabs.tabText(self.tabs.currentIndex())
-
+        if 0 <= index < self.tabs.count(): self.tabs.setCurrentIndex(index)
+    def current_tab_name(self) -> str: return self.tabs.tabText(self.tabs.currentIndex())
     def open_pdf_tab(self) -> None: self.set_current_tab(0)
     def open_ocr_tab(self) -> None: self.set_current_tab(1)
     def open_narration_tab(self) -> None: self.set_current_tab(2)
@@ -220,42 +217,27 @@ class Workspace(QWidget):
     def open_video_review_tab(self) -> None: self.set_current_tab(11)
     def open_release_manager_tab(self) -> None: self.set_current_tab(12)
     def open_release_calendar_tab(self) -> None: self.set_current_tab(13)
+    def open_readiness_tab(self) -> None: self.set_current_tab(14)
 
     def clear(self) -> None:
         self._busy = False
         self.current_project = None
-        if self.workflow_panel:
-            self.workflow_panel.set_project_available(False)
+        if self.workflow_panel: self.workflow_panel.set_project_available(False)
         for widget in (
-            self.export_page,
-            self.project_status_dashboard,
-            self.story_review_panel,
-            self.scene_review_panel,
-            self.visual_review_panel,
-            self.video_review_panel,
-            self.release_manager_panel,
-            self.release_calendar_panel,
+            self.export_page, self.project_status_dashboard, self.story_review_panel, self.scene_review_panel,
+            self.visual_review_panel, self.video_review_panel, self.release_manager_panel, self.release_calendar_panel,
+            self.readiness_panel,
         ):
-            if widget and hasattr(widget, "clear"):
-                widget.clear()
+            if widget and hasattr(widget, "clear"): widget.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
-            try:
-                self.narration_panel.clear()
-            except Exception:
-                pass
+            try: self.narration_panel.clear()
+            except Exception: pass
         self.set_current_tab(0)
 
-    def has_project(self) -> bool:
-        return self.current_project is not None
-
-    def project(self):
-        return self.current_project
-
-    def tab_count(self) -> int:
-        return self.tabs.count()
-
+    def has_project(self) -> bool: return self.current_project is not None
+    def project(self): return self.current_project
+    def tab_count(self) -> int: return self.tabs.count()
     def dispose(self) -> None:
-        if self.pipeline_controller and self.pipeline_controller.running:
-            self.pipeline_controller.cancel()
+        if self.pipeline_controller and self.pipeline_controller.running: self.pipeline_controller.cancel()
         self.clear()
         self.pipeline_controller = None
