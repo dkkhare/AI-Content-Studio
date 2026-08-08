@@ -8,6 +8,7 @@ on:
       - "requirements.txt"
       - "requirements-build.txt"
       - "AIContentStudio.spec"
+      - "packaging/**"
       - "scripts/build_windows.ps1"
       - "tests/test_runtime.py"
       - ".github/workflows/milestone-19-windows-build.yml"
