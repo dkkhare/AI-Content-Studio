@@ -23,7 +23,7 @@ def write_wav(path, seconds=2, rate=8000):
         audio.setnchannels(1)
         audio.setsampwidth(2)
         audio.setframerate(rate)
-        audio.writeframes(b"\\x00\\x00" * int(seconds * rate))
+        audio.writeframes(b"\x00\x00" * int(seconds * rate))
 
 
 class SubtitleDesktopControllerTests(unittest.TestCase):
