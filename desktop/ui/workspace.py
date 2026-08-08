@@ -44,7 +44,10 @@ class Workspace(QWidget):
 
         self.translation_page = None
 
-        self.talking_head_page = None\n\n        self.video_page = None\n
+        self.talking_head_page = None
+
+        self.video_page = None
+
         self.export_page = None
 
         self.narration_panel = None
@@ -101,7 +104,11 @@ class Workspace(QWidget):
 
         self._create_subtitle_tab()
 
-        self._create_translation_tab()\n\n        self._create_talking_head_tab()\n\n        self._create_video_tab()
+        self._create_translation_tab()
+
+        self._create_talking_head_tab()
+
+        self._create_video_tab()
 
         self._create_export_tab()
 
@@ -258,7 +265,11 @@ class Workspace(QWidget):
         if self.subtitle_panel:
             self.subtitle_panel.set_project(project)
 
-        if self.talking_head_page:\n            self.talking_head_page.set_project(project)\n\n        if self.video_page:\n            self.video_page.set_project(project)
+        if self.talking_head_page:
+            self.talking_head_page.set_project(project)
+
+        if self.video_page:
+            self.video_page.set_project(project)
 
         if self.export_page:
             self.export_page.set_project(project)
@@ -444,7 +455,11 @@ class Workspace(QWidget):
         if self.subtitle_panel:
             self.subtitle_panel.clear()
 
-        if self.talking_head_page:\n            self.talking_head_page.clear()\n\n        if self.video_page:\n            self.video_page.clear()
+        if self.talking_head_page:
+            self.talking_head_page.clear()
+
+        if self.video_page:
+            self.video_page.clear()
 
         if self.export_page:
             self.export_page.clear()
