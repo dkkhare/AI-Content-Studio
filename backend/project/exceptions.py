@@ -64,6 +64,12 @@ class ProjectValidationError(ProjectError):
     pass
 
 
+class InvalidProjectError(ProjectValidationError):
+    """Compatibility error for invalid project metadata or structure."""
+
+    pass
+
+
 # --------------------------------------------------
 # Assets
 # --------------------------------------------------
