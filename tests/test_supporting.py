@@ -37,15 +37,16 @@ class SupportBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             log = root / "application.log"
+            user_home = str(Path.home().resolve())
             log.write_text(
-                "Started /home/dev/project\napi_key=secret-value\n",
+                f"Started {user_home}/project\napi_key=secret-value\n",
                 encoding="utf-8",
             )
             service = SupportBundleService(
                 allowed_roots=(root,),
                 diagnostics_provider=lambda: {
                     "platform": "Windows",
-                    "home": "/home/dev",
+                    "home": user_home,
                     "access_token": "diagnostic-secret",
                 },
             )
@@ -75,7 +76,7 @@ class SupportBundleTests(unittest.TestCase):
                     "secret-value",
                     "diagnostic-secret",
                     "settings-secret",
-                    "/home/dev",
+                    user_home,
                 ):
                     self.assertNotIn(secret, combined)
                 stored = json.loads(archive.read("manifest.json"))
