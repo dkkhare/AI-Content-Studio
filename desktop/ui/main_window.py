@@ -665,6 +665,8 @@ class MainWindow(QMainWindow):
 
                 self.project_controller.close_project(force=True)
 
+            if self.workspace:
+                self.workspace.dispose()
 
             self.save_ui_state()
 
