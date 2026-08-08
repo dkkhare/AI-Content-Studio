@@ -152,8 +152,22 @@ class TTSController(QObject):
         self._voice_profiles = list(self.worker.available_speakers())
         return list(self._voice_profiles)
 
-    def dispose(self) -> None:
+    def session(self):
+        return self._last_session
+
+    def statistics(self) -> dict:
+        return {
+            "running": self._running,
+            "output_file": self._last_output,
+            "has_session": self._last_session is not None,
+            "voices": len(self._voice_profiles),
+        }
+
+    def cleanup(self) -> None:
         self.shutdown(wait=True)
+
+    def dispose(self) -> None:
+        self.cleanup()
 
     def __del__(self):
         try:
