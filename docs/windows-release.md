@@ -62,7 +62,7 @@ The versioned installer is written to `release\`.
 
 ## Publish a release
 
-1. Update `VERSION` and `VERSION_TUPLE` in `backend/version.py`, plus Windows version metadata.
+1. Update `VERSION` and `VERSION_TUPLE` in `backend/version.py`; Windows executable and installer metadata are derived from it.
 2. Merge the change only after the Windows package and installer workflows pass.
 3. Create and push an exact matching tag, for example `v0.19.0`.
 4. The release workflow rejects any tag that does not exactly match `backend/version.py`.
