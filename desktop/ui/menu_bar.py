@@ -278,6 +278,18 @@ def build_menu(
     window.updateAction = update_action
     help_menu.addSeparator()
 
+    support_action = QAction(
+        "Export Support Bundle...",
+        window,
+    )
+    support_action.triggered.connect(
+        window.export_support_bundle
+    )
+    help_menu.addAction(support_action)
+    window.supportBundleAction = support_action
+
+    help_menu.addSeparator()
+
 
     about_action = QAction(
         "About AI Content Studio",
