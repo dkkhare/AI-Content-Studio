@@ -7,6 +7,7 @@ from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.episode_production_panel import EpisodeProductionPanel
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
+from desktop.ui.widgets.release_calendar_panel import ReleaseCalendarPanel
 from desktop.ui.widgets.release_manager_panel import ReleaseManagerPanel
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
 from desktop.ui.widgets.story_review_panel import StoryReviewPanel
@@ -41,6 +42,7 @@ class Workspace(QWidget):
         self.visual_review_panel = None
         self.video_review_panel = None
         self.release_manager_panel = None
+        self.release_calendar_panel = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -87,6 +89,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.video_review_panel, "Video Review")
         self.release_manager_panel = ReleaseManagerPanel(self)
         self.tabs.addTab(self.release_manager_panel, "Release Manager")
+        self.release_calendar_panel = ReleaseCalendarPanel(self)
+        self.tabs.addTab(self.release_calendar_panel, "Release Calendar")
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -131,20 +135,18 @@ class Workspace(QWidget):
         self._busy = False
         if self.workflow_panel:
             self.workflow_panel.set_project_available(True)
-        if self.export_page:
-            self.export_page.set_project(project)
-        if self.project_status_dashboard:
-            self.project_status_dashboard.set_project(project)
-        if self.story_review_panel:
-            self.story_review_panel.set_project(project)
-        if self.scene_review_panel:
-            self.scene_review_panel.set_project(project)
-        if self.visual_review_panel:
-            self.visual_review_panel.set_project(project)
-        if self.video_review_panel:
-            self.video_review_panel.set_project(project)
-        if self.release_manager_panel:
-            self.release_manager_panel.set_project(project)
+        for widget in (
+            self.export_page,
+            self.project_status_dashboard,
+            self.story_review_panel,
+            self.scene_review_panel,
+            self.visual_review_panel,
+            self.video_review_panel,
+            self.release_manager_panel,
+            self.release_calendar_panel,
+        ):
+            if widget:
+                widget.set_project(project)
         self.refresh()
         self.open_overview_tab()
         self.projectOpened.emit(str(project))
@@ -169,6 +171,7 @@ class Workspace(QWidget):
             self.visual_review_panel,
             self.video_review_panel,
             self.release_manager_panel,
+            self.release_calendar_panel,
         ):
             if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
                 try:
@@ -191,6 +194,7 @@ class Workspace(QWidget):
     def visual_review(self): return self.visual_review_panel
     def video_review(self): return self.video_review_panel
     def release_manager(self): return self.release_manager_panel
+    def release_calendar(self): return self.release_calendar_panel
 
     def current_tab(self) -> int:
         return self.tabs.currentIndex()
@@ -215,6 +219,7 @@ class Workspace(QWidget):
     def open_visual_review_tab(self) -> None: self.set_current_tab(10)
     def open_video_review_tab(self) -> None: self.set_current_tab(11)
     def open_release_manager_tab(self) -> None: self.set_current_tab(12)
+    def open_release_calendar_tab(self) -> None: self.set_current_tab(13)
 
     def clear(self) -> None:
         self._busy = False
@@ -229,6 +234,7 @@ class Workspace(QWidget):
             self.visual_review_panel,
             self.video_review_panel,
             self.release_manager_panel,
+            self.release_calendar_panel,
         ):
             if widget and hasattr(widget, "clear"):
                 widget.clear()
