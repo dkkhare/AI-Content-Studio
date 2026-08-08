@@ -44,9 +44,6 @@ class Workspace(QWidget):
 
         self.translation_page = None
 
-        if self.video_page and hasattr(self.video_page, "dispose"):
-            self.video_page.dispose()
-
         self.video_page = None
 
         self.export_page = None
@@ -491,6 +488,9 @@ class Workspace(QWidget):
         self.subtitle_panel = None
 
         self.translation_page = None
+
+        if self.video_page and hasattr(self.video_page, "dispose"):
+            self.video_page.dispose()
 
         self.video_page = None
 
