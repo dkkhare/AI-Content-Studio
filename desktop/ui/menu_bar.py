@@ -247,6 +247,12 @@ def build_menu(
     # --------------------------------------------------
 
     ai_menu = menu_bar.addMenu("AI")
+    workbench_action = QAction("AI Workbench", window)
+    workbench_action.triggered.connect(window.show_ai_workbench)
+    ai_menu.addAction(workbench_action)
+    ai_menu.addSeparator()
+    window.aiWorkbenchAction = workbench_action
+
     ai_settings_action = QAction("Provider Settings", window)
     ai_settings_action.triggered.connect(window.open_ai_settings)
     ai_menu.addAction(ai_settings_action)
