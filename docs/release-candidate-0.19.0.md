@@ -13,8 +13,8 @@
 
 | Artifact | Workflow artifact | Artifact digest |
 | --- | --- | --- |
-| Windows bundle and installer | `milestone-23-windows-0.19.0` | `sha256:f3dd34b42130cb1d67620f7198ab2f652f13c99e4ac7718975ed800c1077a393` |
-| Machine-readable evidence | `milestone-23-release-evidence` | `sha256:aaffd1022d28b12a151d5562048bbdbb02a3b6697b02645cdd118c15c26e2a1b` |
+| Windows bundle and installer | `milestone-23-windows-0.19.0` | `sha256:c388fac88d7759609306ea853ac54b508b8d8994fe515c0f28e37b98295715d0` |
+| Machine-readable evidence | `milestone-23-release-evidence` | `sha256:96a657e1272d1f10b472d809a039b11f32b84cd133ee3f6d01c5e0095554fa16` |
 
 The machine-readable evidence reports `ready: true` and records all six required
 automated gates as `pass`.
