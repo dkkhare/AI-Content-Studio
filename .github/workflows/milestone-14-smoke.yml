@@ -1,0 +1,42 @@
+name: Milestone 14 Desktop AI
+
+on:
+  push:
+    branches:
+      - agent/milestone-14-desktop-ai-integration
+  pull_request:
+    paths:
+      - "desktop/ai/**"
+      - "desktop/controllers/ai_controller.py"
+      - "desktop/ui/dialogs/ai_settings_dialog.py"
+      - "desktop/ui/main_window.py"
+      - "desktop/ui/menu_bar.py"
+      - "tests/test_desktop_ai.py"
+      - ".github/workflows/milestone-14-smoke.yml"
+
+jobs:
+  desktop-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile desktop integration
+        run: python -m compileall -q backend desktop tests
+
+      - name: Run desktop AI controller tests
+        run: python -m unittest -v tests.test_desktop_ai
+
+      - name: Run AI core regressions
+        run: >-
+          python -m unittest -v
+          tests.test_ai_core
+          tests.test_ai_hardening
+          tests.test_ai_prompts
+          tests.test_ai_providers
+          tests.test_ai_smoke_cli
