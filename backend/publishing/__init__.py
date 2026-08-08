@@ -1,3 +1,4 @@
+from .calendar import ReleaseCalendarService
 from .publisher import PublishingService
 from .providers import (
     ManualPublishingProvider,
@@ -11,6 +12,7 @@ from .service import PublishingMetadataService
 __all__ = [
     "PublishingMetadataService",
     "ReleaseManager",
+    "ReleaseCalendarService",
     "PublishingService",
     "PublishingProvider",
     "PublishResult",
