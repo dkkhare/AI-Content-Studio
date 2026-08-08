@@ -7,7 +7,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
 
 from backend.updating import SemanticVersion, UpdateRelease
 from desktop.controllers.update_controller import UpdateDesktopController
@@ -71,7 +72,7 @@ class UpdatePreferenceTests(unittest.TestCase):
 class UpdateControllerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = QCoreApplication.instance() or QCoreApplication([])
+        cls.app = QApplication.instance() or QApplication([])
 
     def wait_for_idle(self, controller, signal, action):
         loop = QEventLoop()
