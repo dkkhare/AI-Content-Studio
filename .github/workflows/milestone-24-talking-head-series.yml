@@ -1,0 +1,83 @@
+name: Milestone 24 Talking Head Series
+
+on:
+  push:
+    paths:
+      - "backend/talking_head/**"
+      - "backend/project/**"
+      - "desktop/controllers/talking_head_controller.py"
+      - "desktop/workers/talking_head_worker.py"
+      - "desktop/ui/widgets/talking_head_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_talking_head*.py"
+      - ".github/workflows/milestone-24-talking-head-series.yml"
+  pull_request:
+    paths:
+      - "backend/talking_head/**"
+      - "backend/project/**"
+      - "desktop/controllers/talking_head_controller.py"
+      - "desktop/workers/talking_head_worker.py"
+      - "desktop/ui/widgets/talking_head_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_talking_head*.py"
+      - ".github/workflows/milestone-24-talking-head-series.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: milestone-24-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  contract-tests:
+    name: Model-free contract tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install model-free test dependencies
+        run: >
+          python -m pip install --upgrade pip
+          PySide6 numpy soundfile pydub PyMuPDF python-docx
+
+      - name: Compile Milestone 24 modules
+        run: >
+          python -m compileall -q
+          backend/talking_head
+          desktop/controllers/talking_head_controller.py
+          desktop/workers/talking_head_worker.py
+          desktop/ui/widgets/talking_head_panel.py
+          tests/test_talking_head.py
+          tests/test_talking_head_episodes.py
+          tests/test_talking_head_series.py
+          tests/test_talking_head_book_import.py
+          tests/test_talking_head_desktop.py
+          tests/test_talking_head_preflight.py
+
+      - name: Run model-free Milestone 24 tests
+        run: >
+          python -m unittest -v
+          tests.test_talking_head
+          tests.test_talking_head_episodes
+          tests.test_talking_head_series
+          tests.test_talking_head_book_import
+          tests.test_talking_head_desktop
+          tests.test_talking_head_preflight
