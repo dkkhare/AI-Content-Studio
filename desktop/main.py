@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 
 from backend.runtime import write_diagnostics
+from backend.supporting import CrashReporter, configure_logging, install_crash_hooks
 from backend.version import VERSION
 
 
@@ -117,6 +118,9 @@ def main(argv=None):
         write_diagnostics(args.diagnostics)
         return 0
 
+    logger, _ = configure_logging()
+    reporter = CrashReporter()
+    _, restore_crash_hooks = install_crash_hooks(reporter)
     try:
         if args.smoke_gui:
             return run_gui_smoke(args.smoke_gui)
@@ -128,10 +132,17 @@ def main(argv=None):
         app = AIContentStudio()
         return app.run()
     except Exception as error:
+        logger.exception("Application startup failed")
+        try:
+            reporter.capture(*sys.exc_info(), thread="main")
+        except Exception:
+            pass
         print("Application startup failed:", file=sys.stderr)
         print(error, file=sys.stderr)
         traceback.print_exc()
         return 1
+    finally:
+        restore_crash_hooks()
 
 
 if __name__ == "__main__":
