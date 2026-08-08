@@ -1,3 +1,5 @@
+import os
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
@@ -664,14 +666,18 @@ class MainWindow(QMainWindow):
             )
         return self.update_dialog
 
-    def open_update_dialog(self):
+    def open_update_dialog(self, *, check=True):
         dialog = self._ensure_update_dialog()
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
-        dialog.check()
+        if check:
+            dialog.check()
 
     def check_for_updates_on_startup(self):
+        if os.environ.get("AI_CONTENT_STUDIO_DISABLE_UPDATE_CHECKS") == "1":
+            self.log("Automatic update check disabled for this runtime.")
+            return
         if (
             not self.update_preferences.check_on_startup()
             or self.update_controller.is_running()
