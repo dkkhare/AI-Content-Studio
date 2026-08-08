@@ -1,6 +1,6 @@
 """Long-form talking-head podcast generation."""
 
-from .episodes import (
+from .book_import import BookImportError, BookImporter, BookImportResult\nfrom .episodes import (
     Episode,
     EpisodeFragment,
     SeriesPlan,
@@ -25,7 +25,7 @@ from .series import (
 )
 
 __all__ = [
-    "Episode",
+    "BookImportError",\n    "BookImportResult",\n    "BookImporter",\n    "Episode",
     "EpisodeFragment",
     "EpisodeOutput",
     "LongFormTalkingHeadPipeline",
