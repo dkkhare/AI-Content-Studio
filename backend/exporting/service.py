@@ -8,6 +8,10 @@ from pathlib import Path
 from .core import PRESETS, ExportAsset, ExportManifest, ExportPreset
 
 
+class ExportCancelled(RuntimeError):
+    pass
+
+
 class ProjectExportService:
     """Publish verified project assets as an atomic directory package."""
 
@@ -69,7 +73,15 @@ class ProjectExportService:
         used.add(candidate.casefold())
         return candidate
 
-    def export(self, project, destination, preset="publishing"):
+    def export(
+        self,
+        project,
+        destination,
+        preset="publishing",
+        *,
+        progress=None,
+        cancel_event=None,
+    ):
         selected, sources = self.collect(project, preset)
         target = Path(destination).resolve()
         if target.exists():
@@ -81,14 +93,25 @@ class ProjectExportService:
         assets = []
         used = {"manifest.json"}
         try:
-            for role, source in sources:
+            if progress is not None:
+                progress(0.0)
+            total = len(sources)
+            for index, (role, source) in enumerate(sources, 1):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ExportCancelled("Project export was cancelled.")
                 filename = self._filename(role, source, used)
                 copied = stage / filename
                 self.copy_file(source, copied)
                 assets.append(ExportAsset.from_file(role, copied, filename))
+                if progress is not None:
+                    progress(index * 95.0 / total)
+            if cancel_event is not None and cancel_event.is_set():
+                raise ExportCancelled("Project export was cancelled.")
             manifest = ExportManifest(project.name, selected.name, tuple(assets))
             manifest.write(stage / "manifest.json")
             os.replace(stage, target)
+            if progress is not None:
+                progress(100.0)
             return manifest, target
         except BaseException:
             shutil.rmtree(stage, ignore_errors=True)
