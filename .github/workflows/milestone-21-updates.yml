@@ -5,7 +5,8 @@ on:
     paths:
       - "backend/updating/**"
       - "backend/version.py"
-      - "tests/test_updating.py"
+      - "tests/test_updating.py tests/test_update_download.py"
+      - "tests/test_update_download.py"
       - ".github/workflows/milestone-21-updates.yml"
   workflow_dispatch:
 
@@ -20,4 +21,4 @@ jobs:
       - name: Compile update modules
         run: python -m compileall -q backend/updating tests/test_updating.py
       - name: Run update regressions
-        run: python -m unittest -v tests.test_updating
+        run: python -m unittest -v tests.test_updating tests.test_update_download
