@@ -17,6 +17,7 @@ on:
       - "backend/publishing/**"
       - "backend/pipeline/**"
       - "backend/tts/**"
+      - "backend/readiness.py"
       - "backend/project/project.py"
       - "desktop/ui/dialogs/**"
       - "desktop/ui/widgets/**"
@@ -34,6 +35,7 @@ on:
       - "tests/test_publishing_providers.py"
       - "tests/test_publishing_schedule.py"
       - "tests/test_release_calendar.py"
+      - "tests/test_readiness.py"
       - "tests/test_knowledge_store.py"
       - "tests/test_knowledge_review.py"
       - "tests/test_story_intelligence.py"
@@ -76,6 +78,7 @@ jobs:
           tests.test_publishing_providers
           tests.test_publishing_schedule
           tests.test_release_calendar
+          tests.test_readiness
           tests.test_knowledge_store
           tests.test_knowledge_review
           tests.test_story_intelligence
