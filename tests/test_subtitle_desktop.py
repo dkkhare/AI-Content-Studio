@@ -125,7 +125,21 @@ class SubtitlePanelQtTests(unittest.TestCase):
     def test_workspace_exposes_subtitle_tab_in_pipeline_order(self):
         workspace = Workspace()
         try:
-            self.assertEqual(workspace.tab_count(), 7)
+            expected = [
+                "PDF",
+                "OCR",
+                "Narration",
+                "Subtitles",
+                "Translation",
+                "Talking Head Series",
+                "Video",
+                "Export",
+            ]
+            self.assertEqual(workspace.tab_count(), len(expected))
+            self.assertEqual(
+                [workspace.tabs.tabText(index) for index in range(workspace.tab_count())],
+                expected,
+            )
             workspace.open_subtitle_tab()
             self.assertEqual(workspace.current_tab_name(), "Subtitles")
             self.assertIsInstance(workspace.subtitle_panel, SubtitlePanel)
