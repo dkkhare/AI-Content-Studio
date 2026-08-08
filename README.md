@@ -5,6 +5,34 @@ content projects from documents, text, audio, images, and other source media.
 Projects can produce OCR text, narration, audiobooks, podcasts, subtitles,
 thumbnails, and video assets.
 
+## Download
+
+### Windows 0.19.0 release candidate
+
+[**Download milestone-23-windows-0.19.0**](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31249379767/artifacts/9019969816)
+
+The download is a GitHub Actions ZIP of approximately 103 MB containing the
+portable Windows bundle, `AIContentStudio-Setup-0.19.0-windows-x64.exe`, and
+`SHA256SUMS.txt`.
+
+- GitHub sign-in and repository access are required.
+- On a phone, open the link in a browser and enable **Desktop site**; the GitHub
+  mobile app may not show workflow artifacts.
+- This temporary CI artifact expires on **November 6, 2026**.
+- Workflow artifact digest:
+  `sha256:c388fac88d7759609306ea853ac54b508b8d8994fe515c0f28e37b98295715d0`
+
+If the direct link is unavailable, open
+[Milestone 23 Release Candidate run #3](https://github.com/dkkhare/AI-Content-Studio/actions/runs/31249379767),
+select **Summary**, and download `milestone-23-windows-0.19.0` under
+**Artifacts**.
+
+### Stable releases
+
+After final approval and publication, permanent installers and checksums will be
+available on the [GitHub Releases page](https://github.com/dkkhare/AI-Content-Studio/releases).
+Prefer the Releases page over an Actions artifact for normal distribution.
+
 ## Features
 
 - OCR PDF
