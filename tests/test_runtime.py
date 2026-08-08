@@ -17,7 +17,7 @@ class RuntimeTests(unittest.TestCase):
             self.assertTrue(runtime.bundle_root().is_dir())
             self.assertEqual(
                 runtime.app_data_dir({"LOCALAPPDATA": "relative-data"}).name,
-                runtime.APP_NAME,
+                runtime.APP_ID,
             )
 
     def test_frozen_runtime_uses_executable_and_bundle_paths(self):
@@ -38,9 +38,19 @@ class RuntimeTests(unittest.TestCase):
             output = Path(root) / "diagnostics.json"
             self.assertEqual(main(["--diagnostics", str(output)]), 0)
             data = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(data["application"], "AIContentStudio")
+            self.assertEqual(data["application"], "AI Content Studio")
+            self.assertEqual(data["application_id"], "AIContentStudio")
+            self.assertEqual(data["version"], "0.19.0")
             self.assertIn("ffmpeg_available", data)
+            self.assertTrue(data["resources_available"])
+            self.assertTrue(data["resources"]["desktop/themes/dark.qss"])
             self.assertFalse(output.with_suffix(".json.tmp").exists())
+
+    def test_resource_path_rejects_absolute_and_parent_traversal(self):
+        with self.assertRaises(ValueError):
+            runtime.resource_path("../secret")
+        with self.assertRaises(ValueError):
+            runtime.resource_path(Path.cwd().anchor + "secret")
 
     def test_cli_rejects_unknown_arguments(self):
         with self.assertRaises(SystemExit):
