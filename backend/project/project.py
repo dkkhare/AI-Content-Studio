@@ -99,6 +99,8 @@ class Project:
 
     video_file: str = ""
 
+    talking_head_series_manifest: str = ""
+
     subtitle_file: str = ""
 
     cover_image: str = ""
@@ -259,6 +261,7 @@ class Project:
             "audiobook_file",
             "podcast_file",
             "video_file",
+            "talking_head_series_manifest",
             "subtitle_file",
             "cover_image",
             "thumbnail",
@@ -296,6 +299,7 @@ class Project:
             "audiobook_file",
             "podcast_file",
             "video_file",
+            "talking_head_series_manifest",
             "subtitle_file",
             "cover_image",
             "thumbnail",

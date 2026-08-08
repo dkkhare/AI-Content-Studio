@@ -44,6 +44,8 @@ class Workspace(QWidget):
 
         self.translation_page = None
 
+        self.talking_head_page = None
+
         self.video_page = None
 
         self.export_page = None
@@ -103,6 +105,8 @@ class Workspace(QWidget):
         self._create_subtitle_tab()
 
         self._create_translation_tab()
+
+        self._create_talking_head_tab()
 
         self._create_video_tab()
 
@@ -206,6 +210,19 @@ class Workspace(QWidget):
             "Translation",
         )
 
+    def _create_talking_head_tab(
+        self,
+    ):
+
+        from desktop.ui.widgets.talking_head_panel import TalkingHeadPanel
+
+        self.talking_head_page = TalkingHeadPanel()
+
+        self.tabs.addTab(
+            self.talking_head_page,
+            "Talking Head Series",
+        )
+
     def _create_video_tab(
         self,
     ):
@@ -247,6 +264,9 @@ class Workspace(QWidget):
 
         if self.subtitle_panel:
             self.subtitle_panel.set_project(project)
+
+        if self.talking_head_page:
+            self.talking_head_page.set_project(project)
 
         if self.video_page:
             self.video_page.set_project(project)
@@ -385,17 +405,23 @@ class Workspace(QWidget):
 
         self.set_current_tab(3)
 
-    def open_video_tab(
+    def open_talking_head_tab(
         self,
     ):
 
         self.set_current_tab(5)
 
-    def open_export_tab(
+    def open_video_tab(
         self,
     ):
 
         self.set_current_tab(6)
+
+    def open_export_tab(
+        self,
+    ):
+
+        self.set_current_tab(7)
     # --------------------------------------------------
     # Cleanup
     # --------------------------------------------------
@@ -428,6 +454,9 @@ class Workspace(QWidget):
 
         if self.subtitle_panel:
             self.subtitle_panel.clear()
+
+        if self.talking_head_page:
+            self.talking_head_page.clear()
 
         if self.video_page:
             self.video_page.clear()
@@ -487,6 +516,11 @@ class Workspace(QWidget):
         self.subtitle_panel = None
 
         self.translation_page = None
+
+        if self.talking_head_page and hasattr(self.talking_head_page, "dispose"):
+            self.talking_head_page.dispose()
+
+        self.talking_head_page = None
 
         if self.video_page and hasattr(self.video_page, "dispose"):
             self.video_page.dispose()
