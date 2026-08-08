@@ -1,0 +1,160 @@
+name: Latest Windows Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/latest-windows-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latest-windows-release
+  cancel-in-progress: false
+
+jobs:
+  build-verify-upload:
+    runs-on: windows-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $Version = python scripts/release_version.py
+          if ($LASTEXITCODE -ne 0 -or -not $Version) {
+            throw "Unable to resolve application version"
+          }
+          "APP_VERSION=$Version" | Out-File $env:GITHUB_ENV -Append
+          "version=$Version" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 -r requirements-build.txt
+          choco install innosetup --yes --no-progress
+
+      - name: Run release contract tests
+        run: >
+          python -m unittest -v
+          tests.test_runtime
+          tests.test_release_version
+          tests.test_release_workflows
+
+      - name: Build portable application
+        run: python -m PyInstaller --noconfirm --clean AIContentStudio.spec
+
+      - name: Verify portable diagnostics and GUI lifecycle
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          AI_CONTENT_STUDIO_DISABLE_UPDATE_CHECKS: "1"
+        run: |
+          $Executable = (Resolve-Path "dist\AIContentStudio\AIContentStudio.exe").Path
+          $Checks = @(
+            @{ Args = @("--diagnostics", "packaged-diagnostics.json"); Report = "packaged-diagnostics.json" },
+            @{ Args = @("--smoke-gui", "gui-smoke.json"); Report = "gui-smoke.json" },
+            @{ Args = @("--smoke-update-ui", "update-ui-smoke.json"); Report = "update-ui-smoke.json" }
+          )
+          foreach ($Check in $Checks) {
+            $Process = Start-Process -FilePath $Executable -ArgumentList $Check.Args -Wait -PassThru
+            if ($Process.ExitCode -ne 0 -or -not (Test-Path $Check.Report)) {
+              throw "Packaged check failed: $($Check.Report)"
+            }
+          }
+          $Diagnostics = Get-Content packaged-diagnostics.json | ConvertFrom-Json
+          if (-not $Diagnostics.frozen -or -not $Diagnostics.resources_available -or $Diagnostics.version -ne $env:APP_VERSION) {
+            throw "Packaged diagnostics validation failed"
+          }
+          $Gui = Get-Content gui-smoke.json | ConvertFrom-Json
+          if (-not $Gui.started -or -not $Gui.shutdown -or $Gui.exit_code -ne 0) {
+            throw "Packaged GUI lifecycle validation failed"
+          }
+
+      - name: Create portable checksums
+        shell: pwsh
+        run: |
+          $Root = (Resolve-Path "dist\AIContentStudio").Path
+          Get-ChildItem $Root -File -Recurse |
+            Sort-Object FullName |
+            ForEach-Object {
+              $Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $Relative = [System.IO.Path]::GetRelativePath($Root, $_.FullName)
+              "$Hash  $Relative"
+            } |
+            Set-Content (Join-Path $Root "SHA256SUMS.txt") -Encoding utf8
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $Candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:ChocolateyInstall\bin\ISCC.exe"
+          )
+          $Compiler = $Candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $Compiler) {
+            throw "Inno Setup 6 compiler was not found"
+          }
+          & $Compiler "/DMyAppVersion=$env:APP_VERSION" "packaging\AIContentStudio.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Install, verify, and uninstall
+        shell: pwsh
+        run: |
+          $Installer = (Resolve-Path "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe").Path
+          $InstallDir = Join-Path $env:RUNNER_TEMP "AIContentStudio-installed"
+          $Install = Start-Process -FilePath $Installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=$InstallDir" -Wait -PassThru
+          if ($Install.ExitCode -ne 0) {
+            throw "Installer failed with exit code $($Install.ExitCode)"
+          }
+          $Executable = Join-Path $InstallDir "AIContentStudio.exe"
+          $ReportPath = Join-Path $env:RUNNER_TEMP "installed-diagnostics.json"
+          $Check = Start-Process -FilePath $Executable -ArgumentList "--diagnostics", $ReportPath -Wait -PassThru
+          if ($Check.ExitCode -ne 0) {
+            throw "Installed diagnostics failed with exit code $($Check.ExitCode)"
+          }
+          $Report = Get-Content $ReportPath | ConvertFrom-Json
+          if (-not $Report.frozen -or -not $Report.resources_available -or $Report.version -ne $env:APP_VERSION) {
+            throw "Installed application validation failed"
+          }
+          $Uninstaller = Join-Path $InstallDir "unins000.exe"
+          $Remove = Start-Process -FilePath $Uninstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          if ($Remove.ExitCode -ne 0) {
+            throw "Uninstaller failed with exit code $($Remove.ExitCode)"
+          }
+          Start-Sleep -Seconds 2
+          if (Test-Path $Executable) {
+            throw "Application executable remained after uninstall"
+          }
+
+      - name: Create installer checksum
+        shell: pwsh
+        run: |
+          $Installer = Resolve-Path "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe"
+          $Hash = (Get-FileHash $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$Hash  $($Installer.Path | Split-Path -Leaf)" | Set-Content "release\SHA256SUMS.txt" -Encoding utf8
+
+      - name: Upload latest Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIContentStudio-main-${{ steps.version.outputs.version }}-windows-x64
+          path: |
+            dist/AIContentStudio/
+            release/AIContentStudio-Setup-*-windows-x64.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
