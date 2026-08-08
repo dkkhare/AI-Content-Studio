@@ -663,7 +663,7 @@ class MainWindow(QMainWindow):
                         return
 
 
-                self.project_controller.close()
+                self.project_controller.close_project(force=True)
 
 
             self.save_ui_state()
