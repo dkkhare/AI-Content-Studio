@@ -40,8 +40,7 @@ class Workspace(QWidget):
 
         self.ocr_page = None
 
-        self.translation_page = None
-
+        self.subtitle_panel = None\n\n        self.translation_page = None\n
         self.video_page = None
 
         self.export_page = None
@@ -96,9 +95,7 @@ class Workspace(QWidget):
 
         self._create_ocr_tab()
 
-        self._create_narration_tab()
-
-        self._create_translation_tab()
+        self._create_narration_tab()\n\n        self._create_subtitle_tab()\n\n        self._create_translation_tab()
 
         self._create_video_tab()
 
@@ -167,6 +164,19 @@ class Workspace(QWidget):
         self.tabs.addTab(
             self.narration_panel,
             "Narration",
+        )
+
+    def _create_subtitle_tab(
+        self,
+    ):
+
+        from desktop.ui.widgets.subtitle_panel import SubtitlePanel
+
+        self.subtitle_panel = SubtitlePanel()
+
+        self.tabs.addTab(
+            self.subtitle_panel,
+            "Subtitles",
         )
 
     def _create_translation_tab(
@@ -240,9 +250,7 @@ class Workspace(QWidget):
         Load project into workspace.
         """
 
-        self.current_project = project
-
-        self._busy = False
+        self.current_project = project\n\n        if self.subtitle_panel:\n            self.subtitle_panel.set_project(project)\n\n        self._busy = False
 
         self.refresh()
 
@@ -365,20 +373,23 @@ class Workspace(QWidget):
         self,
     ):
 
+        self.set_current_tab(4)
+
+    def open_subtitle_tab(
+        self,
+    ):
+
         self.set_current_tab(3)
 
     def open_video_tab(
         self,
     ):
 
-        self.set_current_tab(4)
-
-    def open_export_tab(
+        self.set_current_tab(5)\n\n    def open_export_tab(
         self,
     ):
 
-        self.set_current_tab(5)
-    # --------------------------------------------------
+        self.set_current_tab(6)\n    # --------------------------------------------------
     # Cleanup
     # --------------------------------------------------
 
@@ -407,6 +418,9 @@ class Workspace(QWidget):
                 except Exception:
 
                     pass
+
+        if self.subtitle_panel:
+            self.subtitle_panel.clear()
 
         self.set_current_tab(0)
 
@@ -453,6 +467,11 @@ class Workspace(QWidget):
         self.pdf_page = None
 
         self.ocr_page = None
+
+        if self.subtitle_panel and hasattr(self.subtitle_panel, "dispose"):
+            self.subtitle_panel.dispose()
+
+        self.subtitle_panel = None
 
         self.translation_page = None
 
