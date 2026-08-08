@@ -1,0 +1,23 @@
+name: Milestone 21 Safe Updates
+
+on:
+  pull_request:
+    paths:
+      - "backend/updating/**"
+      - "backend/version.py"
+      - "tests/test_updating.py"
+      - ".github/workflows/milestone-21-updates.yml"
+  workflow_dispatch:
+
+jobs:
+  update-discovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile update modules
+        run: python -m compileall -q backend/updating tests/test_updating.py
+      - name: Run update regressions
+        run: python -m unittest -v tests.test_updating
