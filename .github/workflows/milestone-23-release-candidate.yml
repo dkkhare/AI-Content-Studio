@@ -1,0 +1,81 @@
+name: Milestone 23 Release Candidate
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "desktop/**"
+      - "scripts/release_evidence.py"
+      - "scripts/release_version.py"
+      - "tests/**"
+      - "docs/MILESTONE_23_RELEASE_READINESS.md"
+      - "docs/release-candidate-template.md"
+      - ".github/workflows/milestone-23-release-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-contract:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Qt test runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1
+          python -m pip install PySide6
+      - name: Compile acceptance code
+        run: >-
+          python -m compileall -q
+          backend
+          desktop
+          scripts/release_evidence.py
+          scripts/release_version.py
+          tests
+      - name: Run project and AI regressions
+        run: >-
+          python -m unittest -v
+          tests.test_project_lifecycle
+          tests.test_ai_core
+          tests.test_ai_hardening
+          tests.test_ai_pipeline_stages
+          tests.test_ai_prompts
+          tests.test_ai_providers
+      - name: Run update and support regressions
+        run: >-
+          python -m unittest -v
+          tests.test_updating
+          tests.test_update_download
+          tests.test_update_desktop
+          tests.test_update_dialog
+          tests.test_supporting
+          tests.test_support_runtime
+      - name: Run release contract regressions
+        run: >-
+          python -m unittest -v
+          tests.test_runtime
+          tests.test_release_version
+          tests.test_release_workflows
+          tests.test_release_evidence
+      - name: Generate partial release evidence
+        run: >-
+          python scripts/release_evidence.py
+          --output release-evidence.json
+          --commit "$GITHUB_SHA"
+          --gate project_lifecycle=pass
+          --gate ai_core=pass
+          --gate safe_updates=pass
+          --gate support_diagnostics=pass
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: milestone-23-release-evidence
+          path: release-evidence.json
+          if-no-files-found: error
