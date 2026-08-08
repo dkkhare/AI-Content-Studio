@@ -6,10 +6,11 @@ Set-Location $RepositoryRoot
 & (Join-Path $PSScriptRoot "build_windows.ps1")
 
 $CompilerCandidates = @(
-    "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
-    "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+    "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+    "$env:ChocolateyInstall\bin\ISCC.exe"
 )
-$Compiler = $CompilerCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$Compiler = $CompilerCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $Compiler) {
     throw "Inno Setup 6 compiler was not found."
 }
