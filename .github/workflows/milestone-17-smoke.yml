@@ -15,12 +15,16 @@ on:
 jobs:
   video-composer:
     runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install desktop smoke dependencies
+        run: pip install PySide6 soundfile
       - name: Compile video modules and tests
-        run: python -m compileall -q backend/video tests/test_video_composer.py
+        run: python -m compileall -q backend/video desktop/controllers/video_controller.py desktop/ui/widgets/video_panel.py tests/test_video_composer.py tests/test_video_desktop.py
       - name: Run video composer regressions
-        run: python -m unittest -v tests.test_video_composer
+        run: python -m unittest -v tests.test_video_composer tests.test_video_desktop
