@@ -2,1621 +2,299 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import (
-    Qt,
-    Signal,
-)
-
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget,
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QTextEdit,
-    QLineEdit,
-    QFileDialog,
     QVBoxLayout,
-    QHBoxLayout,
-    QGridLayout,
-    QGroupBox,
-    QComboBox,
-    QSizePolicy,
-    QMessageBox,
+    QWidget,
 )
 
-from desktop.controllers.tts_controller import (
-    TTSController,
-)
-
-from desktop.ui.dialogs.tts_progress_dialog import (
-    TTSProgressDialog,
-)
+from desktop.controllers.tts_controller import TTSController
+from desktop.ui.dialogs.tts_progress_dialog import TTSProgressDialog
 
 
 class NarrationPanel(QWidget):
-    """
-    AI narration generation panel.
-
-    Features:
-    - Reference voice selection
-    - Transcript input
-    - Narration editor
-    - TTS generation
-    - Progress monitoring
-    - Output management
-    """
-
+    """Reference-voice narration workbench backed by TTSController."""
 
     narration_started = Signal()
-
     narration_finished = Signal(str)
-
     narration_failed = Signal(str)
+    AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg"}
 
-
-    def __init__(
-        self,
-        parent=None,
-    ):
-
-        super().__init__(
-            parent
-        )
-
-
-        # --------------------------------------
-        # Controller
-        # --------------------------------------
-
-        self.controller = TTSController(
-            self
-        )
-
-
+    def __init__(self, parent=None, *, controller=None):
+        super().__init__(parent)
+        self.controller = controller or TTSController(self)
         self.progress_dialog = None
-
-
-        # --------------------------------------
-        # State
-        # --------------------------------------
-
         self.reference_audio = ""
-
-        self.output_directory = (
-            "output/tts"
-        )
-
-
+        self.output_directory = "output/tts"
         self._recent_outputs = []
-
-        self._audio_player = None
-
-
-        self._building = False
-
-
-        # --------------------------------------
-        # UI
-        # --------------------------------------
-
         self._build_ui()
-
-
         self._connect_controller()
-
-
-        self.enable_drag_drop()
-
-
+        self.setAcceptDrops(True)
         self.refresh_voice_profiles()
-
-    # --------------------------------------------------
-    # UI Construction
-    # --------------------------------------------------
+        self.refresh()
 
     def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(12)
+        title = QLabel("AI Narration")
+        title.setObjectName("title")
+        root.addWidget(title)
 
-        root = QVBoxLayout(
-            self
-        )
-
-        root.setSpacing(
-            12
-        )
-
-        root.setContentsMargins(
-            12,
-            12,
-            12,
-            12,
-        )
-
-
-        title = QLabel(
-            "AI Narration"
-        )
-
-        title.setObjectName(
-            "title"
-        )
-
-
-        root.addWidget(
-            title
-        )
-
-
-        self._create_reference_group(
-            root
-        )
-
-
-        self._create_text_group(
-            root
-        )
-
-
-        self._create_button_bar(
-            root
-        )
-
-
-        root.addStretch()
-
-
-
-    # --------------------------------------------------
-    # Reference Voice Group
-    # --------------------------------------------------
-
-    def _create_reference_group(
-        self,
-        layout,
-    ):
-
-        group = QGroupBox(
-            "Reference Voice"
-        )
-
-
-        grid = QGridLayout(
-            group
-        )
-
-
-        grid.addWidget(
-            QLabel(
-                "Reference Audio"
-            ),
-            0,
-            0,
-        )
-
-
+        voice_group = QGroupBox("Reference Voice")
+        voice_form = QFormLayout(voice_group)
+        audio_row = QHBoxLayout()
         self.reference_audio_edit = QLineEdit()
-
-
-        self.reference_audio_edit.setReadOnly(
-            True
-        )
-
-
-        grid.addWidget(
-            self.reference_audio_edit,
-            0,
-            1,
-        )
-
-
-        self.browse_button = QPushButton(
-            "Browse..."
-        )
-
-
-        grid.addWidget(
-            self.browse_button,
-            0,
-            2,
-        )
-
-
-        grid.addWidget(
-            QLabel(
-                "Voice Profile"
-            ),
-            1,
-            0,
-        )
-
-
+        self.reference_audio_edit.setReadOnly(True)
+        self.browse_button = QPushButton("Browse...")
+        audio_row.addWidget(self.reference_audio_edit)
+        audio_row.addWidget(self.browse_button)
+        voice_form.addRow("Reference audio", audio_row)
         self.voice_combo = QComboBox()
+        voice_form.addRow("Voice profile", self.voice_combo)
+        root.addWidget(voice_group)
 
-
-        self.voice_combo.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed,
-        )
-
-
-        grid.addWidget(
-            self.voice_combo,
-            1,
-            1,
-            1,
-            2,
-        )
-
-
-        layout.addWidget(
-            group
-        )
-
-
-
-    # --------------------------------------------------
-    # Narration Text Group
-    # --------------------------------------------------
-
-    def _create_text_group(
-        self,
-        layout,
-    ):
-
-        group = QGroupBox(
-            "Narration Text"
-        )
-
-
-        box = QVBoxLayout(
-            group
-        )
-
-
-        box.addWidget(
-            QLabel(
-                "Reference Transcript"
-            )
-        )
-
-
+        text_group = QGroupBox("Narration Text")
+        text_layout = QFormLayout(text_group)
         self.reference_text = QTextEdit()
-
-
-        self.reference_text.setPlaceholderText(
-            "Reference transcript..."
-        )
-
-
-        self.reference_text.setMinimumHeight(
-            100
-        )
-
-
-        box.addWidget(
-            self.reference_text
-        )
-
-
-
-        box.addWidget(
-            QLabel(
-                "Narration"
-            )
-        )
-
-
+        self.reference_text.setPlaceholderText("Reference transcript...")
+        self.reference_text.setMinimumHeight(90)
         self.narration_text = QTextEdit()
+        self.narration_text.setPlaceholderText("Enter narration text...")
+        self.narration_text.setMinimumHeight(220)
+        text_layout.addRow("Reference transcript", self.reference_text)
+        text_layout.addRow("Narration", self.narration_text)
+        root.addWidget(text_group)
 
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self.generate_button = QPushButton("Generate Narration")
+        self.cancel_button = QPushButton("Cancel")
+        actions.addWidget(self.generate_button)
+        actions.addWidget(self.cancel_button)
+        root.addLayout(actions)
 
-        self.narration_text.setPlaceholderText(
-            "Enter narration text..."
-        )
+    def _connect_controller(self):
+        self.browse_button.clicked.connect(self.browse_reference_audio)
+        self.generate_button.clicked.connect(self.generate_narration)
+        self.cancel_button.clicked.connect(self.cancel_generation)
+        self.controller.generation_started.connect(self._generation_started)
+        self.controller.generation_progress.connect(self._update_progress)
+        self.controller.generation_finished.connect(self._generation_finished)
+        self.controller.generation_failed.connect(self._generation_failed)
+        self.controller.generation_cancelled.connect(self._generation_cancelled)
 
-
-        self.narration_text.setMinimumHeight(
-            250
-        )
-
-
-        box.addWidget(
-            self.narration_text
-        )
-
-
-        layout.addWidget(
-            group
-        )
-
-
-
-    # --------------------------------------------------
-    # Button Bar
-    # --------------------------------------------------
-
-    def _create_button_bar(
-        self,
-        layout,
-    ):
-
-        row = QHBoxLayout()
-
-
-        self.generate_button = QPushButton(
-            "Generate Narration"
-        )
-
-
-        self.cancel_button = QPushButton(
-            "Cancel"
-        )
-
-
-        self.cancel_button.setEnabled(
-            False
-        )
-
-
-        row.addStretch()
-
-
-        row.addWidget(
-            self.generate_button
-        )
-
-
-        row.addWidget(
-            self.cancel_button
-        )
-
-
-        layout.addLayout(
-            row
-        )
-
-    # --------------------------------------------------
-    # Controller Connections
-    # --------------------------------------------------
-
-    def _connect_controller(
-        self,
-    ):
-
-        self.browse_button.clicked.connect(
-            self.browse_reference_audio
-        )
-
-
-        self.generate_button.clicked.connect(
-            self.generate_narration
-        )
-
-
-        self.cancel_button.clicked.connect(
-            self.cancel_generation
-        )
-
-
-        self.controller.generation_started.connect(
-            self._generation_started
-        )
-
-
-        self.controller.generation_progress.connect(
-            self._update_progress
-        )
-
-
-        self.controller.generation_finished.connect(
-            self._generation_finished
-        )
-
-
-        self.controller.generation_failed.connect(
-            self._generation_failed
-        )
-
-
-        self.controller.generation_cancelled.connect(
-            self._generation_cancelled
-        )
-
-
-
-    # --------------------------------------------------
-    # Browse Reference Audio
-    # --------------------------------------------------
-
-    def browse_reference_audio(
-        self,
-    ):
-
+    def browse_reference_audio(self):
         filename, _ = QFileDialog.getOpenFileName(
-
-            self,
-
-            "Select Reference Audio",
-
-            "",
-
-            "Audio Files (*.wav *.mp3 *.flac *.ogg)",
-
+            self, "Select Reference Audio", "", "Audio Files (*.wav *.mp3 *.flac *.ogg)"
         )
+        if filename:
+            self.set_reference_audio(filename)
 
+    def set_reference_audio(self, filename):
+        self.reference_audio = str(filename)
+        self.reference_audio_edit.setText(self.reference_audio)
 
-        if not filename:
-
-            return
-
-
-        self.reference_audio = filename
-
-
-        self.reference_audio_edit.setText(
-            filename
-        )
-
-
-
-    # --------------------------------------------------
-    # Validation
-    # --------------------------------------------------
-
-    def validate_inputs(
-        self,
-    ):
-
+    def validation_error(self):
         if not self.reference_audio:
-
-            QMessageBox.warning(
-
-                self,
-
-                "Reference Audio",
-
-                "Please select a reference audio file."
-
-            )
-
-            return False
-
-
-
-        if not Path(
-            self.reference_audio
-        ).exists():
-
-            QMessageBox.warning(
-
-                self,
-
-                "Reference Audio",
-
-                "Reference audio file does not exist."
-
-            )
-
-            return False
-
-
-
+            return "Please select a reference audio file."
+        if not Path(self.reference_audio).is_file():
+            return "Reference audio file does not exist."
+        if Path(self.reference_audio).suffix.lower() not in self.AUDIO_SUFFIXES:
+            return "Unsupported reference audio format."
         if not self.reference_text.toPlainText().strip():
-
-            QMessageBox.warning(
-
-                self,
-
-                "Reference Text",
-
-                "Reference transcript is required."
-
-            )
-
-            return False
-
-
-
+            return "Reference transcript is required."
         if not self.narration_text.toPlainText().strip():
+            return "Narration text is required."
+        return ""
 
-            QMessageBox.warning(
+    def validate_inputs(self, *, show_message=True):
+        message = self.validation_error()
+        if message and show_message:
+            QMessageBox.warning(self, "Narration", message)
+        return not message
 
-                self,
+    def _create_progress_dialog(self):
+        self.progress_dialog = TTSProgressDialog(self)
+        self.progress_dialog.set_controller(self.controller)
 
-                "Narration",
-
-                "Narration text is required."
-
-            )
-
-            return False
-
-
-
-        return True
-
-
-
-    # --------------------------------------------------
-    # Progress Dialog
-    # --------------------------------------------------
-
-    def _create_progress_dialog(
-        self,
-    ):
-
-        self.progress_dialog = TTSProgressDialog(
-            self
-        )
-
-
-        self.progress_dialog.set_controller(
-            self.controller
-        )
-
-
-
-    def _update_progress(
-        self,
-        progress,
-    ):
-
-        if self.progress_dialog:
-
-            if hasattr(
-                self.progress_dialog,
-                "update_progress",
-            ):
-
-                self.progress_dialog.update_progress(
-                    progress
-                )
-
-
-
-    # --------------------------------------------------
-    # Generate
-    # --------------------------------------------------
-
-    def generate_narration(
-        self,
-    ):
-
+    def generate_narration(self):
         if not self.validate_inputs():
-
             return
-
-
-
         if self.controller.is_running():
-
-            QMessageBox.information(
-
-                self,
-
-                "Narration",
-
-                "Generation is already running."
-
-            )
-
+            QMessageBox.information(self, "Narration", "Generation is already running.")
             return
-
-
-
         self._create_progress_dialog()
-
-
         try:
-
             self.controller.generate(
-
                 reference_audio=self.reference_audio,
-
-                reference_text=(
-                    self.reference_text
-                    .toPlainText()
-                ),
-
-                text=(
-                    self.narration_text
-                    .toPlainText()
-                ),
-
+                reference_text=self.reference_text.toPlainText(),
+                text=self.narration_text.toPlainText(),
                 output_directory=self.output_directory,
-
+                voice_name=self.selected_voice(),
             )
-
-
         except Exception as exc:
-
-
-            QMessageBox.critical(
-
-                self,
-
-                "Narration Error",
-
-                str(exc),
-
-            )
-
+            self.progress_dialog.deleteLater()
+            self.progress_dialog = None
+            QMessageBox.critical(self, "Narration Error", str(exc))
             return
-
-
-
         self.progress_dialog.show()
 
-
-
-    # --------------------------------------------------
-    # Cancel
-    # --------------------------------------------------
-
-    def cancel_generation(
-        self,
-    ):
-
+    def cancel_generation(self):
         if self.controller.is_running():
-
             self.controller.cancel()
-    # --------------------------------------------------
-    # Controller Events
-    # --------------------------------------------------
 
-    def _generation_started(
-        self,
-    ):
-
-        self.generate_button.setEnabled(
-            False
-        )
-
-        self.cancel_button.setEnabled(
-            True
-        )
-
+    def _generation_started(self):
+        self.refresh()
         self.narration_started.emit()
 
+    def _update_progress(self, progress):
+        if self.progress_dialog and not hasattr(self.progress_dialog, "on_progress"):
+            self.progress_dialog.update_progress(progress)
 
-
-    def _generation_finished(
-        self,
-        session,
-    ):
-
-        self.generate_button.setEnabled(
-            True
-        )
-
-        self.cancel_button.setEnabled(
-            False
-        )
-
-
+    def _close_progress(self):
         if self.progress_dialog:
-
             self.progress_dialog.close()
+            self.progress_dialog = None
 
-
-        if session:
-
-            output = getattr(
-                session,
-                "output_file",
-                "",
-            )
-
-
-            if output:
-
-                self.add_recent_output(
-                    output
-                )
-
-
-                self.narration_finished.emit(
-                    output
-                )
-
-
+    def _generation_finished(self, session):
+        self.refresh()
+        self._close_progress()
+        output = getattr(session, "output_file", "") if session else ""
+        if output:
+            self.add_recent_output(output)
+            self.narration_finished.emit(output)
         self.refresh_voice_profiles()
 
+    def _generation_failed(self, message):
+        self.refresh()
+        self._close_progress()
+        self.narration_failed.emit(str(message))
 
+    def _generation_cancelled(self):
+        self.refresh()
+        self._close_progress()
 
-    def _generation_failed(
-        self,
-        message,
-    ):
-
-        self.generate_button.setEnabled(
-            True
-        )
-
-        self.cancel_button.setEnabled(
-            False
-        )
-
-
-        if self.progress_dialog:
-
-            self.progress_dialog.close()
-
-
-        QMessageBox.critical(
-
-            self,
-
-            "Narration Failed",
-
-            message,
-
-        )
-
-
-        self.narration_failed.emit(
-            message
-        )
-
-
-
-    def _generation_cancelled(
-        self,
-    ):
-
-        self.generate_button.setEnabled(
-            True
-        )
-
-        self.cancel_button.setEnabled(
-            False
-        )
-
-
-        if self.progress_dialog:
-
-            self.progress_dialog.close()
-
-
-        QMessageBox.information(
-
-            self,
-
-            "Narration",
-
-            "Narration generation cancelled."
-
-        )
-
-
-
-    # --------------------------------------------------
-    # Voice Profiles
-    # --------------------------------------------------
-
-    def load_voice_profiles(
-        self,
-        profiles,
-    ):
-
+    def load_voice_profiles(self, profiles):
+        selected = self.selected_voice()
         self.voice_combo.clear()
+        self.voice_combo.addItems([str(item) for item in profiles])
+        index = self.voice_combo.findText(selected)
+        if index >= 0:
+            self.voice_combo.setCurrentIndex(index)
 
+    def selected_voice(self):
+        return self.voice_combo.currentText()
 
-        for profile in profiles:
-
-            self.voice_combo.addItem(
-                profile
-            )
-
-
-
-    def selected_voice(
-        self,
-    ):
-
-        return (
-            self.voice_combo.currentText()
-        )
-
-
-
-    def refresh_voice_profiles(
-        self,
-    ):
-
-        self.voice_combo.clear()
-
-        profiles = self.controller.available_voices()
-        
-
-        self.load_voice_profiles(
-            profiles
-        )
-        if manager is None:
-
-            return
-
-
+    def refresh_voice_profiles(self):
         try:
-
-            profiles = (
-                manager.available_speakers()
-            )
-
-
+            self.load_voice_profiles(self.controller.available_speakers())
         except Exception:
+            self.load_voice_profiles([])
 
-            profiles = []
-
-
-        self.load_voice_profiles(
-            profiles
-        )
-
-
-
-    def selected_voice_profile(
-        self,
-    ):
-
-        return (
-            self.voice_combo.currentText()
-        )
-
-
-
-    def apply_selected_profile(
-        self,
-    ):
-
-        profile = (
-            self.selected_voice_profile()
-        )
-
-
-        if not profile:
-
+    def add_recent_output(self, filename):
+        value = str(filename)
+        if not value:
             return
-
-
-        manager = getattr(
-            self.controller,
-            "manager",
-            None,
-        )
-
-
-        if manager is None:
-
-            return
-
-
-        try:
-
-            manager.load_speaker(
-                profile
-            )
-
-
-        except Exception as exc:
-
-            QMessageBox.warning(
-
-                self,
-
-                "Voice Profile",
-
-                str(exc),
-
-            )
-
-    # --------------------------------------------------
-    # Playback
-    # --------------------------------------------------
-
-    def play_output(
-        self,
-    ):
-
-        output = self.controller.output_file()
-
-
-        if not output:
-
-            QMessageBox.information(
-
-                self,
-
-                "Playback",
-
-                "No generated narration available."
-
-            )
-
-            return
-
-
-
-        output_path = Path(
-            output
-        )
-
-
-        if not output_path.exists():
-
-            QMessageBox.warning(
-
-                self,
-
-                "Playback",
-
-                "Generated audio file not found."
-
-            )
-
-            return
-
-
-
-        try:
-
-            from backend.audio.player import (
-                AudioPlayer
-            )
-
-
-        except ImportError:
-
-            QMessageBox.warning(
-
-                self,
-
-                "Playback",
-
-                "Audio player is not available."
-
-            )
-
-            return
-
-
-
-        if self._audio_player is None:
-
-            self._audio_player = AudioPlayer()
-
-
-
-        try:
-
-            self._audio_player.play(
-                str(output_path)
-            )
-
-
-        except Exception as exc:
-
-            QMessageBox.warning(
-
-                self,
-
-                "Playback",
-
-                str(exc),
-
-            )
-
-
-
-    def stop_playback(
-        self,
-    ):
-
-        if self._audio_player:
-
-            try:
-
-                self._audio_player.stop()
-
-            except Exception:
-
-                pass
-
-
-
-    # --------------------------------------------------
-    # Output Folder
-    # --------------------------------------------------
-
-    def open_output_folder(
-        self,
-    ):
-
-        directory = Path(
-            self.output_directory
-        )
-
-
-        directory.mkdir(
-
-            parents=True,
-
-            exist_ok=True,
-
-        )
-
-
-        try:
-
-            from PySide6.QtGui import (
-                QDesktopServices
-            )
-
-            from PySide6.QtCore import (
-                QUrl
-            )
-
-
-            QDesktopServices.openUrl(
-
-                QUrl.fromLocalFile(
-
-                    str(directory)
-
-                )
-
-            )
-
-
-        except Exception as exc:
-
-
-            QMessageBox.warning(
-
-                self,
-
-                "Output Folder",
-
-                str(exc),
-
-            )
-
-
-
-    # --------------------------------------------------
-    # Recent Outputs
-    # --------------------------------------------------
-
-    def add_recent_output(
-        self,
-        filename,
-    ):
-
-        if not filename:
-
-            return
-
-
-
-        if filename in self._recent_outputs:
-
-            self._recent_outputs.remove(
-                filename
-            )
-
-
-
-        self._recent_outputs.insert(
-
-            0,
-
-            filename,
-
-        )
-
-
-
-        self._recent_outputs = (
-
-            self._recent_outputs[:10]
-
-        )
-
-
-
-    def recent_outputs(
-        self,
-    ):
-
-        return list(
-            self._recent_outputs
-        )
-
-
-
-    def clear_recent_outputs(
-        self,
-    ):
-
+        if value in self._recent_outputs:
+            self._recent_outputs.remove(value)
+        self._recent_outputs.insert(0, value)
+        del self._recent_outputs[10:]
+
+    def recent_outputs(self):
+        return list(self._recent_outputs)
+
+    def clear_recent_outputs(self):
         self._recent_outputs.clear()
 
-    # --------------------------------------------------
-    # Drag & Drop
-    # --------------------------------------------------
-
-    def enable_drag_drop(
-        self,
-    ):
-
-        self.setAcceptDrops(
-            True
-        )
-
-
-    def dragEnterEvent(
-        self,
-        event,
-    ):
-
-        if event.mimeData().hasUrls():
-
-            event.acceptProposedAction()
-
-        else:
-
-            event.ignore()
-
-
-
-    def dragMoveEvent(
-        self,
-        event,
-    ):
-
-        if event.mimeData().hasUrls():
-
-            event.acceptProposedAction()
-
-        else:
-
-            event.ignore()
-
-
-
-    def dropEvent(
-        self,
-        event,
-    ):
-
-        urls = event.mimeData().urls()
-
-
-        if not urls:
-
-            return
-
-
-
-        file_path = urls[0].toLocalFile()
-
-
-        if not file_path:
-
-            return
-
-
-
-        suffix = Path(
-            file_path
-        ).suffix.lower()
-
-
-
-        supported = (
-
-            ".wav",
-
-            ".mp3",
-
-            ".flac",
-
-            ".ogg",
-
-        )
-
-
-        if suffix not in supported:
-
-
-            QMessageBox.warning(
-
-                self,
-
-                "Reference Audio",
-
-                "Unsupported audio format."
-
-            )
-
-            return
-
-
-
-        self.reference_audio = file_path
-
-
-        self.reference_audio_edit.setText(
-
-            file_path
-
-        )
-
-
-        event.acceptProposedAction()
-
-
-
-    # --------------------------------------------------
-    # Keyboard Shortcuts
-    # --------------------------------------------------
-
-    def keyPressEvent(
-        self,
-        event,
-    ):
-
-
-        if event.modifiers() == Qt.ControlModifier:
-
-
-            if event.key() == Qt.Key_Return:
-
-                self.generate_narration()
-
-                return
-
-
-
-            if event.key() == Qt.Key_O:
-
-                self.browse_reference_audio()
-
-                return
-
-
-
-            if event.key() == Qt.Key_P:
-
-                self.play_output()
-
-                return
-
-
-
-        if event.key() == Qt.Key_Escape:
-
-            self.cancel_generation()
-
-            return
-
-
-
-        super().keyPressEvent(
-            event
-        )
-
-
-
-    # --------------------------------------------------
-    # Session State
-    # --------------------------------------------------
-
-    def save_state(
-        self,
-    ):
-
+    def save_state(self):
         return {
-
-            "reference_audio":
-                self.reference_audio,
-
-
-            "reference_text":
-                self.reference_text.toPlainText(),
-
-
-            "narration":
-                self.narration_text.toPlainText(),
-
-
-            "voice":
-                self.selected_voice(),
-
-
-            "output_directory":
-                self.output_directory,
-
-
-            "recent_outputs":
-                self.recent_outputs(),
-
+            "reference_audio": self.reference_audio,
+            "reference_text": self.reference_text.toPlainText(),
+            "narration": self.narration_text.toPlainText(),
+            "voice": self.selected_voice(),
+            "output_directory": self.output_directory,
+            "recent_outputs": self.recent_outputs(),
         }
 
-
-
-    def restore_state(
-        self,
-        state,
-    ):
-
+    def restore_state(self, state):
         if not state:
-
             return
-
-
-
-        self.reference_audio = state.get(
-
-            "reference_audio",
-
-            "",
-
-        )
-
-
-        self.reference_audio_edit.setText(
-
-            self.reference_audio
-
-        )
-
-
-        self.reference_text.setPlainText(
-
-            state.get(
-
-                "reference_text",
-
-                "",
-
-            )
-
-        )
-
-
-        self.narration_text.setPlainText(
-
-            state.get(
-
-                "narration",
-
-                "",
-
-            )
-
-        )
-
-
-        self.output_directory = state.get(
-
-            "output_directory",
-
-            self.output_directory,
-
-        )
-
-
-
-        self._recent_outputs = state.get(
-
-            "recent_outputs",
-
-            [],
-
-        )
-
-
-
-        voice = state.get(
-
-            "voice",
-
-            "",
-
-        )
-
-
-        index = self.voice_combo.findText(
-
-            voice
-
-        )
-
-
+        self.set_reference_audio(state.get("reference_audio", ""))
+        self.reference_text.setPlainText(state.get("reference_text", ""))
+        self.narration_text.setPlainText(state.get("narration", ""))
+        self.output_directory = str(state.get("output_directory", self.output_directory))
+        self._recent_outputs = list(state.get("recent_outputs", []))[:10]
+        voice = str(state.get("voice", ""))
+        index = self.voice_combo.findText(voice)
         if index >= 0:
+            self.voice_combo.setCurrentIndex(index)
 
-            self.voice_combo.setCurrentIndex(
-
-                index
-
-            )
-
-
-
-    # --------------------------------------------------
-    # Clear Panel
-    # --------------------------------------------------
-
-    def clear(
-        self,
-    ):
-
-        self.reference_audio = ""
-
-
-        self.reference_audio_edit.clear()
-
-
+    def clear(self):
+        self.set_reference_audio("")
         self.reference_text.clear()
-
-
         self.narration_text.clear()
+        self.voice_combo.setCurrentIndex(-1)
 
+    def refresh(self):
+        running = self.controller.is_running()
+        self.generate_button.setEnabled(not running)
+        self.cancel_button.setEnabled(running)
 
-        self.voice_combo.setCurrentIndex(
-            -1
-        )
-
-
-
-    # --------------------------------------------------
-    # Cleanup
-    # --------------------------------------------------
-
-    def cleanup(
-        self,
-    ):
-
-        try:
-
-            self.cancel_generation()
-
-
-        except Exception:
-
-            pass
-
-
-
-        try:
-
-            self.stop_playback()
-
-
-        except Exception:
-
-            pass
-
-
-
-        try:
-
-            self.controller.cleanup()
-
-
-        except Exception:
-
-            pass
-
-    # --------------------------------------------------
-    # Refresh UI
-    # --------------------------------------------------
-
-    def refresh(
-        self,
-    ):
-        """
-        Refresh narration panel state.
-        """
-
-        self.refresh_voice_profiles()
-
-
-        if self.controller.is_running():
-
-            self.generate_button.setEnabled(
-                False
-            )
-
-            self.cancel_button.setEnabled(
-                True
-            )
-
-        else:
-
-            self.generate_button.setEnabled(
-                True
-            )
-
-            self.cancel_button.setEnabled(
-                False
-            )
-
-
-
-    # --------------------------------------------------
-    # Controller State
-    # --------------------------------------------------
-
-    def is_generating(
-        self,
-    ):
-
+    def is_generating(self):
         return self.controller.is_running()
 
-
-
-    def current_session(
-        self,
-    ):
-
+    def current_session(self):
         return self.controller.session()
 
-
-
-    def statistics(
-        self,
-    ):
-
+    def statistics(self):
         return self.controller.statistics()
 
+    def cleanup(self):
+        self.controller.cleanup()
 
+    def dragEnterEvent(self, event):
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if urls and Path(urls[0].toLocalFile()).suffix.lower() in self.AUDIO_SUFFIXES:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
-    # --------------------------------------------------
-    # Close Event
-    # --------------------------------------------------
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls:
+            filename = urls[0].toLocalFile()
+            if Path(filename).suffix.lower() in self.AUDIO_SUFFIXES:
+                self.set_reference_audio(filename)
+                event.acceptProposedAction()
 
-    def closeEvent(
-        self,
-        event,
-    ):
+    def keyPressEvent(self, event):
+        if event.modifiers() == Qt.ControlModifier and event.key() == Qt.Key_Return:
+            self.generate_narration()
+            return
+        if event.key() == Qt.Key_Escape:
+            self.cancel_generation()
+            return
+        super().keyPressEvent(event)
 
-        try:
-
-            self.cleanup()
-
-
-        except Exception:
-
-            pass
-
-
+    def closeEvent(self, event):
+        self.cleanup()
         event.accept()
 
-
-
-    # --------------------------------------------------
-    # Debug Information
-    # --------------------------------------------------
-
-    def debug_info(
-        self,
-    ):
-
+    def debug_info(self):
         return {
-
-            "reference_audio":
-                self.reference_audio,
-
-
-            "output_directory":
-                self.output_directory,
-
-
-            "running":
-                self.is_generating(),
-
-
-            "recent_outputs":
-                len(
-                    self._recent_outputs
-                ),
-
+            "reference_audio": self.reference_audio,
+            "output_directory": self.output_directory,
+            "running": self.is_generating(),
+            "recent_outputs": len(self._recent_outputs),
         }

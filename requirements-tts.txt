@@ -1,0 +1,2 @@
+# Optional local narration runtime. Not required for model-free CI.
+f5-tts
