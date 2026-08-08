@@ -111,6 +111,102 @@ class BatchExportQueueTests(unittest.TestCase):
             self.assertEqual(queue.get(bad.id).attempts, 2)
             self.assertEqual(len(service.calls), 3)
 
+    def test_render_then_export_persists_both_checkpoints_for_each_job(self):
+        with tempfile.TemporaryDirectory() as root:
+            queue = BatchExportQueue(Path(root) / "queue.json")
+            first = queue.enqueue(
+                Path(root) / "one", Path(root) / "out-one", mode="render_export"
+            )
+            second = queue.enqueue(
+                Path(root) / "two", Path(root) / "out-two", mode="render_export"
+            )
+            rendered = []
+
+            def render(project, job, cancel_event=None):
+                output = Path(project.root) / "output" / "video.mp4"
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"video")
+                rendered.append(job.id)
+                return output
+
+            service = RecordingService()
+            BatchExportRunner(
+                queue,
+                service=service,
+                project_loader=loader,
+                render_project=render,
+            ).run_pending()
+            self.assertEqual(rendered, [first.id, second.id])
+            for job_id in (first.id, second.id):
+                job = queue.get(job_id)
+                self.assertEqual(job.status, "completed")
+                self.assertEqual(job.phase, "done")
+                self.assertTrue(job.render_complete)
+                self.assertTrue(job.export_complete)
+                self.assertTrue(job.render_output.endswith("output/video.mp4"))
+
+    def test_export_retry_resumes_after_render_checkpoint(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = str((Path(root) / "package").resolve())
+            queue = BatchExportQueue(Path(root) / "queue.json")
+            job = queue.enqueue(
+                Path(root) / "project",
+                destination,
+                mode="render_export",
+            )
+            renders = []
+
+            def render(project, current_job, cancel_event=None):
+                renders.append(current_job.id)
+                return Path(project.root) / "output" / "video.mp4"
+
+            service = RecordingService({destination})
+            runner = BatchExportRunner(
+                queue,
+                service=service,
+                project_loader=loader,
+                render_project=render,
+            )
+            runner.run_pending()
+            failed = queue.get(job.id)
+            self.assertEqual(failed.status, "failed")
+            self.assertEqual(failed.phase, "export")
+            self.assertTrue(failed.render_complete)
+            self.assertFalse(failed.export_complete)
+            self.assertEqual(renders, [job.id])
+
+            queue.retry(job.id)
+            runner.run_pending()
+            completed = queue.get(job.id)
+            self.assertEqual(completed.status, "completed")
+            self.assertEqual(completed.attempts, 2)
+            self.assertTrue(completed.render_complete)
+            self.assertTrue(completed.export_complete)
+            self.assertEqual(renders, [job.id])
+
+    def test_recovery_resumes_rendered_job_at_export_phase(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "queue.json"
+            queue = BatchExportQueue(path)
+            job = queue.enqueue(
+                Path(root) / "project",
+                Path(root) / "output",
+                mode="render_export",
+            )
+            queue.replace(
+                job.transition(
+                    "running",
+                    phase="export",
+                    attempts=1,
+                    render_complete=True,
+                    render_output="output/video.mp4",
+                )
+            )
+            recovered = BatchExportQueue.load(path).get(job.id)
+            self.assertEqual(recovered.status, "pending")
+            self.assertEqual(recovered.phase, "export")
+            self.assertTrue(recovered.render_complete)
+
     def test_cancellation_stops_queue_and_leaves_later_jobs_pending(self):
         with tempfile.TemporaryDirectory() as root:
             queue = BatchExportQueue(Path(root) / "queue.json")
