@@ -1,0 +1,31 @@
+name: Milestone 16 Subtitles
+
+on:
+  push:
+    branches:
+      - agent/milestone-16-subtitles
+  pull_request:
+    paths:
+      - "backend/subtitles/**"
+      - "desktop/controllers/subtitle_controller.py"
+      - "desktop/ui/widgets/subtitle_panel.py"
+      - "tests/test_subtitle*.py"
+      - ".github/workflows/milestone-16-smoke.yml"
+
+jobs:
+  subtitles:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile subtitle integration
+        run: python -m compileall -q backend/subtitles desktop tests
+
+      - name: Run subtitle regressions
+        run: python -m unittest -v tests.test_subtitles
