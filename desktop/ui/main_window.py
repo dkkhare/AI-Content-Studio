@@ -8,6 +8,7 @@ from desktop.project.project_dialogs import ProjectDialogs
 from desktop.settings import (
     UIState,
     RecentProjects,
+    SettingsManager,
 )
 
 from desktop.ui.menu_bar import build_menu
@@ -20,6 +21,9 @@ from desktop.ui.docks.log_dock import LogDock
 
 from desktop.ui.dashboard import Dashboard
 from desktop.ui.workspace import Workspace
+from desktop.ai import AISettingsStore
+from desktop.controllers.ai_controller import AIDesktopController
+from desktop.ui.dialogs.ai_settings_dialog import AISettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -60,6 +64,10 @@ class MainWindow(QMainWindow):
         self.ui_state = UIState()
 
         self.recent_projects = RecentProjects()
+
+        self.ai_settings_store = AISettingsStore(SettingsManager())
+        self.ai_controller = AIDesktopController()
+        self.ai_controller.configure(self.ai_settings_store.load())
 
         # --------------------------------------------------
         # Central Widgets
@@ -707,6 +715,20 @@ class MainWindow(QMainWindow):
             str(error),
         )
 
+
+    # --------------------------------------------------
+    # AI Provider Settings
+    # --------------------------------------------------
+
+    def open_ai_settings(self):
+        dialog = AISettingsDialog(
+            self.ai_controller,
+            self.ai_settings_store,
+            self,
+        )
+        if dialog.exec():
+            self.statusBar().showMessage("AI provider settings updated.")
+            self.log("AI provider settings updated.")
 
     # --------------------------------------------------
     # Application Close
