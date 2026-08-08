@@ -243,6 +243,16 @@ def build_menu(
 
 
     # --------------------------------------------------
+    # AI Menu
+    # --------------------------------------------------
+
+    ai_menu = menu_bar.addMenu("AI")
+    ai_settings_action = QAction("Provider Settings", window)
+    ai_settings_action.triggered.connect(window.open_ai_settings)
+    ai_menu.addAction(ai_settings_action)
+    window.aiSettingsAction = ai_settings_action
+
+    # --------------------------------------------------
     # Help Menu
     # --------------------------------------------------
 
