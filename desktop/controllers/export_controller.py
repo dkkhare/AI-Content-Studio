@@ -187,12 +187,16 @@ class ExportDesktopController(QObject):
         )
         self.exportStarted.emit()
 
-    def enqueue_current(self, destination, preset="publishing"):
+    def enqueue_current(
+        self, destination, preset="publishing", *, mode="export"
+    ):
         if self.project is None or self.queue is None:
             raise RuntimeError("Open a project before queueing export.")
         self.service.collect(self.project, preset)
         ProjectSerializer.save(self.project)
-        job = self.queue.enqueue(self.project.root, destination, preset)
+        job = self.queue.enqueue(
+            self.project.root, destination, preset, mode=mode
+        )
         self.batchJobChanged.emit(job)
         return job
 
@@ -204,6 +208,8 @@ class ExportDesktopController(QObject):
                 "id": job.id,
                 "project": Path(job.project_root).name,
                 "preset": job.preset,
+                "mode": job.mode,
+                "phase": job.phase,
                 "destination": job.destination,
                 "status": job.status,
                 "attempts": job.attempts,
