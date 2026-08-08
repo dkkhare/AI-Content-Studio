@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 
@@ -13,6 +15,56 @@ class FFmpegRenderError(RuntimeError):
 
 class RenderCancelled(FFmpegRenderError):
     pass
+
+
+@dataclass(frozen=True)
+class FFmpegStatus:
+    available: bool
+    executable: str
+    version: str = ""
+    error: str = ""
+
+    def require(self):
+        if not self.available:
+            raise FFmpegRenderError(
+                self.error
+                or "FFmpeg is unavailable. Install FFmpeg and add it to PATH."
+            )
+        return self
+
+
+def probe_ffmpeg(executable="ffmpeg", *, runner=subprocess.run, which=shutil.which):
+    resolved = which(executable)
+    if not resolved and Path(executable).is_file():
+        resolved = str(Path(executable).resolve())
+    if not resolved:
+        return FFmpegStatus(
+            False,
+            str(executable),
+            error="FFmpeg was not found. Install FFmpeg and add it to PATH.",
+        )
+    try:
+        result = runner(
+            [resolved, "-version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return FFmpegStatus(False, resolved, error=f"Unable to run FFmpeg: {exc}")
+    first_line = (result.stdout or result.stderr or "").splitlines()
+    version = first_line[0].strip() if first_line else ""
+    if result.returncode != 0 or not version.lower().startswith("ffmpeg version"):
+        return FFmpegStatus(
+            False,
+            resolved,
+            version=version,
+            error="The configured FFmpeg executable did not return a valid version.",
+        )
+    return FFmpegStatus(True, resolved, version=version)
 
 
 def _escape_filter_path(value: str) -> str:
@@ -85,6 +137,9 @@ class FFmpegRenderer:
     def __init__(self, builder=None, popen_factory=None):
         self.builder = builder or FFmpegCommandBuilder()
         self.popen_factory = popen_factory or subprocess.Popen
+
+    def preflight(self):
+        return probe_ffmpeg(self.builder.executable)
 
     @staticmethod
     def progress_from_line(line: str, duration_ms: int) -> float | None:
