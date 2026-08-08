@@ -495,15 +495,177 @@ You may supply an absolute output path instead.
 - Uninstall removes program files and shortcuts but does not intentionally
   remove external project folders.
 
+## First-run checklist
+
+Complete this short check before starting an important project:
+
+1. Launch the application and confirm the window opens normally.
+2. Create a small test project in a writable local folder.
+3. Select **File → Save**, close it, and reopen the folder containing
+   `project.json`.
+4. Confirm the project `output` folder was created.
+5. If using video, run `ffmpeg -version` and confirm the Video Composer reports
+   FFmpeg as ready.
+6. If using online AI, configure one provider and test a short non-sensitive
+   prompt before processing a large document.
+7. If using Ollama, run `ollama list` and use the exact installed model name.
+8. If using source-mode F5-TTS, generate a short narration before attempting a
+   long script.
+9. Export a support bundle once so you know where diagnostics are stored.
+
+Do not use the release candidate as the only copy of irreplaceable source media.
+
+## Data safety, privacy, and backups
+
+- `project.json` stores project metadata and paths. Avoid editing it manually
+  while the project is open.
+- Source files may remain outside the project folder. Moving or renaming them
+  can break saved references.
+- `.autosave` is crash/shutdown recovery data, not a replacement for backups.
+- The `backups` folder contains project metadata backups when backups are
+  created; large external media must be backed up separately.
+- Copy the entire project root and any externally referenced source media to a
+  second drive or backup service before upgrades or major changes.
+- Save explicitly after recovery. Recovery state should not be treated as the
+  last confirmed project version until reviewed.
+- Cloud AI sends submitted prompt/content to the selected provider. Review the
+  provider's privacy, retention, regional, and billing policies before sending
+  confidential or copyrighted material.
+- Local Ollama and F5-TTS avoid cloud generation calls, but model downloads,
+  update checks, and other configured services may still use the network.
+- Support bundles are local and redacted, but always inspect them before
+  sharing.
+- API keys are session/environment secrets. Rotate a key immediately if it is
+  exposed in a screenshot, terminal history, repository, or shared file.
+
+## Performance and reliability tips
+
+- Keep active projects and temporary output on an SSD.
+- Use short test inputs before long OCR, TTS, or video jobs.
+- Split very long narration into manageable sections.
+- Use clean, accurately transcribed reference audio for F5-TTS.
+- Close GPU-heavy applications before local AI/TTS generation.
+- Leave free disk space for partial video/audio output and model downloads.
+- Avoid cloud-synced project folders during active rendering if sync software
+  locks or rewrites files; sync after the job finishes.
+- Do not move inputs, rename the project folder, shut down Windows, or allow the
+  computer to sleep during generation.
+- A higher resolution, frame rate, duration, or local model size increases
+  processing time and memory usage.
+
+## Useful controls
+
+| Action | Control |
+| --- | --- |
+| Generate narration | Click **Generate Narration** |
+| Generate narration shortcut | `Ctrl+Enter` while using the Narration panel |
+| Cancel narration | `Esc` or the **Cancel** button |
+| Add reference audio | **Browse** or drag a supported audio file onto Narration |
+| Save project | **File → Save** |
+| Save to a new root | **File → Save As** |
+| Check updates | **Help → Check for Updates...** |
+| Export diagnostics bundle | **Help → Export Support Bundle...** |
+
+Cancellation may take a moment while an external process or model reaches a safe
+stopping point. Confirm output files before closing the application.
+
+## Known 0.19.0 release-candidate limitations
+
+- This is a release candidate, not a final signed public release.
+- The Windows installer is checksum-verified but not Authenticode-signed, so
+  SmartScreen may display a warning.
+- F5-TTS is not bundled in the packaged EXE and currently requires source mode.
+- FFmpeg, Ollama, Tesseract, Poppler, models, API keys, and GPU drivers are not
+  bundled.
+- Automated GUI validation runs offscreen and cannot confirm appearance on every
+  display scale, theme, or GPU.
+- Native OCR utilities, GPU-specific F5-TTS configurations, large Ollama models,
+  and real user media require manual testing on the target workstation.
+- Cloud-provider availability, pricing, quotas, model names, and policies can
+  change independently of AI Content Studio.
+- Autosave protects modified project metadata but does not back up every
+  external source file.
+- Feature availability depends on the installed optional runtime and the inputs
+  configured for the relevant workspace.
+
+## Frequently asked questions
+
+### Where is my project?
+
+It is in the parent folder chosen during **New Project**, under a subfolder with
+the project name. The folder containing `project.json` is the project root.
+
+### Where are generated files?
+
+The default location is `<Project root>\output`. Some panels allow an explicit
+output path; that selected path takes precedence.
+
+### Can I delete the input files after generation?
+
+Keep them until the project and all exports are complete and verified. Saved
+project metadata may reference the original files.
+
+### Does uninstall delete my projects?
+
+The installer is designed to remove application files and shortcuts, not
+external project directories. Back up projects anyway and confirm this behavior
+during release-candidate testing.
+
+### Do I need an API key?
+
+Not for basic project work, FFmpeg, F5-TTS, Ollama, Tesseract, or Poppler.
+OpenAI and Gemini require their respective keys.
+
+### Can the packaged installer use F5-TTS?
+
+Not in version 0.19.0. Use the documented Python 3.11 source environment.
+
+### Why is Windows showing a security warning?
+
+The current candidate is not Authenticode-signed. Verify its SHA-256 data and
+download only from this repository.
+
+### Can I work offline?
+
+Basic project operations and installed local tools can work offline. Cloud AI,
+model downloads, update checks, and any remote endpoints require network access.
+
 ## Troubleshooting
 
-- If FFmpeg is unavailable, install it, add its `bin` directory to `PATH`,
-  restart the application, and regenerate diagnostics.
-- If a project will not open, select the folder containing `project.json`.
-- If online AI fails, verify provider settings, API access, model name, and
-  internet connectivity.
-- If the application crashes, restart it and export a support bundle.
-- Never post an uninspected support ZIP publicly.
+| Problem | Checks |
+| --- | --- |
+| Project will not open | Select the folder containing `project.json`; verify it is readable and the expected project subfolders remain accessible |
+| Save or output fails | Confirm the destination exists, is writable, has free space, and is not locked by another application |
+| FFmpeg unavailable | Run `where.exe ffmpeg` and `ffmpeg -version`; correct `PATH`, then restart the application |
+| Video render fails | Validate visual/audio/subtitle inputs, use an `.mp4` output path, check free space, and inspect the log/support bundle |
+| F5-TTS missing | Run from the documented Python 3.11 environment and install `requirements-tts.txt` there |
+| F5-TTS out of memory | Shorten text, close GPU applications, use CPU fallback/smaller settings, or use a GPU with more VRAM |
+| Ollama unavailable | Start Ollama, run `ollama list`, verify the model name, and check `OLLAMA_BASE_URL` |
+| OpenAI/Gemini fails | Verify key, exact model, quota/billing, endpoint, clock, network, and provider status |
+| OCR tool missing | Run `tesseract --version` or `pdftoppm -h` and correct `PATH` |
+| Application crashes | Restart, preserve the project, export a support bundle, and note the action that triggered the crash |
+| Update fails | Keep the current installation, verify network access and checksum, and do not run an unverified installer |
+
+Never post an uninspected support ZIP or live API key publicly.
+
+## Reporting a problem
+
+Open an issue on the
+[GitHub Issues page](https://github.com/dkkhare/AI-Content-Studio/issues) and
+include:
+
+- application version and Windows version
+- exact steps to reproduce
+- expected and actual result
+- whether the problem occurs in a new test project
+- relevant input type and approximate size, without confidential content
+- FFmpeg/Ollama/Tesseract version when applicable
+- GPU model, VRAM, RAM, and driver details for local AI/TTS issues
+- the redacted support bundle or only the necessary redacted excerpts
+- screenshots with project paths, personal data, and keys removed
+
+Do not upload copyrighted/private source media unless you are authorized to
+share it.
 
 ## Development
 
