@@ -112,11 +112,12 @@ def _split_block(
     for sentence in _sentence_units(block.text):
         words = sentence.split()
         if len(words) > limit_words:
+            # Logical boundaries outrank the duration target. Preserve an
+            # unusually long sentence instead of silently cutting its words.
             if current:
                 parts.append(" ".join(current))
                 current, count = [], 0
-            for start in range(0, len(words), limit_words):
-                parts.append(" ".join(words[start : start + limit_words]))
+            parts.append(sentence)
             continue
         if current and count + len(words) > limit_words:
             parts.append(" ".join(current))
