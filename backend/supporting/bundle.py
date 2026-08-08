@@ -45,7 +45,8 @@ class SupportBundleService:
 
     def _log_path(self, source):
         path = Path(source).expanduser().resolve()
-        if path.suffix.lower() not in ALLOWED_LOG_SUFFIXES:
+        suffixes = {suffix.lower() for suffix in path.suffixes}
+        if not suffixes.intersection(ALLOWED_LOG_SUFFIXES):
             raise ValueError(f"Unsupported support log type: {path.suffix}")
         if not path.is_file():
             raise FileNotFoundError(path)
@@ -54,6 +55,28 @@ class SupportBundleService:
         if path.stat().st_size > self.max_file_bytes:
             raise ValueError(f"Support log exceeded the per-file size limit: {path.name}")
         return path
+
+    def discover_log_paths(self, directories):
+        candidates = []
+        for directory in directories:
+            directory = Path(directory).expanduser().resolve()
+            if not directory.is_dir():
+                continue
+            for path in directory.iterdir():
+                if not path.is_file():
+                    continue
+                try:
+                    approved = self._log_path(path)
+                except (FileNotFoundError, ValueError):
+                    continue
+                candidates.append(approved)
+        return tuple(
+            sorted(
+                candidates,
+                key=lambda path: (path.stat().st_mtime_ns, path.name),
+                reverse=True,
+            )[: self.max_logs]
+        )
 
     @staticmethod
     def _json_bytes(value):
