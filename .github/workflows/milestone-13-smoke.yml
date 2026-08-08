@@ -32,6 +32,7 @@ on:
       - "tests/test_publishing_metadata.py"
       - "tests/test_release_manager.py"
       - "tests/test_publishing_providers.py"
+      - "tests/test_publishing_schedule.py"
       - "tests/test_knowledge_store.py"
       - "tests/test_knowledge_review.py"
       - "tests/test_story_intelligence.py"
@@ -72,6 +73,7 @@ jobs:
           tests.test_publishing_metadata
           tests.test_release_manager
           tests.test_publishing_providers
+          tests.test_publishing_schedule
           tests.test_knowledge_store
           tests.test_knowledge_review
           tests.test_story_intelligence
