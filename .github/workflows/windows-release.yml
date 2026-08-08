@@ -1,0 +1,70 @@
+name: Publish Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate release tag
+        id: version
+        shell: pwsh
+        run: |
+          $Version = python scripts/release_version.py --tag $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0 -or -not $Version) {
+            throw "Release tag does not match the application version"
+          }
+          "APP_VERSION=$Version" | Out-File $env:GITHUB_ENV -Append
+          "version=$Version" | Out-File $env:GITHUB_OUTPUT -Append
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          python -m pip install PySide6 -r requirements-build.txt
+          choco install innosetup --yes --no-progress
+      - name: Build application bundle
+        run: python -m PyInstaller --noconfirm --clean AIContentStudio.spec
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $CompilerCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:ChocolateyInstall\bin\ISCC.exe"
+          )
+          $Compiler = $CompilerCandidates |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -First 1
+          if (-not $Compiler) {
+            throw "Inno Setup 6 compiler was not found."
+          }
+          & $Compiler "/DMyAppVersion=$env:APP_VERSION" "packaging\AIContentStudio.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE"
+          }
+      - name: Generate release checksum
+        shell: pwsh
+        run: |
+          $Installer = Resolve-Path "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe"
+          $Hash = (Get-FileHash $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$Hash  $($Installer.Path | Split-Path -Leaf)" | Set-Content "release\SHA256SUMS.txt" -Encoding utf8
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Installer = "release\AIContentStudio-Setup-$env:APP_VERSION-windows-x64.exe"
+          gh release create $env:GITHUB_REF_NAME $Installer "release\SHA256SUMS.txt" --verify-tag --generate-notes --title "AI Content Studio $env:GITHUB_REF_NAME"
