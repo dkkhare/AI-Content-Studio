@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -32,15 +33,19 @@ class PublishingService:
         return self.providers[key]
 
     def provider_status(self) -> list[dict[str, Any]]:
-        rows = []
-        for provider_id, provider in self.providers.items():
-            rows.append({
-                "id": provider_id,
-                "name": provider.display_name,
-                "configured": bool(provider.configured()),
-                "error": provider.configuration_error(),
-            })
-        return rows
+        return [
+            {"id": provider_id, "name": provider.display_name, "configured": bool(provider.configured()), "error": provider.configuration_error()}
+            for provider_id, provider in self.providers.items()
+        ]
+
+    def _manifest_for_release(self, episode_id: str) -> dict[str, Any]:
+        manifest = copy.deepcopy(self.releases.manifest(episode_id))
+        release = self.releases.get(episode_id)
+        youtube = manifest.setdefault("youtube", {})
+        if isinstance(youtube, dict):
+            youtube["publish_at"] = str(release.get("scheduled_publish_at", "") or "")
+            youtube["playlist_id"] = str(release.get("playlist_id", "") or "")
+        return manifest
 
     def publish_episode(self, episode_id: str, provider_id: str) -> dict[str, Any]:
         release = self.releases.get(episode_id)
@@ -49,15 +54,11 @@ class PublishingService:
         provider = self.provider(provider_id)
         if not provider.configured():
             raise ValueError(provider.configuration_error() or f"Provider is not configured: {provider_id}")
-        manifest = self.releases.manifest(episode_id)
+        manifest = self._manifest_for_release(episode_id)
         try:
             result = provider.publish(manifest, root=self.root)
         except Exception as exc:
-            self.releases.mark_failed(
-                episode_id,
-                str(exc),
-                note=f"Publishing provider failed: {provider_id}",
-            )
+            self.releases.mark_failed(episode_id, str(exc), note=f"Publishing provider failed: {provider_id}")
             raise
         return self.releases.mark_published(
             episode_id,
@@ -66,3 +67,18 @@ class PublishingService:
             external_url=result.external_url,
             note=f"Published through provider: {provider_id}",
         )
+
+    def publish_ready(self, provider_id: str, *, stop_on_error: bool = False) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for item in self.releases.items():
+            if str(item.get("state", "draft")) != "ready":
+                continue
+            episode_id = str(item.get("episode_id", ""))
+            try:
+                release = self.publish_episode(episode_id, provider_id)
+                results.append({"episode_id": episode_id, "ok": True, "release": release})
+            except Exception as exc:
+                results.append({"episode_id": episode_id, "ok": False, "error": str(exc)})
+                if stop_on_error:
+                    break
+        return results
