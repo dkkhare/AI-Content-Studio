@@ -10,8 +10,7 @@ on:
       - "desktop/controllers/tts_controller.py"
       - "desktop/workers/tts_worker.py"
       - "desktop/ui/widgets/narration_panel.py"
-      - "tests/test_tts_*.py"
-      - ".github/workflows/milestone-15-smoke.yml"
+      - "tests/test_tts_*.py"\n      - "scripts/tts_smoke.py"\n      - "docs/tts.md"\n      - "requirements-tts.txt"\n      - ".github/workflows/milestone-15-smoke.yml"
 
 jobs:
   tts-core:
@@ -36,8 +35,8 @@ jobs:
       - name: Compile TTS integration
         run: python -m compileall -q backend/tts desktop tests
 
-      - name: Run TTS core regressions
-        run: python -m unittest -v tests.test_tts_core
+      - name: Run TTS core and smoke regressions
+        run: python -m unittest -v tests.test_tts_core tests.test_tts_smoke_cli
 
       - name: Verify pipeline imports without optional F5 runtime
         run: python -c "from backend.tts.pipeline import TTSPipeline; print('TTS pipeline import OK')"
