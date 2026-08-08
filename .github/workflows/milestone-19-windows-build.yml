@@ -9,6 +9,7 @@ on:
       - "requirements-build.txt"
       - "AIContentStudio.spec"
       - "scripts/build_windows.ps1"
+      - "tests/test_runtime.py"
       - ".github/workflows/milestone-19-windows-build.yml"
   workflow_dispatch:
 
