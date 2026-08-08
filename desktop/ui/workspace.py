@@ -10,8 +10,6 @@ from PySide6.QtWidgets import (
     QLabel,
 )
 
-from desktop.ui.widgets.narration_panel import NarrationPanel
-
 
 class Workspace(QWidget):
     """
@@ -154,7 +152,17 @@ class Workspace(QWidget):
         self,
     ):
 
-        self.narration_panel = NarrationPanel()
+        try:
+            from desktop.ui.widgets.narration_panel import NarrationPanel
+
+            self.narration_panel = NarrationPanel()
+        except (ImportError, ModuleNotFoundError) as exc:
+            self.narration_panel = QLabel(
+                "Narration unavailable\n\n"
+                f"Optional TTS components could not be loaded: {exc}"
+            )
+            self.narration_panel.setWordWrap(True)
+            self.narration_panel.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
         self.tabs.addTab(
             self.narration_panel,

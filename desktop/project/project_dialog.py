@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
+    QMessageBox,
 )
 
 
@@ -62,3 +63,14 @@ class ProjectDialogs:
             return None
 
         return Path(directory)
+
+    @staticmethod
+    def confirm_close(parent):
+        result = QMessageBox.question(
+            parent,
+            "Unsaved changes",
+            "Close the project without saving changes?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return result == QMessageBox.Yes
