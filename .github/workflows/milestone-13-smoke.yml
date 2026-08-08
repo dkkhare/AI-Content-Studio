@@ -10,6 +10,7 @@ on:
       - "backend/pipeline/ai_stages.py"
       - "backend/pipeline/context.py"
       - "tests/test_ai_*.py"
+      - "scripts/ai_smoke.py"
       - ".github/workflows/milestone-13-smoke.yml"
 
 jobs:
@@ -25,7 +26,7 @@ jobs:
           python-version: "3.11"
 
       - name: Compile sources
-        run: python -m compileall -q backend tests
+        run: python -m compileall -q backend scripts tests
 
       - name: Run Milestone 13 tests
         run: >-
@@ -34,6 +35,7 @@ jobs:
           tests.test_ai_hardening
           tests.test_ai_prompts
           tests.test_ai_providers
+          tests.test_ai_smoke_cli
           tests.test_ai_pipeline_stages
 
       - name: Run project lifecycle regression
