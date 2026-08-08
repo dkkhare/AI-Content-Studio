@@ -1,0 +1,39 @@
+name: Milestone 19 Windows Build
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "backend/**"
+      - "requirements.txt"
+      - "requirements-build.txt"
+      - "AIContentStudio.spec"
+      - "scripts/build_windows.ps1"
+      - ".github/workflows/milestone-19-windows-build.yml"
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install packaging dependencies
+        run: python -m pip install PySide6 -r requirements-build.txt
+      - name: Build desktop bundle
+        run: python -m PyInstaller --noconfirm --clean AIContentStudio.spec
+      - name: Verify packaged executable
+        shell: pwsh
+        run: |
+          $Executable = "dist\AIContentStudio\AIContentStudio.exe"
+          if (-not (Test-Path $Executable)) {
+            throw "Missing packaged executable: $Executable"
+          }
+      - name: Upload Windows bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIContentStudio-windows
+          path: dist/AIContentStudio/
+          if-no-files-found: error
