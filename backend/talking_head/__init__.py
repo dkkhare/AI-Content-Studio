@@ -18,6 +18,7 @@ from .pipeline import (
     SegmentRecord,
     split_script,
 )
+from .preflight import PreflightCheck, PreflightReport, TalkingHeadPreflight
 from .series import (
     EpisodeOutput,
     SeriesRequest,
@@ -36,6 +37,8 @@ __all__ = [
     "PipelineCancelled",
     "PodcastRequest",
     "PodcastResult",
+    "PreflightCheck",
+    "PreflightReport",
     "SadTalkerAdapter",
     "SadTalkerConfig",
     "SegmentRecord",
@@ -43,6 +46,7 @@ __all__ = [
     "SeriesRequest",
     "SeriesResult",
     "SourceBlock",
+    "TalkingHeadPreflight",
     "TalkingHeadSeriesPipeline",
     "plan_episodes",
     "split_script",
