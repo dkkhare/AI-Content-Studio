@@ -44,8 +44,7 @@ class Workspace(QWidget):
 
         self.translation_page = None
 
-        self.video_page = None
-
+        self.talking_head_page = None\n\n        self.video_page = None\n
         self.export_page = None
 
         self.narration_panel = None
@@ -102,9 +101,7 @@ class Workspace(QWidget):
 
         self._create_subtitle_tab()
 
-        self._create_translation_tab()
-
-        self._create_video_tab()
+        self._create_translation_tab()\n\n        self._create_talking_head_tab()\n\n        self._create_video_tab()
 
         self._create_export_tab()
 
@@ -206,6 +203,19 @@ class Workspace(QWidget):
             "Translation",
         )
 
+    def _create_talking_head_tab(
+        self,
+    ):
+
+        from desktop.ui.widgets.talking_head_panel import TalkingHeadPanel
+
+        self.talking_head_page = TalkingHeadPanel()
+
+        self.tabs.addTab(
+            self.talking_head_page,
+            "Talking Head Series",
+        )
+
     def _create_video_tab(
         self,
     ):
@@ -248,8 +258,7 @@ class Workspace(QWidget):
         if self.subtitle_panel:
             self.subtitle_panel.set_project(project)
 
-        if self.video_page:
-            self.video_page.set_project(project)
+        if self.talking_head_page:\n            self.talking_head_page.set_project(project)\n\n        if self.video_page:\n            self.video_page.set_project(project)
 
         if self.export_page:
             self.export_page.set_project(project)
@@ -385,17 +394,23 @@ class Workspace(QWidget):
 
         self.set_current_tab(3)
 
-    def open_video_tab(
+    def open_talking_head_tab(
         self,
     ):
 
         self.set_current_tab(5)
 
-    def open_export_tab(
+    def open_video_tab(
         self,
     ):
 
         self.set_current_tab(6)
+
+    def open_export_tab(
+        self,
+    ):
+
+        self.set_current_tab(7)
     # --------------------------------------------------
     # Cleanup
     # --------------------------------------------------
@@ -429,8 +444,7 @@ class Workspace(QWidget):
         if self.subtitle_panel:
             self.subtitle_panel.clear()
 
-        if self.video_page:
-            self.video_page.clear()
+        if self.talking_head_page:\n            self.talking_head_page.clear()\n\n        if self.video_page:\n            self.video_page.clear()
 
         if self.export_page:
             self.export_page.clear()
@@ -487,6 +501,11 @@ class Workspace(QWidget):
         self.subtitle_panel = None
 
         self.translation_page = None
+
+        if self.talking_head_page and hasattr(self.talking_head_page, "dispose"):
+            self.talking_head_page.dispose()
+
+        self.talking_head_page = None
 
         if self.video_page and hasattr(self.video_page, "dispose"):
             self.video_page.dispose()
