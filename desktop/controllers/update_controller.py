@@ -69,6 +69,7 @@ class UpdateDesktopController(QObject):
     downloadFinished = Signal(str)
     downloadFailed = Signal(str)
     downloadCancelled = Signal()
+    idle = Signal()
 
     def __init__(
         self,
@@ -113,6 +114,7 @@ class UpdateDesktopController(QObject):
         self._thread = None
         self._worker = None
         self._cancel_event = None
+        self.idle.emit()
 
     def start_check(self):
         self._ensure_idle()
