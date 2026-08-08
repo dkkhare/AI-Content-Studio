@@ -7,7 +7,9 @@ analysis = Analysis(
     ["desktop/main.py"],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=[],
+    datas=[
+        (str(ROOT / "desktop" / "themes" / "dark.qss"), "desktop/themes"),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -29,6 +31,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    version=str(ROOT / "packaging" / "windows_version_info.txt"),
 )
 bundle = COLLECT(
     exe,
