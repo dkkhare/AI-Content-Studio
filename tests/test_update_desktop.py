@@ -73,14 +73,16 @@ class UpdateControllerTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QCoreApplication.instance() or QCoreApplication([])
 
-    @staticmethod
-    def wait_for(signal, action):
+    def wait_for_idle(self, controller, signal, action):
         loop = QEventLoop()
         values = []
-        signal.connect(lambda *args: (values.append(args), loop.quit()))
+        signal.connect(lambda *args: values.append(args))
+        controller.idle.connect(loop.quit)
         QTimer.singleShot(3000, loop.quit)
         action()
         loop.exec()
+        self.assertFalse(controller.is_running())
+        self.assertTrue(values)
         return values
 
     def test_background_check_uses_persisted_channel(self):
@@ -97,7 +99,9 @@ class UpdateControllerTests(unittest.TestCase):
         controller = UpdateDesktopController(
             service=Service(), preferences=preferences
         )
-        values = self.wait_for(controller.checkFinished, controller.start_check)
+        values = self.wait_for_idle(
+            controller, controller.checkFinished, controller.start_check
+        )
         self.assertEqual(values[0][0].tag, "v0.20.0")
         self.assertEqual(calls, [True])
         controller.dispose()
@@ -120,7 +124,8 @@ class UpdateControllerTests(unittest.TestCase):
             controller.downloadProgress.connect(
                 lambda written, total: progress.append((written, total))
             )
-            values = self.wait_for(
+            values = self.wait_for_idle(
+                controller,
                 controller.downloadFinished,
                 lambda: controller.start_download(release(), root),
             )
