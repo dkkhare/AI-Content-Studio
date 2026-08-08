@@ -4,7 +4,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from desktop.project.project_controller import (
+from desktop.controllers.project_controller import (
     ProjectController,
 )
 
