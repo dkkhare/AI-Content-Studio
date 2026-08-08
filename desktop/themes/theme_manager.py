@@ -1,14 +1,16 @@
-from pathlib import Path
-
 from PySide6.QtWidgets import QApplication
+
+from backend.runtime import resource_path
 
 
 class ThemeManager:
     """Loads and applies Qt stylesheets."""
 
-    @staticmethod
-    def load_dark(app: QApplication):
-        qss_file = Path(__file__).parent / "dark.qss"
+    DARK_STYLESHEET = "desktop/themes/dark.qss"
 
-        if qss_file.exists():
-            app.setStyleSheet(qss_file.read_text(encoding="utf-8"))
+    @classmethod
+    def load_dark(cls, app: QApplication):
+        qss_file = resource_path(cls.DARK_STYLESHEET)
+        if not qss_file.is_file():
+            raise FileNotFoundError(f"Required theme resource is missing: {qss_file}")
+        app.setStyleSheet(qss_file.read_text(encoding="utf-8"))
