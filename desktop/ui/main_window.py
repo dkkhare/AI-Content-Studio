@@ -18,6 +18,7 @@ from desktop.ui.status_bar import build_statusbar
 from desktop.ui.docks.project_dock import ProjectDock
 from desktop.ui.docks.output_dock import OutputDock
 from desktop.ui.docks.log_dock import LogDock
+from desktop.ui.docks.ai_assistant_dock import AIAssistantDock
 
 from desktop.ui.dashboard import Dashboard
 from desktop.ui.workspace import Workspace
@@ -109,6 +110,11 @@ class MainWindow(QMainWindow):
             self
         )
 
+        self.aiAssistantDock = AIAssistantDock(
+            self.ai_controller,
+            self,
+        )
+
         self.addDockWidget(
             Qt.LeftDockWidgetArea,
             self.projectDock,
@@ -123,6 +129,12 @@ class MainWindow(QMainWindow):
             Qt.BottomDockWidgetArea,
             self.logDock,
         )
+
+        self.addDockWidget(
+            Qt.RightDockWidgetArea,
+            self.aiAssistantDock,
+        )
+        self.aiAssistantDock.hide()
 
         # --------------------------------------------------
         # Initial State
@@ -727,8 +739,14 @@ class MainWindow(QMainWindow):
             self,
         )
         if dialog.exec():
+            self.aiAssistantDock.refresh_profile()
             self.statusBar().showMessage("AI provider settings updated.")
             self.log("AI provider settings updated.")
+
+    def show_ai_workbench(self):
+        self.aiAssistantDock.show()
+        self.aiAssistantDock.raise_()
+        self.aiAssistantDock.refresh_profile()
 
     # --------------------------------------------------
     # Application Close
