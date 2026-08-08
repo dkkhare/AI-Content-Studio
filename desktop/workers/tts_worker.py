@@ -147,21 +147,11 @@ class TTSWorker(QObject):
             "Cancellation requested..."
         )
 
-        if (
-            self.session is not None
-            and hasattr(
-                self.session,
-                "cancel",
-            )
-        ):
-
-            try:
-
+        try:
+            self.pipeline.request_cancel()
+        except Exception:
+            if self.session is not None:
                 self.session.cancel()
-
-            except Exception:
-
-                pass
     # --------------------------------------------------
     # Progress Callback
     # --------------------------------------------------
@@ -394,14 +384,15 @@ class TTSWorker(QObject):
 
 
         except Exception as exc:
-
-            self.write_log(
-                f"TTS failed: {exc}"
-            )
-
-            self.failed.emit(
-                str(exc)
-            )
+            if self._cancel_requested or (
+                self.session is not None
+                and self.session.cancelled
+            ):
+                self.write_log("Generation cancelled.")
+                self.cancelled.emit()
+            else:
+                self.write_log(f"TTS failed: {exc}")
+                self.failed.emit(str(exc))
 
 
         finally:
