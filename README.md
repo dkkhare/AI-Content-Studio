@@ -28,6 +28,189 @@ thumbnails, and video assets.
 The packaged installer includes the application runtime. Python 3.11 and
 PySide6 are required only when running or developing from source.
 
+## Third-party applications and service keys
+
+Install only the external components needed for the features you use.
+
+| Component | Purpose | Works with packaged EXE | Key required |
+| --- | --- | --- | --- |
+| FFmpeg | MP4 rendering, encoding, subtitle burning | Yes, when on `PATH` | No |
+| F5-TTS | Local narration and reference-voice synthesis | No; 0.19.0 requires source mode | No |
+| Ollama | Local AI text generation | Yes, as a separate service | No |
+| OpenAI | Cloud AI text generation | Yes | `OPENAI_API_KEY` |
+| Google Gemini | Cloud AI text generation | Yes | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+| Tesseract | OCR through `pytesseract` | Optional/feature-dependent | No |
+| Poppler | PDF conversion through `pdf2image` | Optional/feature-dependent | No |
+
+Never commit real keys to Git, project files, screenshots, logs, or support
+tickets. Keys entered under **AI → Provider Settings** are session secrets and
+must be entered again after restarting the application.
+
+### Install FFmpeg for video tools
+
+The video composer searches for `ffmpeg.exe` on Windows `PATH` and uses H.264
+video, AAC audio, MP4 output, and optional SRT/VTT subtitle burning.
+
+1. Download a current Windows build from the
+   [official FFmpeg page](https://ffmpeg.org/download.html).
+2. Extract it to a stable folder such as `C:\Tools\ffmpeg`.
+3. Add `C:\Tools\ffmpeg\bin` to the user or system `PATH`.
+4. Restart PowerShell and AI Content Studio.
+5. Verify:
+
+```powershell
+ffmpeg -version
+where.exe ffmpeg
+```
+
+No API key is required. Video inputs are:
+
+- visual: `.png`, `.jpg`, `.jpeg`, `.webp`, `.mp4`, `.mov`, `.mkv`, or `.webm`
+- audio: `.wav`, `.mp3`, `.flac`, `.ogg`, or `.m4a`
+- optional subtitles: `.srt` or `.vtt`
+- output: a writable path ending in `.mp4`
+
+### Install F5-TTS for narration
+
+F5-TTS is a large optional Python/model runtime. It is **not bundled** in the
+0.19.0 installer. Installing it into a separate Python installation does not
+extend the frozen EXE. Run AI Content Studio from source and install F5-TTS into
+the same Python 3.11 virtual environment:
+
+```powershell
+cd C:\path\to\AI-Content-Studio
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-tts.txt
+python -m desktop.main
+```
+
+The optional file installs `f5-tts` from the
+[official F5-TTS project](https://github.com/SWivid/F5-TTS). Models may download
+on first use. A supported CUDA GPU and a matching PyTorch build are recommended;
+CPU inference may be very slow.
+
+F5-TTS requires:
+
+- clean reference audio: `.wav`, `.mp3`, `.flac`, or `.ogg`
+- the exact transcript of the reference audio
+- new narration text
+- a writable output directory
+
+No API key is required. Optional smoke test:
+
+```powershell
+python scripts/tts_smoke.py --reference-audio "C:\voices\sample.wav" --reference-text "Exact words in sample.wav" --text "नमस्ते, AI Content Studio तैयार है।" --output "D:\AIProjects\tts-smoke"
+```
+
+See [the detailed F5-TTS guide](docs/tts.md).
+
+### Install Ollama for local AI
+
+1. Follow the [official Ollama Windows guide](https://docs.ollama.com/windows).
+2. Start Ollama; the default API is `http://localhost:11434`.
+3. Pull and verify a model:
+
+```powershell
+ollama pull llama3.2
+ollama list
+```
+
+4. Select `ollama` under **AI → Provider Settings** and enter the exact model
+   name.
+
+Relevant variables:
+
+```text
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_DEFAULT_MODEL=llama3.2
+```
+
+The backend also accepts `OLLAMA_MODEL`. Ollama requires no API key, but models
+can require substantial disk space, RAM, and VRAM.
+
+### Configure OpenAI
+
+OpenAI requires internet access, an API account/project with available billing or
+credits, model access, and a key. Configure it under **AI → Provider Settings**.
+
+```text
+OPENAI_API_KEY=required
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_DEFAULT_MODEL=optional-model-name
+```
+
+To create a persistent Windows user variable:
+
+```powershell
+setx OPENAI_API_KEY "replace-with-your-key"
+```
+
+Restart the application afterward. A ChatGPT subscription does not automatically
+include OpenAI API credits.
+
+### Configure Google Gemini
+
+Gemini requires internet access, an enabled API project, quota, an allowed model,
+and a key. The desktop uses `GEMINI_API_KEY`; the backend also accepts
+`GOOGLE_API_KEY`.
+
+```text
+GEMINI_API_KEY=required-for-desktop
+GOOGLE_API_KEY=optional-backend-alias
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_DEFAULT_MODEL=optional-model-name
+GEMINI_MODEL=optional-backend-fallback
+```
+
+Persistent Windows setup:
+
+```powershell
+setx GEMINI_API_KEY "replace-with-your-key"
+```
+
+Restart afterward. Do not set both key variables to different credentials.
+
+### Install optional OCR utilities
+
+Source dependencies include `PyMuPDF`, `pdfplumber`, `pdf2image`,
+`pytesseract`, and `rapidocr`. Some routes work through Python packages, while
+others require native tools.
+
+- Tesseract: install a trusted Windows build, add the directory containing
+  `tesseract.exe` to `PATH`, then run `tesseract --version`.
+- Poppler: install a trusted Windows build, add its `bin` directory to `PATH`,
+  then run `pdftoppm -h`.
+
+Neither requires a key. These native OCR utilities are not currently verified by
+the packaged release-candidate workflow, so test them with a sample document.
+
+### Configuration key reference
+
+| Variable | Required when | Default |
+| --- | --- | --- |
+| `AI_CONTENT_STUDIO_AI_PROVIDER` | Optional environment provider selection | Desktop defaults to Ollama |
+| `AI_CONTENT_STUDIO_AI_MODEL` | Optional common model selection | Empty |
+| `AI_CONTENT_STUDIO_AI_FAILOVER` | Optional comma-separated fallback order | Empty |
+| `AI_CONTENT_STUDIO_AI_TIMEOUT` | Optional request timeout | `60` seconds |
+| `OPENAI_API_KEY` | OpenAI | None |
+| `OPENAI_BASE_URL` | Compatible/custom OpenAI endpoint | `https://api.openai.com/v1` |
+| `OPENAI_DEFAULT_MODEL` | Optional OpenAI default | Empty |
+| `GEMINI_API_KEY` | Gemini from the desktop | None |
+| `GOOGLE_API_KEY` | Optional Gemini backend alias | None |
+| `GEMINI_BASE_URL` | Documented Gemini endpoint | `https://generativelanguage.googleapis.com/v1beta` |
+| `GEMINI_DEFAULT_MODEL` | Optional desktop Gemini model | Empty |
+| `GEMINI_MODEL` | Optional backend Gemini model | Empty |
+| `OLLAMA_BASE_URL` | Non-default Ollama endpoint | `http://localhost:11434` |
+| `OLLAMA_DEFAULT_MODEL` | Optional desktop Ollama model | Empty |
+| `OLLAMA_MODEL` | Optional backend Ollama model | Empty |
+
+`.env.example` is a reference template. The application does not promise to
+load a local `.env` automatically; use Provider Settings, Windows environment
+variables, or a launcher that explicitly loads it.
+
 ## Install on Windows
 
 1. Download the verified Windows artifact or installer.
