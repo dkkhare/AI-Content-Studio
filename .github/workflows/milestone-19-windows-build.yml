@@ -1,0 +1,84 @@
+name: Milestone 19 Windows Build
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "backend/**"
+      - "requirements.txt"
+      - "requirements-build.txt"
+      - "AIContentStudio.spec"
+      - "packaging/**"
+      - "scripts/build_windows.ps1"
+      - "tests/test_runtime.py"
+      - "docs/windows-release.md"
+      - ".github/workflows/milestone-19-windows-build.yml"
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install packaging dependencies
+        run: python -m pip install PySide6 -r requirements-build.txt
+      - name: Test runtime diagnostics
+        run: python -m unittest -v tests.test_runtime
+      - name: Build desktop bundle
+        run: python -m PyInstaller --noconfirm --clean AIContentStudio.spec
+      - name: Execute packaged diagnostics
+        shell: pwsh
+        run: |
+          $Executable = Resolve-Path "dist\AIContentStudio\AIContentStudio.exe"
+          $Process = Start-Process -FilePath $Executable -ArgumentList "--diagnostics", "packaged-diagnostics.json" -Wait -PassThru
+          if ($Process.ExitCode -ne 0) {
+            throw "Packaged diagnostics failed with exit code $($Process.ExitCode)"
+          }
+          $Diagnostics = Get-Content packaged-diagnostics.json | ConvertFrom-Json
+          if (-not $Diagnostics.frozen) {
+            throw "Packaged executable did not report frozen runtime mode"
+          }
+          if ($Diagnostics.version -ne "0.19.0") {
+            throw "Unexpected packaged version: $($Diagnostics.version)"
+          }
+          if (-not $Diagnostics.resources_available) {
+            throw "Packaged executable is missing required resources"
+          }
+      - name: Smoke packaged GUI startup and shutdown
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $Executable = Resolve-Path "dist\AIContentStudio\AIContentStudio.exe"
+          $Process = Start-Process -FilePath $Executable -ArgumentList "--smoke-gui", "gui-smoke.json" -Wait -PassThru
+          if ($Process.ExitCode -ne 0) {
+            throw "GUI smoke failed with exit code $($Process.ExitCode)"
+          }
+          $Smoke = Get-Content gui-smoke.json | ConvertFrom-Json
+          if (-not $Smoke.started -or -not $Smoke.shutdown -or $Smoke.exit_code -ne 0) {
+            throw "GUI smoke report did not confirm a clean lifecycle"
+          }
+      - name: Generate SHA-256 manifest
+        shell: pwsh
+        run: |
+          $Root = (Resolve-Path "dist\AIContentStudio").Path
+          Get-ChildItem $Root -File -Recurse |
+            Sort-Object FullName |
+            ForEach-Object {
+              $Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $Relative = [System.IO.Path]::GetRelativePath($Root, $_.FullName)
+              "$Hash  $Relative"
+            } |
+            Set-Content (Join-Path $Root "SHA256SUMS.txt") -Encoding utf8
+          if (-not (Test-Path (Join-Path $Root "SHA256SUMS.txt"))) {
+            throw "Release checksum manifest was not created"
+          }
+      - name: Upload Windows bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIContentStudio-0.19.0-windows-x64
+          path: dist/AIContentStudio/
+          if-no-files-found: error

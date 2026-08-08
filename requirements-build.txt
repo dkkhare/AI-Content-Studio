@@ -1,0 +1,2 @@
+# Build-only dependencies for the Windows desktop distribution.
+pyinstaller>=6.10,<7
