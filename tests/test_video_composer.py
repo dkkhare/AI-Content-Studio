@@ -4,9 +4,18 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from threading import Event
 
 from backend.project.project import Project
-from backend.video import ProjectVideoService, VideoComposer, VideoSpec
+from backend.video import (
+    FFmpegCommandBuilder,
+    FFmpegRenderer,
+    FFmpegRenderError,
+    ProjectVideoService,
+    RenderCancelled,
+    VideoComposer,
+    VideoSpec,
+)
 
 
 class VideoComposerTests(unittest.TestCase):
@@ -102,6 +111,113 @@ class ProjectVideoServiceTests(unittest.TestCase):
                 service.create_manifest(
                     project, visual=inside, audio=audio, duration_seconds=1, output="output/video.txt"
                 )
+
+
+class FFmpegRenderingTests(unittest.TestCase):
+    def _manifest(self, root, *, video=False, subtitle_name="captions.srt"):
+        root = Path(root)
+        visual = root / ("clip.mp4" if video else "cover.png")
+        audio = root / "audio.wav"
+        subtitles = root / subtitle_name
+        visual.write_bytes(b"visual")
+        audio.write_bytes(b"audio")
+        subtitles.write_text("captions", encoding="utf-8")
+        return VideoComposer().plan(
+            visual=visual,
+            audio=audio,
+            subtitles=subtitles,
+            duration_seconds=2.5,
+            width=1280,
+            height=720,
+            fps=25,
+        )
+
+    def test_command_is_deterministic_for_image_and_escaped_subtitles(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifest = self._manifest(root, subtitle_name="captions:hi.srt")
+            command = FFmpegCommandBuilder("ffmpeg-custom").build(
+                manifest, Path(root) / "out.mp4"
+            )
+            self.assertEqual(command[0], "ffmpeg-custom")
+            self.assertIn("-loop", command)
+            self.assertEqual(command[command.index("-t") + 1], "2.500")
+            video_filter = command[command.index("-vf") + 1]
+            self.assertIn("scale=1280:720", video_filter)
+            self.assertIn("captions\\:hi.srt", video_filter)
+            self.assertEqual(command[-1], str(Path(root) / "out.mp4"))
+
+    def test_video_input_loops_without_image_loop_flag(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifest = self._manifest(root, video=True)
+            command = FFmpegCommandBuilder().build(manifest, Path(root) / "out.mp4")
+            self.assertIn("-stream_loop", command)
+            self.assertNotIn("-loop", command)
+
+    def test_renderer_reports_progress_and_atomically_finalizes(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifest = self._manifest(root)
+            output = Path(root) / "final.mp4"
+            values = []
+
+            class Process:
+                stdout = iter(("out_time_us=1250000\n", "progress=end\n"))
+                returncode = 0
+
+                def __init__(self, command, **kwargs):
+                    Path(command[-1]).write_bytes(b"rendered")
+
+                def wait(self):
+                    return self.returncode
+
+            result = FFmpegRenderer(popen_factory=Process).render(
+                manifest, output, progress=values.append
+            )
+            self.assertEqual(result, output.resolve())
+            self.assertEqual(output.read_bytes(), b"rendered")
+            self.assertAlmostEqual(values[0], 50.0)
+            self.assertEqual(values[-1], 100.0)
+            self.assertFalse(Path(root, "final.partial.mp4").exists())
+
+    def test_renderer_cleans_partial_output_on_failure_and_cancel(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifest = self._manifest(root)
+            output = Path(root) / "final.mp4"
+
+            class FailedProcess:
+                stdout = iter(("encoder failed\n",))
+                returncode = 7
+
+                def __init__(self, command, **kwargs):
+                    Path(command[-1]).write_bytes(b"partial")
+
+                def wait(self):
+                    return self.returncode
+
+            with self.assertRaisesRegex(FFmpegRenderError, "encoder failed"):
+                FFmpegRenderer(popen_factory=FailedProcess).render(manifest, output)
+            self.assertFalse(Path(root, "final.partial.mp4").exists())
+
+            cancelled = Event()
+            cancelled.set()
+
+            class CancelProcess(FailedProcess):
+                stdout = iter(("out_time_us=1000\n",))
+                terminated = False
+
+                def terminate(self):
+                    self.terminated = True
+
+            with self.assertRaises(RenderCancelled):
+                FFmpegRenderer(popen_factory=CancelProcess).render(
+                    manifest, output, cancel_event=cancelled
+                )
+            self.assertFalse(Path(root, "final.partial.mp4").exists())
+
+    def test_progress_parser_ignores_noise_and_clamps(self):
+        parser = FFmpegRenderer.progress_from_line
+        self.assertIsNone(parser("encoder message", 1000))
+        self.assertIsNone(parser("out_time_us=bad", 1000))
+        self.assertEqual(parser("out_time_us=2000000", 1000), 100.0)
 
 
 if __name__ == "__main__":
