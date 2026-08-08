@@ -1,0 +1,26 @@
+name: Milestone 18 Export Publishing
+
+on:
+  pull_request:
+    paths:
+      - "backend/exporting/**"
+      - "desktop/controllers/export_controller.py"
+      - "desktop/ui/widgets/export_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_exporting.py"
+      - "tests/test_export_desktop.py"
+      - ".github/workflows/milestone-18-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  export-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile export modules and tests
+        run: python -m compileall -q backend/exporting tests/test_exporting.py
+      - name: Run export package regressions
+        run: python -m unittest -v tests.test_exporting
