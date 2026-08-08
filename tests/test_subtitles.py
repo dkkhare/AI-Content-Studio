@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.project.project import Project\nfrom backend.subtitles import (\n    SubtitleCue,
+from backend.project.project import Project
+from backend.subtitles import (
+    SubtitleCue,
     SubtitleDocument,
     ProjectSubtitleService,
     SubtitleGenerator,
