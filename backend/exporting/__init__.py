@@ -1,4 +1,9 @@
-from .batch import BatchExportJob, BatchExportQueue, BatchExportRunner
+from .batch import (
+    BatchExportJob,
+    BatchExportQueue,
+    BatchExportRunner,
+    ProjectBatchVideoRenderer,
+)
 from .core import PRESETS, ExportAsset, ExportManifest, ExportPreset
 from .service import ExportCancelled, ProjectExportService
 
@@ -11,5 +16,6 @@ __all__ = [
     "ExportCancelled",
     "ExportManifest",
     "ExportPreset",
+    "ProjectBatchVideoRenderer",
     "ProjectExportService",
 ]
