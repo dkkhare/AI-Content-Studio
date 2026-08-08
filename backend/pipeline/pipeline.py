@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable
 
 from .control import PipelineControl
@@ -43,6 +43,14 @@ class ProcessingPipeline:
 
         if not resume or state.status == "completed":
             state = PipelineState()
+        elif state.data:
+            # Resume must work after a full application/process restart, not only
+            # when the original in-memory PipelineContext is reused. Explicit
+            # values supplied by the new invocation win over checkpoint values.
+            restored = dict(state.data)
+            restored.update(context.data)
+            context.data.clear()
+            context.data.update(restored)
 
         completed = set(state.completed_stage_ids)
         total_weight = sum(max(0.0001, float(stage.weight)) for stage in self.stages) or 1.0
@@ -56,7 +64,7 @@ class ProcessingPipeline:
         state.error_message = ""
         state.finished_at = ""
         if not state.started_at:
-            state.started_at = datetime.now().isoformat()
+            state.started_at = datetime.now(timezone.utc).isoformat()
         store.save(state)
 
         try:
@@ -67,6 +75,8 @@ class ProcessingPipeline:
                 control.checkpoint()
                 state.current_stage_index = index
                 state.current_stage_id = stage.stage_id
+                state.record_attempt(stage.stage_id)
+                state.data = dict(context.data)
                 store.save(state)
 
                 stage_weight = max(0.0001, float(stage.weight))
@@ -98,7 +108,15 @@ class ProcessingPipeline:
                 except PipelineCancelled:
                     raise
                 except Exception as exc:
-                    raise StageError(f"{stage.name} failed: {exc}") from exc
+                    state.record_failure(
+                        stage_id=stage.stage_id,
+                        stage_name=stage.name,
+                        error=exc,
+                    )
+                    state.error_message = f"{stage.name} failed: {exc}"
+                    state.data = dict(context.data)
+                    store.save(state)
+                    raise StageError(state.error_message) from exc
 
                 if isinstance(result, dict):
                     context.update(result)
@@ -116,7 +134,7 @@ class ProcessingPipeline:
             state.current_stage_id = ""
             state.current_stage_index = len(self.stages)
             state.data = dict(context.data)
-            state.finished_at = datetime.now().isoformat()
+            state.finished_at = datetime.now(timezone.utc).isoformat()
             store.save(state)
 
             if progress_callback:
@@ -143,11 +161,12 @@ class ProcessingPipeline:
 
         except Exception as exc:
             state.status = "failed"
-            state.error_message = str(exc)
+            if not state.error_message:
+                state.error_message = str(exc)
             state.data = dict(context.data)
             store.save(state)
             if progress_callback:
-                progress_callback(PipelineProgress(percent=self._overall_percent(state), message=str(exc), status="failed"))
+                progress_callback(PipelineProgress(percent=self._overall_percent(state), message=state.error_message, status="failed"))
             raise
 
     def _overall_percent(self, state: PipelineState) -> int:
