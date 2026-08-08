@@ -7,6 +7,7 @@ from desktop.ui.dialogs.processing_setup_dialog import ProcessingSetupDialog
 from desktop.ui.widgets.episode_production_panel import EpisodeProductionPanel
 from desktop.ui.widgets.narration_panel import NarrationPanel
 from desktop.ui.widgets.project_status_dashboard import ProjectStatusDashboard
+from desktop.ui.widgets.release_manager_panel import ReleaseManagerPanel
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
 from desktop.ui.widgets.story_review_panel import StoryReviewPanel
 from desktop.ui.widgets.video_review_panel import VideoReviewPanel
@@ -39,6 +40,7 @@ class Workspace(QWidget):
         self.scene_review_panel = None
         self.visual_review_panel = None
         self.video_review_panel = None
+        self.release_manager_panel = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -83,6 +85,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.visual_review_panel, "Visual Review")
         self.video_review_panel = VideoReviewPanel(self)
         self.tabs.addTab(self.video_review_panel, "Video Review")
+        self.release_manager_panel = ReleaseManagerPanel(self)
+        self.tabs.addTab(self.release_manager_panel, "Release Manager")
 
     def set_pipeline_controller(self, controller) -> None:
         if self.pipeline_controller is controller:
@@ -139,6 +143,8 @@ class Workspace(QWidget):
             self.visual_review_panel.set_project(project)
         if self.video_review_panel:
             self.video_review_panel.set_project(project)
+        if self.release_manager_panel:
+            self.release_manager_panel.set_project(project)
         self.refresh()
         self.open_overview_tab()
         self.projectOpened.emit(str(project))
@@ -162,6 +168,7 @@ class Workspace(QWidget):
             self.scene_review_panel,
             self.visual_review_panel,
             self.video_review_panel,
+            self.release_manager_panel,
         ):
             if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
                 try:
@@ -183,6 +190,7 @@ class Workspace(QWidget):
     def scene_review(self): return self.scene_review_panel
     def visual_review(self): return self.visual_review_panel
     def video_review(self): return self.video_review_panel
+    def release_manager(self): return self.release_manager_panel
 
     def current_tab(self) -> int:
         return self.tabs.currentIndex()
@@ -206,6 +214,7 @@ class Workspace(QWidget):
     def open_scene_review_tab(self) -> None: self.set_current_tab(9)
     def open_visual_review_tab(self) -> None: self.set_current_tab(10)
     def open_video_review_tab(self) -> None: self.set_current_tab(11)
+    def open_release_manager_tab(self) -> None: self.set_current_tab(12)
 
     def clear(self) -> None:
         self._busy = False
@@ -219,6 +228,7 @@ class Workspace(QWidget):
             self.scene_review_panel,
             self.visual_review_panel,
             self.video_review_panel,
+            self.release_manager_panel,
         ):
             if widget and hasattr(widget, "clear"):
                 widget.clear()
