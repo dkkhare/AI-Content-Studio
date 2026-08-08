@@ -4,8 +4,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from threading import Event
 
-from backend.exporting import ExportPreset, ProjectExportService
+from backend.exporting import ExportCancelled, ExportPreset, ProjectExportService
 from backend.project.project import Project
 
 
@@ -112,6 +113,31 @@ class ProjectExportServiceTests(unittest.TestCase):
                 failing.export(project, target, "collision")
             self.assertFalse(target.exists())
             self.assertEqual(list(Path(root).glob(".failed-*.tmp")), [])
+
+
+    def test_progress_and_cancellation_cleanup(self):
+        with tempfile.TemporaryDirectory() as root:
+            project = self._project(root)
+            values = []
+            manifest, output = ProjectExportService().export(
+                project,
+                Path(root) / "progress",
+                progress=values.append,
+            )
+            self.assertEqual(values[0], 0.0)
+            self.assertEqual(values[-1], 100.0)
+            self.assertTrue(output.is_dir())
+            self.assertGreater(len(manifest.assets), 0)
+
+            cancelled = Event()
+            cancelled.set()
+            target = Path(root) / "cancelled"
+            with self.assertRaises(ExportCancelled):
+                ProjectExportService().export(
+                    project, target, cancel_event=cancelled
+                )
+            self.assertFalse(target.exists())
+            self.assertEqual(list(Path(root).glob(".cancelled-*.tmp")), [])
 
 
 if __name__ == "__main__":
