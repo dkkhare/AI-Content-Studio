@@ -223,16 +223,9 @@ class Workspace(QWidget):
         self,
     ):
 
-        self.export_page = QLabel(
-            "Export\n\n"
-            "Export and publishing tools."
-        )
+        from desktop.ui.widgets.export_panel import ExportPanel
 
-        self.export_page.setAlignment(
-            Qt.AlignTop | Qt.AlignLeft
-        )
-
-        self.export_page.setWordWrap(True)
+        self.export_page = ExportPanel()
 
         self.tabs.addTab(
             self.export_page,
@@ -257,6 +250,9 @@ class Workspace(QWidget):
 
         if self.video_page:
             self.video_page.set_project(project)
+
+        if self.export_page:
+            self.export_page.set_project(project)
 
         self._busy = False
 
@@ -436,6 +432,9 @@ class Workspace(QWidget):
         if self.video_page:
             self.video_page.clear()
 
+        if self.export_page:
+            self.export_page.clear()
+
         self.set_current_tab(0)
 
     # --------------------------------------------------
@@ -493,6 +492,9 @@ class Workspace(QWidget):
             self.video_page.dispose()
 
         self.video_page = None
+
+        if self.export_page and hasattr(self.export_page, "dispose"):
+            self.export_page.dispose()
 
         self.export_page = None
 
