@@ -212,9 +212,7 @@ class ExportPanel(QWidget):
             return
         try:
             self.controller.start_export(
-                self.destination.text().strip(),
-                self.preset.currentText(),
-                mode=self.batch_mode.currentData(),
+                self.destination.text().strip(), self.preset.currentText()
             )
         except Exception as exc:
             self._failed(str(exc))
@@ -273,7 +271,9 @@ class ExportPanel(QWidget):
             return
         try:
             job = self.controller.enqueue_current(
-                self.destination.text().strip(), self.preset.currentText()
+                self.destination.text().strip(),
+                self.preset.currentText(),
+                mode=self.batch_mode.currentData(),
             )
             self.status.setText(f"Queued {Path(job.destination).name}.")
             self.refresh_queue()
