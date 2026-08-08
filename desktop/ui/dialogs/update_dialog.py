@@ -29,6 +29,7 @@ class UpdateDialog(QDialog):
         self.controller = controller
         self.release = None
         self.installer_path = ""
+        self.operation = ""
         self.setWindowTitle("Application Updates")
         self.resize(620, 480)
 
@@ -108,6 +109,7 @@ class UpdateDialog(QDialog):
             self._check_failed(str(exc))
 
     def _check_started(self):
+        self.operation = "check"
         self.release = None
         self.installer_path = ""
         self.notes.clear()
@@ -116,6 +118,7 @@ class UpdateDialog(QDialog):
         self._refresh()
 
     def _check_finished(self, release):
+        self.operation = ""
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.release = release
@@ -128,6 +131,7 @@ class UpdateDialog(QDialog):
         self._refresh()
 
     def _check_failed(self, message):
+        self.operation = ""
         self.progress.setRange(0, 100)
         self.status.setText(f"Update check failed: {message}")
         self._refresh()
@@ -141,6 +145,7 @@ class UpdateDialog(QDialog):
             self._download_failed(str(exc))
 
     def _download_started(self):
+        self.operation = "download"
         self.installer_path = ""
         self.status.setText("Downloading and verifying installer...")
         self.progress.setRange(0, 0)
@@ -154,6 +159,7 @@ class UpdateDialog(QDialog):
             self.progress.setRange(0, 0)
 
     def _download_finished(self, output):
+        self.operation = ""
         self.installer_path = str(output)
         self.progress.setRange(0, 100)
         self.progress.setValue(100)
@@ -163,11 +169,13 @@ class UpdateDialog(QDialog):
         self._refresh()
 
     def _download_failed(self, message):
+        self.operation = ""
         self.progress.setRange(0, 100)
         self.status.setText(f"Update download failed: {message}")
         self._refresh()
 
     def _download_cancelled(self):
+        self.operation = ""
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.status.setText("Update download cancelled.")
@@ -202,5 +210,5 @@ class UpdateDialog(QDialog):
         self.auto_check.setEnabled(not running)
         self.check_button.setEnabled(not running)
         self.download_button.setEnabled(not running and self.release is not None)
-        self.cancel_button.setEnabled(running and self.installer_path == "")
+        self.cancel_button.setEnabled(running and self.operation == "download")
         self.install_button.setEnabled(not running and bool(self.installer_path))
