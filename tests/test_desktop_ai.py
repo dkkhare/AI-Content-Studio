@@ -31,6 +31,9 @@ class FakeManager:
     def providers(self):
         return ["gemini", "ollama", "openai"]
 
+    def list_prompts(self):
+        return ["hindi_spelling_correction", "translation"]
+
     def health_check(self, provider):
         return True, f"{provider} reachable"
 
@@ -40,6 +43,10 @@ class FakeManager:
     def generate(self, request, provider_id=None):
         self.requests.append((request, provider_id))
         return AIResponse("done", provider_id, request.model)
+
+    def stream_prompt(self, template, variables, provider_id=None, model=""):
+        self.requests.append((template, variables, provider_id, model))
+        yield AIStreamChunk("corrected", provider_id, model, done=True)
 
     def stream(self, request, provider_id=None):
         self.requests.append((request, provider_id))
@@ -92,6 +99,22 @@ class DesktopAIControllerTests(unittest.TestCase):
             "done",
         )
         self.assertEqual(manager.requests[0][0].model, "qwen-test")
+
+    def test_template_defaults_and_streaming(self):
+        manager = FakeManager()
+        controller = AIDesktopController(manager)
+        self.assertEqual(
+            controller.prompt_variables("translation", "hello")["target_language"],
+            "Hindi",
+        )
+        chunks = list(controller.stream_prompt(
+            "translation",
+            "hello",
+            provider="gemini",
+            model="gemini-test",
+        ))
+        self.assertEqual(chunks[0].text, "corrected")
+        self.assertEqual(manager.requests[0][1]["text"], "hello")
 
     def test_empty_prompt_and_stream_cancellation(self):
         controller = AIDesktopController(FakeManager())
