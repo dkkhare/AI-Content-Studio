@@ -9,8 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPushButton,
-    QTableWidget,
+    QPushButton,\n    QSlider,\n    QTableWidget,
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
@@ -29,6 +28,8 @@ class SubtitlePanel(QWidget):
     def __init__(self, parent=None, *, controller=None):
         super().__init__(parent)
         self.controller = controller or SubtitleDesktopController()
+        self._audio_player = None
+        self._audio_path = ""
         self._build_ui()
         self._connect()
         self.refresh()
@@ -75,6 +76,18 @@ class SubtitlePanel(QWidget):
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
 
+        preview = QHBoxLayout()
+        self.play_button = QPushButton("Play Narration")
+        self.stop_button = QPushButton("Stop")
+        self.timeline = QSlider(Qt.Horizontal)
+        self.timeline.setRange(0, 0)
+        self.preview_text = QLabel("No active cue")
+        preview.addWidget(self.play_button)
+        preview.addWidget(self.stop_button)
+        preview.addWidget(self.timeline, 1)
+        preview.addWidget(self.preview_text)
+        layout.addLayout(preview)
+
         self.status = QLabel("Open a project to create subtitles.")
         layout.addWidget(self.status)
 
@@ -83,10 +96,19 @@ class SubtitlePanel(QWidget):
         self.import_button.clicked.connect(self.import_subtitles)
         self.apply_button.clicked.connect(self.apply_edits)
         self.export_button.clicked.connect(self.export_subtitles)
+        self.play_button.clicked.connect(self.play_audio)
+        self.stop_button.clicked.connect(self.stop_audio)
+        self.timeline.valueChanged.connect(self.sync_position)
 
     def set_project(self, project):
         try:
             document = self.controller.set_project(project)
+            context = self.controller.project_context()
+            self._audio_path = context["audio_path"]
+            if context["text"]:
+                self.source_text.setPlainText(context["text"])
+            if context["duration_seconds"] > 0:
+                self.duration.setValue(context["duration_seconds"])
             self._show_document(document)
             self.status.setText(
                 "Project subtitles loaded." if document.cues else "No project subtitles yet."
@@ -163,7 +185,51 @@ class SubtitlePanel(QWidget):
             self.table.setItem(row, 1, QTableWidgetItem(format_timestamp(cue.start_ms)))
             self.table.setItem(row, 2, QTableWidgetItem(format_timestamp(cue.end_ms)))
             self.table.setItem(row, 3, QTableWidgetItem(cue.text))
+        maximum = document.cues[-1].end_ms if document.cues else 0
+        self.timeline.setRange(0, maximum)
         self.refresh()
+
+    def play_audio(self):
+        if not self._audio_path:
+            self.status.setText("No project narration audio is available.")
+            return
+        try:
+            if self._audio_player is None:
+                from backend.audio.player import AudioPlayer
+                self._audio_player = AudioPlayer(self)
+                self._audio_player.positionChanged.connect(self._position_changed)
+                self._audio_player.durationChanged.connect(self._duration_changed)
+            self._audio_player.play(self._audio_path)
+            self.status.setText("Playing narration.")
+        except Exception as exc:
+            self._show_error("Unable to play narration", exc)
+
+    def stop_audio(self):
+        if self._audio_player is not None:
+            self._audio_player.stop()
+
+    def _position_changed(self, progress):
+        position = int(getattr(progress, "position", 0))
+        self.timeline.blockSignals(True)
+        self.timeline.setValue(position)
+        self.timeline.blockSignals(False)
+        self.sync_position(position)
+
+    def _duration_changed(self, duration):
+        if int(duration) > 0:
+            self.timeline.setMaximum(int(duration))
+            self.duration.setValue(int(duration) / 1000.0)
+
+    def sync_position(self, position_ms):
+        cue = self.controller.cue_at(position_ms)
+        if cue is None:
+            self.table.clearSelection()
+            self.preview_text.setText("No active cue")
+        else:
+            self.table.selectRow(cue.index - 1)
+            self.preview_text.setText(cue.text)
+        if self._audio_player is not None and self.sender() is self.timeline:
+            self._audio_player.seek(int(position_ms))
 
     def _show_error(self, title, error):
         self.status.setText(str(error))
@@ -178,6 +244,8 @@ class SubtitlePanel(QWidget):
         self.export_button.setEnabled(has_cues)
 
     def clear(self):
+        self.stop_audio()
+        self._audio_path = ""
         self.source_text.clear()
         self.controller.set_project(None)
         self._show_document(self.controller.document)
@@ -186,3 +254,6 @@ class SubtitlePanel(QWidget):
 
     def dispose(self):
         self.clear()
+        if self._audio_player is not None:
+            self._audio_player.close()
+            self._audio_player = None
