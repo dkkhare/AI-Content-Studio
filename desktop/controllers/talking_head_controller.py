@@ -5,7 +5,7 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
-from backend.talking_head import BookImporter, plan_episodes
+from backend.talking_head import BookImporter, TalkingHeadPreflight, plan_episodes
 from desktop.workers.talking_head_worker import TalkingHeadWorker
 
 
@@ -22,10 +22,12 @@ class TalkingHeadController(QObject):
         *,
         worker_factory: Callable[[], TalkingHeadWorker] = TalkingHeadWorker,
         importer=None,
+        preflight=None,
     ):
         super().__init__(parent)
         self.worker_factory = worker_factory
         self.importer = importer or BookImporter()
+        self.preflight_service = preflight or TalkingHeadPreflight()
         self.project = None
         self.thread = None
         self.worker = None
@@ -51,6 +53,15 @@ class TalkingHeadController(QObject):
             words_per_minute=words_per_minute,
         )
         return imported, plan
+
+    def preflight(self, **settings):
+        return self.preflight_service.run(
+            sadtalker_directory=settings["sadtalker_directory"],
+            sadtalker_python=settings["sadtalker_python"],
+            output_directory=settings["output_directory"],
+            size=settings.get("size", 256),
+            enhancer=settings.get("enhancer", ""),
+        )
 
     def start(self, **settings):
         if self._running:
