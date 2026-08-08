@@ -1,0 +1,33 @@
+name: Milestone 18 Export Publishing
+
+on:
+  pull_request:
+    paths:
+      - "backend/exporting/**"
+      - "desktop/controllers/export_controller.py"
+      - "desktop/ui/widgets/export_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_exporting.py"
+      - "tests/test_export_desktop.py"
+      - "tests/test_export_batch.py"
+      - ".github/workflows/milestone-18-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  export-package:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Qt runtime
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
+      - name: Install desktop test dependency
+        run: pip install PySide6 soundfile
+      - name: Compile export modules and tests
+        run: python -m compileall -q backend/exporting desktop/controllers/export_controller.py desktop/ui/widgets/export_panel.py tests/test_exporting.py tests/test_export_desktop.py tests/test_export_batch.py
+      - name: Run export package regressions
+        run: timeout 90s python -u -m unittest -v tests.test_exporting tests.test_export_desktop tests.test_export_batch
