@@ -7,6 +7,7 @@ from pathlib import Path
 
 from backend.tts.adapters import F5TTSAdapter, GenerationRequest
 from backend.tts.generator import TTSGenerator
+from backend.tts.pipeline import TTSPipeline
 
 
 def write_silent_wav(path: Path) -> None:
@@ -63,6 +64,70 @@ class TTSGeneratorTests(unittest.TestCase):
             self.assertEqual(len(outputs), len(chunks))
             self.assertTrue(all(Path(path).is_file() for path in outputs))
             self.assertEqual(generator.progress_percent(), 100)
+
+
+class TTSPipelineLifecycleTests(unittest.TestCase):
+    def _session(self, pipeline, reference):
+        return pipeline.create_session(
+            reference_audio=reference,
+            reference_text="reference",
+            text="नमस्ते दुनिया",
+        )
+
+    def test_success_moves_session_to_history(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            reference = root / "reference.wav"
+            write_silent_wav(reference)
+
+            def runner(request):
+                write_silent_wav(Path(request.output_audio))
+                return request.output_audio
+
+            pipeline = TTSPipeline(root / "output", adapter=F5TTSAdapter(runner))
+            session = self._session(pipeline, reference)
+            result = pipeline.run(session)
+            self.assertEqual(result.status, "Completed")
+            self.assertEqual(result.progress, 100)
+            self.assertTrue(Path(result.output_file).is_file())
+            self.assertIsNone(pipeline.queue.current())
+            self.assertIn(session, pipeline.queue.history())
+
+    def test_failure_marks_session_and_releases_queue(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            reference = root / "reference.wav"
+            write_silent_wav(reference)
+
+            def runner(request):
+                raise RuntimeError("synthesis failed")
+
+            pipeline = TTSPipeline(root / "output", adapter=F5TTSAdapter(runner))
+            session = self._session(pipeline, reference)
+            with self.assertRaisesRegex(RuntimeError, "synthesis failed"):
+                pipeline.run(session)
+            self.assertEqual(session.status, "Failed")
+            self.assertEqual(session.error, "synthesis failed")
+            self.assertIsNone(pipeline.queue.current())
+            self.assertIn(session, pipeline.queue.history())
+
+    def test_cancellation_is_not_reported_as_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            reference = root / "reference.wav"
+            write_silent_wav(reference)
+
+            def runner(request):
+                raise RuntimeError("Generation cancelled.")
+
+            pipeline = TTSPipeline(root / "output", adapter=F5TTSAdapter(runner))
+            session = self._session(pipeline, reference)
+            with self.assertRaisesRegex(RuntimeError, "cancelled"):
+                pipeline.run(session)
+            self.assertEqual(session.status, "Cancelled")
+            self.assertTrue(session.cancelled)
+            self.assertEqual(session.error, "")
+            self.assertIsNone(pipeline.queue.current())
 
 
 if __name__ == "__main__":
