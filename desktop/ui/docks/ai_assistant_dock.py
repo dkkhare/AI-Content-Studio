@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from desktop.workers.ai_stream_worker import AIStreamWorker
+from desktop.ai.project_text import ProjectTextService
 
 
 class AIAssistantDock(QDockWidget):
@@ -26,12 +27,15 @@ class AIAssistantDock(QDockWidget):
         self.thread_pool = QThreadPool.globalInstance()
         self.worker = None
         self.last_request = None
+        self.project = None
+        self.project_text = ProjectTextService()
 
         body = QWidget()
         self.provider = QComboBox()
         self.model = QComboBox()
         self.model.setEditable(True)
         self.template = QComboBox()
+        self.source = QComboBox()
         self.input = QPlainTextEdit()
         self.input.setPlaceholderText("Enter prompt or source text…")
         self.output = QPlainTextEdit()
@@ -43,6 +47,8 @@ class AIAssistantDock(QDockWidget):
         self.cancel_button = QPushButton("Cancel")
         self.retry_button = QPushButton("Retry")
         clear_button = QPushButton("Clear")
+        load_button = QPushButton("Load project text")
+        save_button = QPushButton("Save output")
         self.cancel_button.setEnabled(False)
         self.retry_button.setEnabled(False)
 
@@ -50,11 +56,14 @@ class AIAssistantDock(QDockWidget):
         self.cancel_button.clicked.connect(self.cancel)
         self.retry_button.clicked.connect(self.retry)
         clear_button.clicked.connect(self.clear)
+        load_button.clicked.connect(self.load_project_text)
+        save_button.clicked.connect(self.save_project_output)
 
         form = QFormLayout()
         form.addRow("Provider", self.provider)
         form.addRow("Model", self.model)
         form.addRow("Prompt template", self.template)
+        form.addRow("Project source", self.source)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.generate_button)
@@ -62,17 +71,55 @@ class AIAssistantDock(QDockWidget):
         buttons.addWidget(self.retry_button)
         buttons.addWidget(clear_button)
 
+        project_buttons = QHBoxLayout()
+        project_buttons.addWidget(load_button)
+        project_buttons.addWidget(save_button)
+
         layout = QVBoxLayout(body)
         layout.addLayout(form)
         layout.addWidget(QLabel("Input"))
         layout.addWidget(self.input)
         layout.addLayout(buttons)
+        layout.addLayout(project_buttons)
         layout.addWidget(QLabel("Output"))
         layout.addWidget(self.output)
         layout.addWidget(self.usage)
         layout.addWidget(self.status)
         self.setWidget(body)
         self.refresh_profile()
+
+    def set_project(self, project):
+        self.project = project
+        self.source.clear()
+        for label, path in self.project_text.sources(project):
+            self.source.addItem(label, str(path))
+        if self.source.count() == 0:
+            self.source.addItem("No text artifacts available", "")
+
+    def load_project_text(self):
+        path = self.source.currentData()
+        if not path:
+            self.status.setText("No project text artifact is available.")
+            return
+        try:
+            self.input.setPlainText(self.project_text.read(path))
+            self.status.setText(f"Loaded {self.source.currentText()}")
+        except Exception as exc:
+            self.status.setText(f"Load failed: {exc}")
+
+    def save_project_output(self):
+        try:
+            target = self.project_text.save_output(
+                self.project,
+                self.output.toPlainText(),
+            )
+            parent = self.parent()
+            controller = getattr(parent, "project_controller", None)
+            if controller is not None and hasattr(controller, "mark_modified"):
+                controller.mark_modified(True)
+            self.status.setText(f"Saved {target.name}")
+        except Exception as exc:
+            self.status.setText(f"Save failed: {exc}")
 
     def refresh_profile(self):
         config = self.controller.manager.config
