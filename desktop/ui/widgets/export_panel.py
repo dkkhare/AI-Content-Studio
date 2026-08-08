@@ -71,6 +71,26 @@ class ExportPanel(QWidget):
         layout.addWidget(self.progress)
         layout.addWidget(self.status)
 
+        layout.addWidget(QLabel("Persistent Batch Queue"))
+        self.queue_table = QTableWidget(0, 5)
+        self.queue_table.setHorizontalHeaderLabels(
+            ["Status", "Preset", "Destination", "Attempts", "Error"]
+        )
+        self.queue_table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.queue_table)
+
+        batch_actions = QHBoxLayout()
+        self.enqueue_button = QPushButton("Add Current to Queue")
+        self.run_batch_button = QPushButton("Run Pending")
+        self.retry_button = QPushButton("Retry Selected")
+        self.cancel_batch_button = QPushButton("Cancel Batch")
+        batch_actions.addWidget(self.enqueue_button)
+        batch_actions.addWidget(self.run_batch_button)
+        batch_actions.addWidget(self.retry_button)
+        batch_actions.addStretch()
+        batch_actions.addWidget(self.cancel_batch_button)
+        layout.addLayout(batch_actions)
+
     def _connect(self):
         self.preset.currentTextChanged.connect(self._preset_changed)
         self.destination_button.clicked.connect(self.choose_destination_parent)
@@ -82,6 +102,15 @@ class ExportPanel(QWidget):
         self.controller.exportFinished.connect(self._finished)
         self.controller.exportFailed.connect(self._failed)
         self.controller.exportCancelled.connect(self._cancelled)
+        self.enqueue_button.clicked.connect(self.enqueue_current)
+        self.run_batch_button.clicked.connect(self.run_batch)
+        self.retry_button.clicked.connect(self.retry_selected)
+        self.cancel_batch_button.clicked.connect(self.controller.cancel)
+        self.queue_table.itemSelectionChanged.connect(self.refresh)
+        self.controller.batchStarted.connect(self._batch_started)
+        self.controller.batchJobChanged.connect(self._batch_job_changed)
+        self.controller.batchFinished.connect(self._batch_finished)
+        self.controller.batchFailed.connect(self._batch_failed)
 
     def set_project(self, project):
         try:
@@ -96,6 +125,7 @@ class ExportPanel(QWidget):
                 self.controller.default_destination(self.preset.currentText())
             )
             self.refresh_preview()
+            self.refresh_queue()
         except Exception as exc:
             self._failed(str(exc))
         self.refresh()
@@ -198,12 +228,106 @@ class ExportPanel(QWidget):
         self.status.setText("Project export cancelled.")
         self.refresh()
 
+
+    def refresh_queue(self):
+        rows = self.controller.queue_rows()
+        self.queue_table.setRowCount(len(rows))
+        for row, job in enumerate(rows):
+            values = (
+                job["status"],
+                job["preset"],
+                Path(job["destination"]).name,
+                job["attempts"],
+                job["error"],
+            )
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                if column == 0:
+                    item.setData(Qt.UserRole, job["id"])
+                self.queue_table.setItem(row, column, item)
+        self.refresh()
+
+    def enqueue_current(self):
+        error = self.validation_error()
+        if error:
+            QMessageBox.warning(self, "Batch Export", error)
+            self.status.setText(error)
+            return
+        try:
+            job = self.controller.enqueue_current(
+                self.destination.text().strip(), self.preset.currentText()
+            )
+            self.status.setText(f"Queued {Path(job.destination).name}.")
+            self.refresh_queue()
+        except Exception as exc:
+            self._failed(str(exc))
+
+    def run_batch(self):
+        try:
+            self.controller.start_batch()
+        except Exception as exc:
+            self._failed(str(exc))
+
+    def selected_job_id(self):
+        row = self.queue_table.currentRow()
+        if row < 0 or self.queue_table.item(row, 0) is None:
+            return ""
+        return str(self.queue_table.item(row, 0).data(Qt.UserRole) or "")
+
+    def retry_selected(self):
+        job_id = self.selected_job_id()
+        if not job_id:
+            self.status.setText("Select a failed or cancelled batch job.")
+            return
+        try:
+            self.controller.retry_job(job_id)
+            self.status.setText("Selected job queued for retry.")
+            self.refresh_queue()
+        except Exception as exc:
+            self._failed(str(exc))
+
+    def _batch_started(self):
+        self.status.setText("Running batch export queue...")
+        self.refresh()
+
+    def _batch_job_changed(self, job):
+        self.status.setText(
+            f"{Path(job.destination).name}: {job.status}"
+            + (f" — {job.error}" if job.error else "")
+        )
+        self.refresh_queue()
+
+    def _batch_finished(self, jobs):
+        counts = self.controller.queue.counts()
+        self.status.setText(
+            f"Batch finished: {counts['completed']} completed, "
+            f"{counts['failed']} failed, {counts['cancelled']} cancelled."
+        )
+        self.refresh_queue()
+
+    def _batch_failed(self, message):
+        self.status.setText(f"Batch runner failed: {message}")
+        self.refresh_queue()
+
     def refresh(self):
         running = self.controller.is_running()
         has_project = self.controller.project is not None
         has_preview = self.preview.rowCount() > 0
+        rows = self.controller.queue_rows()
+        has_pending = any(job["status"] == "pending" for job in rows)
+        selected = self.selected_job_id()
+        retryable = bool(
+            selected
+            and self.controller.queue
+            and self.controller.queue.get(selected).status in {"failed", "cancelled"}
+        )
         self.export_button.setEnabled(has_project and has_preview and not running)
         self.cancel_button.setEnabled(running)
+        self.enqueue_button.setEnabled(has_project and has_preview and not running)
+        self.run_batch_button.setEnabled(has_pending and not running)
+        self.retry_button.setEnabled(retryable and not running)
+        self.cancel_batch_button.setEnabled(running)
         for widget in (
             self.preset,
             self.destination,
@@ -218,6 +342,7 @@ class ExportPanel(QWidget):
         self.preset.clear()
         self.destination.clear()
         self.preview.setRowCount(0)
+        self.queue_table.setRowCount(0)
         self.progress.setValue(0)
         self.status.setText("Open a project to export.")
         self.refresh()
