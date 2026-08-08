@@ -30,7 +30,17 @@ jobs:
       - name: Compile installer
         shell: pwsh
         run: |
-          $Compiler = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          $CompilerCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:ChocolateyInstall\bin\ISCC.exe"
+          )
+          $Compiler = $CompilerCandidates |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -First 1
+          if (-not $Compiler) {
+            throw "Inno Setup 6 compiler was not found."
+          }
           & $Compiler "packaging\AIContentStudio.iss"
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup failed with exit code $LASTEXITCODE"
