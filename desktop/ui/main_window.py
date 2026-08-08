@@ -2,8 +2,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
-from desktop.project.project_controller import ProjectController
-from desktop.project.project_dialogs import ProjectDialogs
+from desktop.controllers.project_controller import ProjectController
+from desktop.project.project_dialog import ProjectDialogs
 
 from desktop.settings import (
     UIState,
@@ -193,6 +193,7 @@ class MainWindow(QMainWindow):
         )
 
         self.show_workspace()
+        self.aiAssistantDock.set_project(self.current_project())
 
         self.update_project_title()
 
@@ -212,6 +213,7 @@ class MainWindow(QMainWindow):
     ):
 
         self.show_dashboard()
+        self.aiAssistantDock.set_project(None)
 
         self.update_project_title()
 
@@ -288,175 +290,57 @@ class MainWindow(QMainWindow):
     # Project Operations
     # --------------------------------------------------
 
-    def new_project(
-        self,
-    ):
-
+    def new_project(self):
         try:
+            result = ProjectDialogs.new_project(self)
+            if not result:
+                return
+            name, path = result
+            if self.project_controller is None:
+                self.set_project_controller(ProjectController(self))
+            self.project_controller.create_project(path, name)
+        except Exception as exc:
+            self.show_error("Unable to create project", exc)
+            self.log(f"Create project failed: {exc}")
 
-            path = ProjectDialogs.create_project(
-                self
-            )
-
+    def open_project(self, path=None):
+        try:
+            path = path or ProjectDialogs.open_project(self)
             if not path:
                 return
-
-
-            controller = ProjectController.create(
-                path
-            )
-
-            self.set_project_controller(
-                controller
-            )
-
-            controller.open()
-
-
+            if self.project_controller is None:
+                self.set_project_controller(ProjectController(self))
+            self.project_controller.open_project(path)
         except Exception as exc:
+            self.show_error("Unable to open project", exc)
+            self.log(f"Open project failed: {exc}")
 
-            self.show_error(
-                "Unable to create project",
-                exc,
-            )
-
-            self.log(
-                f"Create project failed: {exc}"
-            )
-
-
-    def open_project(
-        self,
-        path=None,
-    ):
-
+    def close_project(self):
         try:
-
-            if not path:
-
-                path = ProjectDialogs.open_project(
-                    self
-                )
-
-
-            if not path:
-                return
-
-
-            controller = ProjectController.open(
-                path
-            )
-
-
-            self.set_project_controller(
-                controller
-            )
-
-
-            controller.open()
-
-
-        except Exception as exc:
-
-            self.show_error(
-                "Unable to open project",
-                exc,
-            )
-
-            self.log(
-                f"Open project failed: {exc}"
-            )
-
-
-    def close_project(
-        self,
-    ):
-
-        try:
-
             if self.project_controller:
-
-                self.project_controller.close()
-
-                self.project_controller = None
-
-
+                self.project_controller.close_project()
         except Exception as exc:
+            self.show_error("Unable to close project", exc)
+            self.log(f"Close project failed: {exc}")
 
-            self.show_error(
-                "Unable to close project",
-                exc,
-            )
-
-            self.log(
-                f"Close project failed: {exc}"
-            )
-
-
-    def save_project(
-        self,
-    ):
-
+    def save_project(self):
         try:
-
-            if not self.project_controller:
-
-                return
-
-
-            self.project_controller.save()
-
-
+            if self.project_controller:
+                self.project_controller.save_project()
         except Exception as exc:
+            self.show_error("Unable to save project", exc)
+            self.log(f"Save project failed: {exc}")
 
-            self.show_error(
-                "Unable to save project",
-                exc,
-            )
-
-            self.log(
-                f"Save project failed: {exc}"
-            )
-
-
-    def save_project_as(
-        self,
-    ):
-
+    def save_project_as(self):
         try:
-
             if not self.project_controller:
-
                 return
-
-
-            path = ProjectDialogs.save_as_project(
-                self
-            )
-
-
-            if not path:
-                return
-
-
-            self.project_controller.save_as(
-                path
-            )
-
-
+            path = ProjectDialogs.save_project_as(self)
+            if path:
+                self.project_controller.save_project_as(path)
         except Exception as exc:
-
-            self.show_error(
-                "Unable to save project",
-                exc,
-            )
-
-            self.log(
-                f"Save As failed: {exc}"
-            )
-    # --------------------------------------------------
-    # Recent Projects
-    # --------------------------------------------------
+            self.show_error("Unable to save project", exc)
+            self.log(f"Save As failed: {exc}")
 
     def add_recent_project(
         self,
@@ -594,9 +478,7 @@ class MainWindow(QMainWindow):
 
         if self.project_controller:
 
-            project = (
-                self.project_controller.project
-            )
+            project = self.project_controller.current_project()
 
 
             if project:
@@ -808,10 +690,7 @@ class MainWindow(QMainWindow):
     ):
 
         if self.project_controller:
-
-            return (
-                self.project_controller.project
-            )
+            return self.project_controller.current_project()
 
         return None
 
