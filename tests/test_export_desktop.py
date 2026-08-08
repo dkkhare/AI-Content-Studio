@@ -107,10 +107,15 @@ class ExportPanelQtTests(unittest.TestCase):
             panel = ExportPanel()
             panel.set_project(project)
             panel.destination.setText(str(Path(root) / "queued"))
+            panel.batch_mode.setCurrentIndex(1)
             panel.enqueue_current()
             self.assertEqual(panel.queue_table.rowCount(), 1)
             self.assertTrue(panel.run_batch_button.isEnabled())
             job = panel.controller.queue.jobs[0]
+            self.assertEqual(job.mode, "render_export")
+            self.assertEqual(job.phase, "render")
+            self.assertEqual(panel.queue_table.item(0, 1).text(), "render")
+            self.assertEqual(panel.queue_table.item(0, 2).text(), "render_export")
             panel.controller.queue.replace(
                 job.transition("failed", attempts=1, error="temporary failure")
             )
