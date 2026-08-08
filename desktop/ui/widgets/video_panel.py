@@ -138,7 +138,12 @@ class VideoPanel(QWidget):
             self.output.setText(context["output"])
             if context["duration_seconds"] > 0:
                 self.duration.setValue(context["duration_seconds"])
-            self.status.setText("Project video assets loaded.")
+            ffmpeg = context["ffmpeg"]
+            self.status.setText(
+                f"{ffmpeg.version} ready."
+                if ffmpeg.available
+                else ffmpeg.error
+            )
         except Exception as exc:
             self._failed(str(exc))
         self.refresh()
@@ -163,6 +168,9 @@ class VideoPanel(QWidget):
     def validation_error(self):
         if self.controller.project is None:
             return "Open a project before rendering video."
+        ffmpeg = self.controller.renderer_status()
+        if not ffmpeg.available:
+            return ffmpeg.error
         for label, value in (("visual", self.visual.text()), ("audio", self.audio.text())):
             if not value.strip() or not Path(value).is_file():
                 return f"Select a valid {label} file."
@@ -210,7 +218,8 @@ class VideoPanel(QWidget):
     def refresh(self):
         running = self.controller.is_running()
         has_project = self.controller.project is not None
-        self.render_button.setEnabled(has_project and not running)
+        renderer_ready = self.controller.renderer_status().available
+        self.render_button.setEnabled(has_project and renderer_ready and not running)
         self.cancel_button.setEnabled(running)
         for widget in (
             self.visual_button,
