@@ -134,27 +134,28 @@ class SupportBundleTests(unittest.TestCase):
 
 
     def test_discovers_newest_approved_logs_including_rotated_files(self):
-        root = self.root / "app"
-        logs = root / "logs"
-        logs.mkdir(parents=True)
-        oldest = logs / "application.log"
-        rotated = logs / "application.log.1"
-        ignored = logs / "payload.bin"
-        oldest.write_text("old", encoding="utf-8")
-        rotated.write_text("new", encoding="utf-8")
-        ignored.write_text("ignore", encoding="utf-8")
-        oldest.touch()
-        rotated.touch()
-        ignored.touch()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "app"
+            logs = root / "logs"
+            logs.mkdir(parents=True)
+            oldest = logs / "application.log"
+            rotated = logs / "application.log.1"
+            ignored = logs / "payload.bin"
+            oldest.write_text("old", encoding="utf-8")
+            rotated.write_text("new", encoding="utf-8")
+            ignored.write_text("ignore", encoding="utf-8")
+            oldest.touch()
+            rotated.touch()
+            ignored.touch()
 
-        service = SupportBundleService(
-            allowed_roots=(root,),
-            diagnostics_provider=lambda: {},
-            max_logs=1,
-        )
-        discovered = service.discover_log_paths((logs,))
+            service = SupportBundleService(
+                allowed_roots=(root,),
+                diagnostics_provider=lambda: {},
+                max_logs=1,
+            )
+            discovered = service.discover_log_paths((logs,))
 
-        self.assertEqual((rotated,), discovered)
+            self.assertEqual((rotated,), discovered)
 
 
 if __name__ == "__main__":
