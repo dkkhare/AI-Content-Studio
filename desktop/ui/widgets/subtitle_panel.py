@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -158,12 +158,11 @@ class SubtitlePanel(QWidget):
         self.table.setRowCount(len(document.cues))
         for row, cue in enumerate(document.cues):
             index = QTableWidgetItem(str(cue.index))
-            index.setFlags(index.flags() & ~index.flags().ItemIsEditable)
+            index.setFlags(index.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(row, 0, index)
             self.table.setItem(row, 1, QTableWidgetItem(format_timestamp(cue.start_ms)))
             self.table.setItem(row, 2, QTableWidgetItem(format_timestamp(cue.end_ms)))
-            self.table.setItem(row, 3, QTableWidgetItem(cue.text))
-
+            self.table.setItem(row, 3, QTableWidgetItem(cue.text))\n        self.refresh()\n
     def _show_error(self, title, error):
         self.status.setText(str(error))
         QMessageBox.warning(self, title, str(error))
