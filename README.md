@@ -863,6 +863,191 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 The installer is written to the repository's `release\` directory. Normal
 source users do not need this step.
 
+## Experimental macOS source setup
+
+macOS is currently an **experimental source-only platform**. There is no tested
+`.app`/`.dmg` package, notarization, or macOS CI gate yet. Create a separate test
+project and keep backups. Do not assume Windows release-candidate verification
+also validates macOS.
+
+The core PySide6 interface and Python project logic are cross-platform, so the
+application may run on Apple Silicon or Intel Macs after installing the source
+dependencies. Optional OCR, video, local-AI, and TTS features require their
+macOS tools to be installed and tested separately.
+
+### macOS requirements
+
+- macOS with a supported 64-bit Python 3.11 build
+- Apple Command Line Tools
+- Homebrew
+- Git
+- approximately 10 GB free for the source environment; substantially more for
+  projects and models
+- macOS Sonoma 14 or newer when using the current Ollama macOS application
+- Apple Silicon recommended for local AI/TTS; Intel can still use CPU or cloud AI
+
+### 1. Install Command Line Tools and Homebrew
+
+```bash
+xcode-select --install
+```
+
+Install [Homebrew](https://brew.sh/) if `brew` is not already available. After
+installation, follow Homebrew's displayed shell setup for your Mac, then verify:
+
+```bash
+brew --version
+git --version
+uname -m
+```
+
+`arm64` indicates Apple Silicon; `x86_64` indicates an Intel shell/Mac. Prefer a
+native Apple Silicon terminal and Python on an Apple Silicon Mac rather than
+mixing native and Rosetta packages.
+
+### 2. Install Python and media/OCR tools
+
+```bash
+brew install python@3.11 git ffmpeg tesseract poppler
+python3.11 --version
+ffmpeg -version
+tesseract --version
+pdftoppm -h
+```
+
+FFmpeg is required only for video composition. Tesseract and Poppler are
+optional OCR/PDF utilities.
+
+### 3. Clone the project
+
+```bash
+cd ~/Projects
+git clone https://github.com/dkkhare/AI-Content-Studio.git
+cd AI-Content-Studio
+```
+
+To test the Milestone 23 branch before it is merged:
+
+```bash
+git switch agent/milestone-23-release-readiness
+```
+
+### 4. Create the macOS Python environment
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+```
+
+Do not use `sudo pip`. Keep all Python packages inside `.venv`.
+
+### 5. Start AI Content Studio
+
+From the repository root with `.venv` active:
+
+```bash
+python -m desktop.main
+```
+
+Application settings, logs, and local crash reports normally fall back under:
+
+```text
+~/.aicontentstudio
+```
+
+Projects and generated output remain wherever you create the project, with the
+default output under `<Project root>/output`.
+
+### 6. Configure optional AI providers
+
+Temporary OpenAI variables:
+
+```bash
+export OPENAI_API_KEY="replace-with-your-key"
+export OPENAI_DEFAULT_MODEL="replace-with-an-available-model"
+python -m desktop.main
+```
+
+Temporary Gemini variables:
+
+```bash
+export GEMINI_API_KEY="replace-with-your-key"
+export GEMINI_DEFAULT_MODEL="replace-with-an-available-model"
+python -m desktop.main
+```
+
+These values last for the current Terminal session and child processes. Avoid
+saving real keys in shell history or committed files.
+
+For local AI, install Ollama using the
+[official macOS instructions](https://docs.ollama.com/macos), start it, then:
+
+```bash
+ollama pull llama3.2
+ollama list
+export OLLAMA_BASE_URL="http://localhost:11434"
+export OLLAMA_DEFAULT_MODEL="llama3.2"
+python -m desktop.main
+```
+
+Ollama officially supports Apple M-series CPU/GPU execution and Intel CPU
+execution on supported macOS versions. Model storage can consume tens of GB.
+
+### 7. Try F5-TTS on Apple Silicon
+
+F5-TTS is optional and is not required to open the application. The official
+project documents stable PyTorch plus `f5-tts` for Apple Silicon:
+
+```bash
+source .venv/bin/activate
+python -m pip install torch torchaudio
+python -m pip install -r requirements-tts.txt
+```
+
+Run a short smoke test before using the Narration panel:
+
+```bash
+python scripts/tts_smoke.py \
+  --reference-audio "$HOME/voices/sample.wav" \
+  --reference-text "Exact words spoken in the sample" \
+  --text "नमस्ते, यह एक परीक्षण है।" \
+  --output "$HOME/AIProjects/tts-test"
+```
+
+Apple Metal/MPS acceleration and individual F5-TTS models have not been
+validated by this repository. CPU fallback can be slow, and Intel compatibility
+may vary. See the [official F5-TTS project](https://github.com/SWivid/F5-TTS).
+
+### 8. Run diagnostics and tests
+
+```bash
+python -m desktop.main --diagnostics ./diagnostics.json
+cat ./diagnostics.json
+python -m unittest discover -v
+```
+
+Start with a small project and test save, reopen, narration, video, support
+export, recovery, and shutdown before using real work.
+
+### macOS troubleshooting
+
+| Problem | Checks |
+| --- | --- |
+| `python3.11` not found | Run `brew --prefix python@3.11` and follow Homebrew's PATH instructions |
+| Mixed architecture errors | Compare `uname -m` and `python -c "import platform; print(platform.machine())"`; reinstall the environment using one native architecture |
+| PySide6/Qt import fails | Delete and recreate `.venv`, upgrade pip, and reinstall `requirements.txt` without `sudo` |
+| FFmpeg unavailable | Run `which ffmpeg` and `ffmpeg -version`, then restart the Terminal/application |
+| Ollama unavailable | Start the Ollama app and run `curl http://localhost:11434/api/tags` |
+| F5-TTS installation fails | Confirm Python 3.11, update pip/wheel, and follow current upstream Apple Silicon instructions |
+| Microphone/file permission problem | Grant Terminal/Python the required permission in **System Settings → Privacy & Security** |
+| Crash or platform-specific bug | Export a redacted support bundle and report macOS version, chip, Python version, and reproduction steps |
+
+Do not attempt to run the Windows `.exe` or Inno Setup installer through these
+instructions. A proper macOS application bundle will require separate packaging,
+permissions, signing, notarization, and CI work.
+
 ## Project status
 
 Milestone 22 is complete. Milestone 23 is the final release-readiness and
