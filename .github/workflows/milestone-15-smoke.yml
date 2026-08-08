@@ -10,7 +10,11 @@ on:
       - "desktop/controllers/tts_controller.py"
       - "desktop/workers/tts_worker.py"
       - "desktop/ui/widgets/narration_panel.py"
-      - "tests/test_tts_*.py"\n      - "scripts/tts_smoke.py"\n      - "docs/tts.md"\n      - "requirements-tts.txt"\n      - ".github/workflows/milestone-15-smoke.yml"
+      - "tests/test_tts_*.py"
+      - "scripts/tts_smoke.py"
+      - "docs/tts.md"
+      - "requirements-tts.txt"
+      - ".github/workflows/milestone-15-smoke.yml"
 
 jobs:
   tts-core:
@@ -33,7 +37,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check numpy pydub soundfile PySide6
 
       - name: Compile TTS integration
-        run: python -m compileall -q backend/tts desktop tests
+        run: python -m compileall -q backend/tts desktop scripts tests
 
       - name: Run TTS core and smoke regressions
         run: python -m unittest -v tests.test_tts_core tests.test_tts_smoke_cli
