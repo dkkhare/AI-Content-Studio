@@ -81,7 +81,9 @@ itself.
 | Small Ollama model | 16 GB system RAM recommended | GPU optional but faster | Model-dependent; allow several GB |
 | Larger Ollama model | 32 GB+ RAM may be needed | Sufficient supported VRAM strongly recommended | Models can consume tens of GB |
 | F5-TTS source mode | 16 GB RAM recommended | CUDA-capable NVIDIA GPU recommended; 8 GB+ VRAM is a practical target | Allow 10–30 GB for Python, PyTorch, and model caches |
-| CPU-only F5-TTS | 16 GB+ RAM | None | Same model storage; generation may be very slow |
+| SadTalker 256px | 8 GB RAM minimum; 16 GB recommended | CPU possible; NVIDIA GPU recommended; 4 GB VRAM uses low-memory settings | Allow 5–10 GB plus substantial episode working space |
+| Long talking-head series | 16 GB RAM; SSD strongly recommended | 6–8 GB+ VRAM recommended; 4 GB may be slow | Keep 50 GB+ free for WAVs, segment MP4s, checkpoints, and final episodes |
+| CPU-only F5-TTS/SadTalker | 16 GB+ RAM | None | Same model storage; generation may be extremely slow |
 
 A 4 GB VRAM GPU can run the core application and video tools, but may be
 insufficient for some F5-TTS or Ollama model/configuration combinations. Choose
@@ -138,6 +140,7 @@ Install only the external components needed for the features you use.
 | --- | --- | --- | --- |
 | FFmpeg | MP4 rendering, encoding, subtitle burning | Yes, when on `PATH` | No |
 | F5-TTS | Local narration and reference-voice synthesis | No; 0.19.0 requires source mode | No |
+| SadTalker | Portrait animation and lip-sync for Talking Head Series | External isolated Python runtime | No |
 | Ollama | Local AI text generation | Yes, as a separate service | No |
 | OpenAI | Cloud AI text generation | Yes | `OPENAI_API_KEY` |
 | Google Gemini | Cloud AI text generation | Yes | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
@@ -208,6 +211,29 @@ python scripts/tts_smoke.py --reference-audio "C:\voices\sample.wav" --reference
 ```
 
 See [the detailed F5-TTS guide](docs/tts.md).
+
+### Install SadTalker for talking-head and lip-sync video
+
+SadTalker is an optional external runtime used by **Talking Head Series**. Keep
+it in a dedicated Python 3.8 environment because its upstream dependency pins
+can conflict with AI Content Studio's Python 3.11 environment. FFmpeg,
+checkpoints, and F5-TTS narration are also required for complete sampled-voice
+episode generation. No API key is required.
+
+Practical starting requirements are 8 GB RAM, 5–10 GB for the runtime/models,
+and substantial additional SSD space for episode working files. A CUDA-capable
+NVIDIA GPU is recommended; use 256px/crop mode without enhancement on a 4 GB
+GPU. CPU rendering may be extremely slow. macOS support is experimental.
+
+Follow the complete platform-specific procedure:
+
+- [SadTalker hardware, software, Windows, Ubuntu, and macOS installation guide](docs/sadtalker-installation.md)
+- [Official SadTalker repository](https://github.com/OpenTalker/SadTalker)
+- [Official checkpoint releases](https://github.com/OpenTalker/SadTalker/releases)
+
+After installation, open **Talking Head Series**, choose the SadTalker folder
+containing `inference.py`, choose the dedicated environment's Python
+executable, and click **Check Setup** before generation.
 
 ### Install Ollama for local AI
 
@@ -1050,9 +1076,11 @@ permissions, signing, notarization, and CI work.
 
 ## Project status
 
-Milestone 22 is complete. Milestone 23 is the final release-readiness and
-acceptance stage.
+Milestones 23 and 24 are complete and merged into `main`. Milestone 24 adds the
+multi-episode Talking Head Series pipeline using F5-TTS, SadTalker, and FFmpeg.
 
-- [Milestone 23 release readiness](https://github.com/dkkhare/AI-Content-Studio/blob/agent/milestone-23-release-readiness/docs/MILESTONE_23_RELEASE_READINESS.md)
+- [Milestone 23 release readiness](docs/MILESTONE_23_RELEASE_READINESS.md)
+- [Milestone 24 talking-head podcast series](docs/MILESTONE_24_TALKING_HEAD_PODCAST.md)
+- [SadTalker cross-platform installation](docs/sadtalker-installation.md)
 - [Windows release guide](docs/windows-release.md)
-- [0.19.0 release-candidate sign-off](https://github.com/dkkhare/AI-Content-Studio/blob/agent/milestone-23-release-readiness/docs/release-candidate-0.19.0.md)
+- [0.19.0 release-candidate sign-off](docs/release-candidate-0.19.0.md)
