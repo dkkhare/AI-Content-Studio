@@ -267,6 +267,18 @@ def build_menu(
     )
 
 
+    update_action = QAction(
+        "Check for Updates...",
+        window,
+    )
+    update_action.triggered.connect(
+        window.open_update_dialog
+    )
+    help_menu.addAction(update_action)
+    window.updateAction = update_action
+    help_menu.addSeparator()
+
+
     about_action = QAction(
         "About AI Content Studio",
         window,

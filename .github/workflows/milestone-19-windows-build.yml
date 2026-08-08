@@ -61,6 +61,24 @@ jobs:
           if (-not $Smoke.started -or -not $Smoke.shutdown -or $Smoke.exit_code -ne 0) {
             throw "GUI smoke report did not confirm a clean lifecycle"
           }
+      - name: Smoke packaged update UI without network checks
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          AI_CONTENT_STUDIO_DISABLE_UPDATE_CHECKS: "1"
+        run: |
+          $Executable = Resolve-Path "dist\AIContentStudio\AIContentStudio.exe"
+          $Process = Start-Process -FilePath $Executable -ArgumentList "--smoke-update-ui", "update-ui-smoke.json" -Wait -PassThru
+          if ($Process.ExitCode -ne 0) {
+            throw "Packaged update UI smoke failed with exit code $($Process.ExitCode)"
+          }
+          $Smoke = Get-Content update-ui-smoke.json | ConvertFrom-Json
+          if (-not $Smoke.update_action_available -or -not $Smoke.update_dialog_created) {
+            throw "Packaged update UI was not available"
+          }
+          if (-not $Smoke.network_update_checks_disabled -or -not $Smoke.shutdown -or $Smoke.exit_code -ne 0) {
+            throw "Packaged update UI smoke did not confirm an isolated clean lifecycle"
+          }
       - name: Generate SHA-256 manifest
         shell: pwsh
         run: |

@@ -1,4 +1,6 @@
-from PySide6.QtCore import Qt
+import os
+
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
@@ -9,6 +11,7 @@ from desktop.settings import (
     UIState,
     RecentProjects,
     SettingsManager,
+    UpdatePreferences,
 )
 
 from desktop.ui.menu_bar import build_menu
@@ -25,6 +28,8 @@ from desktop.ui.workspace import Workspace
 from desktop.ai import AISettingsStore
 from desktop.controllers.ai_controller import AIDesktopController
 from desktop.ui.dialogs.ai_settings_dialog import AISettingsDialog
+from desktop.controllers.update_controller import UpdateDesktopController
+from desktop.ui.dialogs.update_dialog import UpdateDialog
 
 
 class MainWindow(QMainWindow):
@@ -69,6 +74,20 @@ class MainWindow(QMainWindow):
         self.ai_settings_store = AISettingsStore(SettingsManager())
         self.ai_controller = AIDesktopController()
         self.ai_controller.configure(self.ai_settings_store.load())
+
+        self.update_preferences = UpdatePreferences(SettingsManager())
+        self.update_controller = UpdateDesktopController(
+            self,
+            preferences=self.update_preferences,
+        )
+        self.update_dialog = None
+        self._startup_update_check = False
+        self.update_controller.checkFinished.connect(
+            self._startup_update_finished
+        )
+        self.update_controller.checkFailed.connect(
+            self._startup_update_failed
+        )
 
         # --------------------------------------------------
         # Central Widgets
@@ -149,6 +168,8 @@ class MainWindow(QMainWindow):
         self.log(
             "AI Content Studio started."
         )
+
+        QTimer.singleShot(2000, self.check_for_updates_on_startup)
 
 
     # --------------------------------------------------
@@ -631,6 +652,64 @@ class MainWindow(QMainWindow):
         self.aiAssistantDock.refresh_profile()
 
     # --------------------------------------------------
+    # Application Updates
+    # --------------------------------------------------
+
+    def _ensure_update_dialog(self):
+        if self.update_dialog is None:
+            self.update_dialog = UpdateDialog(
+                self.update_controller,
+                self,
+            )
+            self.update_dialog.finished.connect(
+                lambda result: setattr(self, "update_dialog", None)
+            )
+        return self.update_dialog
+
+    def open_update_dialog(self, *, check=True):
+        dialog = self._ensure_update_dialog()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        if check:
+            dialog.check()
+
+    def check_for_updates_on_startup(self):
+        if os.environ.get("AI_CONTENT_STUDIO_DISABLE_UPDATE_CHECKS") == "1":
+            self.log("Automatic update check disabled for this runtime.")
+            return
+        if (
+            not self.update_preferences.check_on_startup()
+            or self.update_controller.is_running()
+        ):
+            return
+        self._startup_update_check = True
+        try:
+            self.update_controller.start_check()
+        except Exception as exc:
+            self._startup_update_failed(str(exc))
+
+    def _startup_update_finished(self, release):
+        if not self._startup_update_check:
+            return
+        self._startup_update_check = False
+        if release is None:
+            self.log("Automatic update check: application is current.")
+            return
+        dialog = self._ensure_update_dialog()
+        dialog._check_finished(release)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        self.log(f"Application update {release.version} is available.")
+
+    def _startup_update_failed(self, message):
+        if not self._startup_update_check:
+            return
+        self._startup_update_check = False
+        self.log(f"Automatic update check failed: {message}")
+
+    # --------------------------------------------------
     # Application Close
     # --------------------------------------------------
 
@@ -664,6 +743,9 @@ class MainWindow(QMainWindow):
 
 
                 self.project_controller.close_project(force=True)
+
+            if self.update_controller:
+                self.update_controller.dispose()
 
             if self.workspace:
                 self.workspace.dispose()
