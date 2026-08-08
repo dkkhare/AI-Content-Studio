@@ -11,6 +11,7 @@ from desktop.ui.widgets.readiness_panel import ReadinessPanel
 from desktop.ui.widgets.release_calendar_panel import ReleaseCalendarPanel
 from desktop.ui.widgets.release_manager_panel import ReleaseManagerPanel
 from desktop.ui.widgets.scene_review_panel import SceneReviewPanel
+from desktop.ui.widgets.setup_wizard_panel import SetupWizardPanel
 from desktop.ui.widgets.story_review_panel import StoryReviewPanel
 from desktop.ui.widgets.video_review_panel import VideoReviewPanel
 from desktop.ui.widgets.visual_review_panel import VisualReviewPanel
@@ -44,6 +45,7 @@ class Workspace(QWidget):
         self.video_review_panel = None
         self.release_manager_panel = None
         self.release_calendar_panel = None
+        self.setup_wizard_panel = None
         self.readiness_panel = None
         self._build_ui()
 
@@ -93,6 +95,8 @@ class Workspace(QWidget):
         self.tabs.addTab(self.release_manager_panel, "Release Manager")
         self.release_calendar_panel = ReleaseCalendarPanel(self)
         self.tabs.addTab(self.release_calendar_panel, "Release Calendar")
+        self.setup_wizard_panel = SetupWizardPanel(self)
+        self.tabs.addTab(self.setup_wizard_panel, "Setup Wizard")
         self.readiness_panel = ReadinessPanel(self)
         self.tabs.addTab(self.readiness_panel, "Setup & Readiness")
 
@@ -148,6 +152,7 @@ class Workspace(QWidget):
             self.video_review_panel,
             self.release_manager_panel,
             self.release_calendar_panel,
+            self.setup_wizard_panel,
             self.readiness_panel,
         ):
             if widget:
@@ -177,6 +182,7 @@ class Workspace(QWidget):
             self.video_review_panel,
             self.release_manager_panel,
             self.release_calendar_panel,
+            self.setup_wizard_panel,
             self.readiness_panel,
         ):
             if widget and (widget is self.narration_panel or self.current_project is not None) and hasattr(widget, "refresh"):
@@ -197,6 +203,7 @@ class Workspace(QWidget):
     def video_review(self): return self.video_review_panel
     def release_manager(self): return self.release_manager_panel
     def release_calendar(self): return self.release_calendar_panel
+    def setup_wizard(self): return self.setup_wizard_panel
     def readiness(self): return self.readiness_panel
 
     def current_tab(self) -> int: return self.tabs.currentIndex()
@@ -217,7 +224,8 @@ class Workspace(QWidget):
     def open_video_review_tab(self) -> None: self.set_current_tab(11)
     def open_release_manager_tab(self) -> None: self.set_current_tab(12)
     def open_release_calendar_tab(self) -> None: self.set_current_tab(13)
-    def open_readiness_tab(self) -> None: self.set_current_tab(14)
+    def open_setup_wizard_tab(self) -> None: self.set_current_tab(14)
+    def open_readiness_tab(self) -> None: self.set_current_tab(15)
 
     def clear(self) -> None:
         self._busy = False
@@ -226,7 +234,7 @@ class Workspace(QWidget):
         for widget in (
             self.export_page, self.project_status_dashboard, self.story_review_panel, self.scene_review_panel,
             self.visual_review_panel, self.video_review_panel, self.release_manager_panel, self.release_calendar_panel,
-            self.readiness_panel,
+            self.setup_wizard_panel, self.readiness_panel,
         ):
             if widget and hasattr(widget, "clear"): widget.clear()
         if self.narration_panel and hasattr(self.narration_panel, "clear"):
