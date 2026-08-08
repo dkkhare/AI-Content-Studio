@@ -15,12 +15,17 @@ if (-not $Compiler) {
     throw "Inno Setup 6 compiler was not found."
 }
 
-& $Compiler (Join-Path $RepositoryRoot "packaging\AIContentStudio.iss")
+$Version = python (Join-Path $PSScriptRoot "release_version.py")
+if ($LASTEXITCODE -ne 0 -or -not $Version) {
+    throw "Unable to resolve the application version."
+}
+
+& $Compiler "/DMyAppVersion=$Version" (Join-Path $RepositoryRoot "packaging\AIContentStudio.iss")
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup failed with exit code $LASTEXITCODE"
 }
 
-$Installer = Join-Path $RepositoryRoot "release\AIContentStudio-Setup-0.19.0-windows-x64.exe"
+$Installer = Join-Path $RepositoryRoot "release\AIContentStudio-Setup-$Version-windows-x64.exe"
 if (-not (Test-Path $Installer)) {
     throw "Installer build completed without the expected output: $Installer"
 }
