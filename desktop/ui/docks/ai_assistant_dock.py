@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QThreadPool
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -145,7 +146,7 @@ class AIAssistantDock(QDockWidget):
 
     def _append_chunk(self, text):
         cursor = self.output.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(QTextCursor.End)
         cursor.insertText(text)
         self.output.setTextCursor(cursor)
         self.output.ensureCursorVisible()
