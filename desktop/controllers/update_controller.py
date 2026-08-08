@@ -91,9 +91,12 @@ class UpdateDesktopController(QObject):
     def is_running(self):
         return self._thread is not None and self._thread.isRunning()
 
-    def _start(self, worker, terminal_signals):
+    def _ensure_idle(self):
         if self.is_running():
             raise RuntimeError("An update operation is already active.")
+
+    def _start(self, worker, terminal_signals):
+        self._ensure_idle()
         self._thread = QThread(self)
         self._worker = worker
         worker.moveToThread(self._thread)
@@ -112,6 +115,7 @@ class UpdateDesktopController(QObject):
         self._cancel_event = None
 
     def start_check(self):
+        self._ensure_idle()
         worker = _CheckWorker(
             self.service,
             self.preferences.include_prereleases(),
@@ -122,6 +126,7 @@ class UpdateDesktopController(QObject):
         self._start(worker, (worker.finished, worker.failed))
 
     def start_download(self, release, directory=None):
+        self._ensure_idle()
         if release is None:
             raise ValueError("Select an update release before downloading.")
         destination = directory or self.preferences.download_directory()
