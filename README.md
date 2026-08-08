@@ -689,6 +689,6 @@ The installer is written to the repository's `release\` directory.
 Milestone 22 is complete. Milestone 23 is the final release-readiness and
 acceptance stage.
 
-- [Milestone 23 release readiness](docs/MILESTONE_23_RELEASE_READINESS.md)
+- [Milestone 23 release readiness](https://github.com/dkkhare/AI-Content-Studio/blob/agent/milestone-23-release-readiness/docs/MILESTONE_23_RELEASE_READINESS.md)
 - [Windows release guide](docs/windows-release.md)
-- [0.19.0 release-candidate sign-off](docs/release-candidate-0.19.0.md)
+- [0.19.0 release-candidate sign-off](https://github.com/dkkhare/AI-Content-Studio/blob/agent/milestone-23-release-readiness/docs/release-candidate-0.19.0.md)
