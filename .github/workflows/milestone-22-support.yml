@@ -5,7 +5,9 @@ on:
     paths:
       - "backend/supporting/**"
       - "backend/runtime.py"
+      - "desktop/main.py"
       - "tests/test_supporting.py"
+      - "tests/test_support_runtime.py"
       - ".github/workflows/milestone-22-support.yml"
   workflow_dispatch:
 
@@ -18,6 +20,14 @@ jobs:
         with:
           python-version: "3.11"
       - name: Compile support modules and tests
-        run: python -m compileall -q backend/supporting tests/test_supporting.py
-      - name: Run support bundle regressions
-        run: python -m unittest -v tests.test_supporting
+        run: >-
+          python -m compileall -q
+          backend/supporting
+          desktop/main.py
+          tests/test_supporting.py
+          tests/test_support_runtime.py
+      - name: Run support diagnostics regressions
+        run: >-
+          python -m unittest -v
+          tests.test_supporting
+          tests.test_support_runtime
