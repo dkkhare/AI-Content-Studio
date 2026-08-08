@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from threading import Event
 
 from backend.project.project import Project
@@ -15,6 +16,7 @@ from backend.video import (
     RenderCancelled,
     VideoComposer,
     VideoSpec,
+    probe_ffmpeg,
 )
 
 
@@ -111,6 +113,43 @@ class ProjectVideoServiceTests(unittest.TestCase):
                 service.create_manifest(
                     project, visual=inside, audio=audio, duration_seconds=1, output="output/video.txt"
                 )
+
+
+class FFmpegPreflightTests(unittest.TestCase):
+    def test_missing_ffmpeg_has_actionable_remediation(self):
+        status = probe_ffmpeg("missing-ffmpeg", which=lambda value: None)
+        self.assertFalse(status.available)
+        self.assertIn("Install FFmpeg", status.error)
+        with self.assertRaisesRegex(FFmpegRenderError, "PATH"):
+            status.require()
+
+    def test_valid_version_is_detected_without_shell(self):
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return SimpleNamespace(
+                returncode=0,
+                stdout="ffmpeg version 7.1 Copyright FFmpeg developers\n",
+                stderr="",
+            )
+
+        status = probe_ffmpeg(
+            "ffmpeg", which=lambda value: "/tools/ffmpeg", runner=runner
+        )
+        self.assertTrue(status.available)
+        self.assertEqual(status.executable, "/tools/ffmpeg")
+        self.assertIn("ffmpeg version 7.1", status.version)
+        self.assertEqual(calls[0][0], ["/tools/ffmpeg", "-version"])
+        self.assertNotIn("shell", calls[0][1])
+
+    def test_invalid_version_response_is_rejected(self):
+        def runner(command, **kwargs):
+            return SimpleNamespace(returncode=0, stdout="not ffmpeg\n", stderr="")
+
+        status = probe_ffmpeg("ffmpeg", which=lambda value: value, runner=runner)
+        self.assertFalse(status.available)
+        self.assertIn("valid version", status.error)
 
 
 class FFmpegRenderingTests(unittest.TestCase):
