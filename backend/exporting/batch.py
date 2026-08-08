@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import wave
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,7 @@ from threading import Event
 from uuid import uuid4
 
 from backend.project.serializer import ProjectSerializer
+from backend.video import FFmpegRenderer, ProjectVideoService
 
 from .service import ExportCancelled, ProjectExportService
 
@@ -190,6 +192,72 @@ class BatchExportQueue:
         }
 
 
+class ProjectBatchVideoRenderer:
+    """Resolve project media and render a video without desktop dependencies."""
+
+    VISUAL_FIELDS = ("cover_image", "thumbnail")
+    AUDIO_FIELDS = ("narration_file", "audiobook_file", "podcast_file")
+
+    def __init__(self, *, video_service=None, renderer=None):
+        self.video_service = video_service or ProjectVideoService()
+        self.renderer = renderer or FFmpegRenderer()
+
+    @staticmethod
+    def _asset(project, fields):
+        root = Path(project.root).resolve()
+        for field_name in fields:
+            raw = getattr(project, field_name, "")
+            if not raw:
+                continue
+            path = Path(raw)
+            if not path.is_absolute():
+                path = root / path
+            path = path.resolve()
+            if path != root and root not in path.parents:
+                raise ValueError("Batch render assets must remain inside the project.")
+            if path.is_file():
+                return path
+        return None
+
+    @staticmethod
+    def _duration(path):
+        if path.suffix.lower() == ".wav":
+            with wave.open(str(path), "rb") as audio:
+                rate = audio.getframerate()
+                return audio.getnframes() / rate if rate else 0.0
+        try:
+            import soundfile as sf
+            info = sf.info(path)
+            return info.frames / info.samplerate if info.samplerate else 0.0
+        except Exception:
+            return 0.0
+
+    def __call__(self, project, job, cancel_event=None):
+        visual = self._asset(project, self.VISUAL_FIELDS)
+        audio = self._asset(project, self.AUDIO_FIELDS)
+        subtitles = self._asset(project, ("subtitle_file",))
+        if visual is None:
+            raise ValueError("Batch render requires a project cover or thumbnail.")
+        if audio is None:
+            raise ValueError("Batch render requires project narration audio.")
+        duration = self._duration(audio)
+        if duration <= 0:
+            raise ValueError("Unable to determine narration duration for batch render.")
+        manifest, _ = self.video_service.create_manifest(
+            project,
+            visual=visual,
+            audio=audio,
+            subtitles=subtitles,
+            duration_seconds=duration,
+        )
+        output = Path(project.root).resolve() / "output" / "video.mp4"
+        return self.renderer.render(
+            manifest,
+            output,
+            cancel_event=cancel_event,
+        )
+
+
 class BatchExportRunner:
     """Sequential queue runner with independent render/export checkpoints."""
 
@@ -204,7 +272,7 @@ class BatchExportRunner:
         self.queue = queue
         self.service = service or ProjectExportService()
         self.project_loader = project_loader or ProjectSerializer.load
-        self.render_project = render_project
+        self.render_project = render_project or ProjectBatchVideoRenderer()
 
     @staticmethod
     def _notify(callback, job):
