@@ -1,5 +1,12 @@
 """Long-form talking-head podcast generation."""
 
+from .episodes import (
+    Episode,
+    EpisodeFragment,
+    SeriesPlan,
+    SourceBlock,
+    plan_episodes,
+)
 from .pipeline import (
     LongFormTalkingHeadPipeline,
     PipelineCancelled,
@@ -12,6 +19,8 @@ from .pipeline import (
 )
 
 __all__ = [
+    "Episode",
+    "EpisodeFragment",
     "LongFormTalkingHeadPipeline",
     "PipelineCancelled",
     "PodcastRequest",
@@ -19,5 +28,8 @@ __all__ = [
     "SadTalkerAdapter",
     "SadTalkerConfig",
     "SegmentRecord",
+    "SeriesPlan",
+    "SourceBlock",
+    "plan_episodes",
     "split_script",
 ]
