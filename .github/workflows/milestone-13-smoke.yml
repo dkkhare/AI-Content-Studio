@@ -36,6 +36,7 @@ on:
       - "tests/test_publishing_schedule.py"
       - "tests/test_release_calendar.py"
       - "tests/test_readiness.py"
+      - "tests/test_pipeline_reliability.py"
       - "tests/test_knowledge_store.py"
       - "tests/test_knowledge_review.py"
       - "tests/test_story_intelligence.py"
@@ -91,6 +92,7 @@ jobs:
         run: >-
           python -m unittest -v
           tests.test_processing_pipeline
+          tests.test_pipeline_reliability
           tests.test_processing_stages
           tests.test_pipeline_factory
           tests.test_translation_provider
