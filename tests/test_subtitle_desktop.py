@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import os
 import tempfile
-import unittest\nimport wave\nfrom pathlib import Path\nfrom types import SimpleNamespace\n
+import unittest
+import wave
+from pathlib import Path
+from types import SimpleNamespace
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
