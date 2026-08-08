@@ -6,6 +6,8 @@ on:
       - "backend/supporting/**"
       - "backend/runtime.py"
       - "desktop/main.py"
+      - "desktop/ui/main_window.py"
+      - "desktop/ui/menu_bar.py"
       - "tests/test_supporting.py"
       - "tests/test_support_runtime.py"
       - ".github/workflows/milestone-22-support.yml"
@@ -24,6 +26,8 @@ jobs:
           python -m compileall -q
           backend/supporting
           desktop/main.py
+          desktop/ui/main_window.py
+          desktop/ui/menu_bar.py
           tests/test_supporting.py
           tests/test_support_runtime.py
       - name: Run support diagnostics regressions
