@@ -4,6 +4,8 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
+from backend.runtime import app_data_dir
+from backend.supporting import SupportBundleService
 from desktop.controllers.project_controller import ProjectController
 from desktop.project.project_dialog import ProjectDialogs
 
@@ -650,6 +652,73 @@ class MainWindow(QMainWindow):
         self.aiAssistantDock.show()
         self.aiAssistantDock.raise_()
         self.aiAssistantDock.refresh_profile()
+
+    # --------------------------------------------------
+    # Support Diagnostics
+    # --------------------------------------------------
+
+    def export_support_bundle(self):
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        explanation = (
+            "The support bundle includes runtime diagnostics, application logs, "
+            "and local crash reports. Credentials and user-home paths are "
+            "redacted. Nothing is uploaded automatically.\n\n"
+            "Review the ZIP before sharing it with anyone."
+        )
+        result = QMessageBox.question(
+            self,
+            "Export Support Bundle",
+            explanation + "\n\nCreate the support bundle now?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if result != QMessageBox.Yes:
+            return
+
+        destination, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Support Bundle",
+            "ai-content-studio-support.zip",
+            "ZIP archives (*.zip)",
+        )
+        if not destination:
+            return
+        if not destination.lower().endswith(".zip"):
+            destination += ".zip"
+
+        try:
+            root = app_data_dir()
+            service = SupportBundleService()
+            sources = service.discover_log_paths(
+                (root / "logs", root / "crashes")
+            )
+            path, manifest = service.create(
+                destination,
+                log_paths=sources,
+                settings={
+                    "automatic_upload": False,
+                    "included_log_count": min(
+                        len(sources),
+                        service.max_logs,
+                    ),
+                },
+            )
+        except Exception as exc:
+            self.show_error("Unable to export support bundle", exc)
+            self.log(f"Support bundle export failed: {exc}")
+            return
+
+        QMessageBox.information(
+            self,
+            "Support Bundle Created",
+            (
+                f"Saved {len(manifest['assets'])} redacted support files to:\n"
+                f"{path}\n\nNothing was uploaded automatically."
+            ),
+        )
+        self.statusBar().showMessage("Support bundle exported.")
+        self.log("Redacted support bundle exported locally.")
 
     # --------------------------------------------------
     # Application Updates
