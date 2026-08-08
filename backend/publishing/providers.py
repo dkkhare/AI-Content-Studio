@@ -39,7 +39,7 @@ class YouTubePublishingProvider(PublishingProvider):
     provider_id = "youtube"
     display_name = "YouTube"
 
-    SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+    SCOPES = ["https://www.googleapis.com/auth/youtube"]
 
     def __init__(self, *, client_secrets_path: str = "", token_path: str = ""):
         self.client_secrets_path = str(client_secrets_path or "").strip()
@@ -63,10 +63,7 @@ class YouTubePublishingProvider(PublishingProvider):
             from google.oauth2.credentials import Credentials
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ImportError as exc:
-            raise RuntimeError(
-                "YouTube publishing requires google-api-python-client, google-auth-oauthlib, and google-auth."
-            ) from exc
-
+            raise RuntimeError("YouTube publishing requires google-api-python-client, google-auth-oauthlib, and google-auth.") from exc
         credentials = None
         token = Path(self.token_path) if self.token_path else None
         if token and token.is_file():
@@ -84,6 +81,7 @@ class YouTubePublishingProvider(PublishingProvider):
     @staticmethod
     def _body(manifest: dict[str, Any]) -> dict[str, Any]:
         youtube = manifest.get("youtube", {}) if isinstance(manifest.get("youtube"), dict) else {}
+        publish_at = str(youtube.get("publish_at", "") or "").strip()
         snippet = {
             "title": str(youtube.get("title", ""))[:100],
             "description": str(youtube.get("description", ""))[:5000],
@@ -93,9 +91,11 @@ class YouTubePublishingProvider(PublishingProvider):
             "defaultAudioLanguage": "hi",
         }
         status = {
-            "privacyStatus": str(youtube.get("privacy", "private") or "private"),
+            "privacyStatus": "private" if publish_at else str(youtube.get("privacy", "private") or "private"),
             "selfDeclaredMadeForKids": bool(youtube.get("made_for_kids", False)),
         }
+        if publish_at:
+            status["publishAt"] = publish_at
         return {"snippet": snippet, "status": status}
 
     def publish(self, manifest: dict[str, Any], *, root: Path) -> PublishResult:
@@ -106,19 +106,14 @@ class YouTubePublishingProvider(PublishingProvider):
         video_path = (root / video_value).resolve()
         if not video_path.is_file():
             raise ValueError(f"Final video does not exist: {video_path}")
-
         try:
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
         except ImportError as exc:
-            raise RuntimeError(
-                "YouTube publishing requires google-api-python-client, google-auth-oauthlib, and google-auth."
-            ) from exc
-
+            raise RuntimeError("YouTube publishing requires google-api-python-client, google-auth-oauthlib, and google-auth.") from exc
         youtube = build("youtube", "v3", credentials=self._credentials())
         request = youtube.videos().insert(
-            part="snippet,status",
-            body=self._body(manifest),
+            part="snippet,status", body=self._body(manifest),
             media_body=MediaFileUpload(str(video_path), chunksize=-1, resumable=True),
         )
         response = None
@@ -127,15 +122,17 @@ class YouTubePublishingProvider(PublishingProvider):
         video_id = str((response or {}).get("id", ""))
         if not video_id:
             raise RuntimeError("YouTube upload completed without returning a video ID.")
-
         thumbnail_value = str(files.get("thumbnail", ""))
         thumbnail_path = (root / thumbnail_value).resolve() if thumbnail_value else None
         if thumbnail_path and thumbnail_path.is_file():
-            youtube.thumbnails().set(
-                videoId=video_id,
-                media_body=MediaFileUpload(str(thumbnail_path), resumable=False),
+            youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumbnail_path), resumable=False)).execute()
+        youtube_meta = manifest.get("youtube", {}) if isinstance(manifest.get("youtube"), dict) else {}
+        playlist_id = str(youtube_meta.get("playlist_id", "") or "").strip()
+        if playlist_id:
+            youtube.playlistItems().insert(
+                part="snippet",
+                body={"snippet": {"playlistId": playlist_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}},
             ).execute()
-
         return PublishResult(
             external_id=video_id,
             external_url=f"https://www.youtube.com/watch?v={video_id}",
