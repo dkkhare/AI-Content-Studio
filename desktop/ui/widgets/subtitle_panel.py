@@ -162,7 +162,9 @@ class SubtitlePanel(QWidget):
             self.table.setItem(row, 0, index)
             self.table.setItem(row, 1, QTableWidgetItem(format_timestamp(cue.start_ms)))
             self.table.setItem(row, 2, QTableWidgetItem(format_timestamp(cue.end_ms)))
-            self.table.setItem(row, 3, QTableWidgetItem(cue.text))\n        self.refresh()\n
+            self.table.setItem(row, 3, QTableWidgetItem(cue.text))
+        self.refresh()
+
     def _show_error(self, title, error):
         self.status.setText(str(error))
         QMessageBox.warning(self, title, str(error))
