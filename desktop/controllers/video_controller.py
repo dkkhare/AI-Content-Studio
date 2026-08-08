@@ -6,7 +6,12 @@ from threading import Event
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
-from backend.video import FFmpegRenderer, ProjectVideoService, RenderCancelled
+from backend.video import (
+    FFmpegRenderer,
+    FFmpegStatus,
+    ProjectVideoService,
+    RenderCancelled,
+)
 
 
 class _RenderWorker(QObject):
@@ -59,6 +64,20 @@ class VideoDesktopController(QObject):
         self._thread = None
         self._worker = None
         self._cancel_event = None
+        self._renderer_status = None
+
+    def renderer_status(self, *, refresh=False):
+        if refresh or self._renderer_status is None:
+            preflight = getattr(self.renderer, "preflight", None)
+            self._renderer_status = (
+                preflight()
+                if callable(preflight)
+                else FFmpegStatus(True, "custom", version="Custom renderer")
+            )
+        return self._renderer_status
+
+    def _require_renderer(self):
+        return self.renderer_status().require()
 
     def _project_path(self, value):
         if self.project is None:
@@ -125,6 +144,7 @@ class VideoDesktopController(QObject):
             "subtitles": str(subtitles) if subtitles else "",
             "duration_seconds": self.audio_duration_seconds(audio),
             "output": str(output) if output else "",
+            "ffmpeg": self.renderer_status(),
         }
 
     def prepare(
@@ -163,6 +183,7 @@ class VideoDesktopController(QObject):
         return target
 
     def render_sync(self, **settings):
+        self._require_renderer()
         manifest, output = self.prepare(**settings)
         self.project.start_processing("video")
         try:
@@ -178,6 +199,7 @@ class VideoDesktopController(QObject):
     def start_render(self, **settings):
         if self.is_running():
             raise RuntimeError("Video rendering is already active.")
+        self._require_renderer()
         manifest, output = self.prepare(**settings)
         self.project.start_processing("video")
         self._cancel_event = Event()
