@@ -1,0 +1,40 @@
+name: Milestone 13 AI
+
+on:
+  push:
+    branches:
+      - agent/milestone-13-complete
+  pull_request:
+    paths:
+      - "backend/ai/**"
+      - "backend/pipeline/ai_stages.py"
+      - "backend/pipeline/context.py"
+      - "tests/test_ai_*.py"
+      - ".github/workflows/milestone-13-smoke.yml"
+
+jobs:
+  milestone-13:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile sources
+        run: python -m compileall -q backend tests
+
+      - name: Run Milestone 13 tests
+        run: >-
+          python -m unittest -v
+          tests.test_ai_core
+          tests.test_ai_hardening
+          tests.test_ai_prompts
+          tests.test_ai_providers
+          tests.test_ai_pipeline_stages
+
+      - name: Run project lifecycle regression
+        run: python -m unittest -v tests.test_project_lifecycle
