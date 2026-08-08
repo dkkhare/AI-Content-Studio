@@ -13,6 +13,8 @@ from .service import ExportCancelled, ProjectExportService
 
 
 STATUSES = {"pending", "running", "completed", "failed", "cancelled"}
+MODES = {"export", "render_export"}
+PHASES = {"queued", "render", "export", "done"}
 
 
 def _now():
@@ -31,6 +33,11 @@ class BatchExportJob:
     output: str = ""
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
+    mode: str = "export"
+    phase: str = "queued"
+    render_complete: bool = False
+    export_complete: bool = False
+    render_output: str = ""
 
     def __post_init__(self):
         if not self.id.strip():
@@ -43,6 +50,10 @@ class BatchExportJob:
             raise ValueError("Batch export preset is required.")
         if self.status not in STATUSES:
             raise ValueError(f"Invalid batch job status: {self.status}")
+        if self.mode not in MODES:
+            raise ValueError(f"Invalid batch job mode: {self.mode}")
+        if self.phase not in PHASES:
+            raise ValueError(f"Invalid batch job phase: {self.phase}")
         if self.attempts < 0:
             raise ValueError("Batch job attempts cannot be negative.")
 
@@ -97,8 +108,14 @@ class BatchExportQueue:
             recovered = []
             for job in queue.jobs:
                 if job.status == "running":
+                    phase = (
+                        "export"
+                        if job.render_complete or job.mode == "export"
+                        else "render"
+                    )
                     job = job.transition(
                         "pending",
+                        phase=phase,
                         error="Recovered after interrupted shutdown.",
                     )
                     changed = True
@@ -108,9 +125,18 @@ class BatchExportQueue:
                 queue.save()
         return queue
 
-    def enqueue(self, project_root, destination, preset="publishing"):
+    def enqueue(
+        self,
+        project_root,
+        destination,
+        preset="publishing",
+        *,
+        mode="export",
+    ):
         project_root = str(Path(project_root).resolve())
         destination = str(Path(destination).resolve())
+        if mode not in MODES:
+            raise ValueError(f"Invalid batch job mode: {mode}")
         for job in self.jobs:
             if (
                 job.project_root == project_root
@@ -118,7 +144,14 @@ class BatchExportQueue:
                 and job.preset == preset
             ):
                 raise ValueError("An export job for this destination already exists.")
-        job = BatchExportJob(project_root, destination, preset)
+        phase = "render" if mode == "render_export" else "export"
+        job = BatchExportJob(
+            project_root,
+            destination,
+            preset,
+            mode=mode,
+            phase=phase,
+        )
         self.jobs.append(job)
         self.save()
         return job
@@ -135,7 +168,14 @@ class BatchExportQueue:
         job = self.get(job_id)
         if job.status not in {"failed", "cancelled"}:
             raise ValueError("Only failed or cancelled jobs can be retried.")
-        return self.replace(job.transition("pending", error="", output=""))
+        phase = (
+            "export"
+            if job.render_complete or job.mode == "export"
+            else "render"
+        )
+        return self.replace(
+            job.transition("pending", phase=phase, error="", output="")
+        )
 
     def get(self, job_id):
         for job in self.jobs:
@@ -151,12 +191,25 @@ class BatchExportQueue:
 
 
 class BatchExportRunner:
-    """Sequential persistent queue runner with restart-safe status transitions."""
+    """Sequential queue runner with independent render/export checkpoints."""
 
-    def __init__(self, queue, *, service=None, project_loader=None):
+    def __init__(
+        self,
+        queue,
+        *,
+        service=None,
+        project_loader=None,
+        render_project=None,
+    ):
         self.queue = queue
         self.service = service or ProjectExportService()
         self.project_loader = project_loader or ProjectSerializer.load
+        self.render_project = render_project
+
+    @staticmethod
+    def _notify(callback, job):
+        if callback is not None:
+            callback(job)
 
     def run_pending(self, *, cancel_event: Event | None = None, on_job=None):
         completed = []
@@ -166,18 +219,47 @@ class BatchExportRunner:
                 continue
             if cancel_event is not None and cancel_event.is_set():
                 break
+            phase = (
+                "export"
+                if job.render_complete or job.mode == "export"
+                else "render"
+            )
             job = self.queue.replace(
                 job.transition(
                     "running",
+                    phase=phase,
                     attempts=job.attempts + 1,
                     error="",
                     output="",
                 )
             )
-            if on_job is not None:
-                on_job(job)
+            self._notify(on_job, job)
             try:
                 project = self.project_loader(Path(job.project_root))
+                if job.mode == "render_export" and not job.render_complete:
+                    if self.render_project is None:
+                        raise RuntimeError(
+                            "Render-then-export job requires a render processor."
+                        )
+                    render_output = self.render_project(
+                        project, job, cancel_event
+                    )
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ExportCancelled("Batch render was cancelled.")
+                    if hasattr(project, "add_output_file"):
+                        project.add_output_file("video_file", str(render_output))
+                        ProjectSerializer.save(project)
+                    else:
+                        project.video_file = str(render_output)
+                    job = self.queue.replace(
+                        job.transition(
+                            "running",
+                            phase="export",
+                            render_complete=True,
+                            render_output=str(render_output),
+                        )
+                    )
+                    self._notify(on_job, job)
                 _, output = self.service.export(
                     project,
                     job.destination,
@@ -186,19 +268,26 @@ class BatchExportRunner:
                 )
             except ExportCancelled:
                 job = self.queue.replace(
-                    job.transition("cancelled", error="Export cancelled.")
+                    self.queue.get(job.id).transition(
+                        "cancelled", error="Batch operation cancelled."
+                    )
                 )
             except Exception as exc:
                 job = self.queue.replace(
-                    job.transition("failed", error=str(exc))
+                    self.queue.get(job.id).transition("failed", error=str(exc))
                 )
             else:
                 job = self.queue.replace(
-                    job.transition("completed", output=str(output), error="")
+                    self.queue.get(job.id).transition(
+                        "completed",
+                        phase="done",
+                        export_complete=True,
+                        output=str(output),
+                        error="",
+                    )
                 )
                 completed.append(job)
-            if on_job is not None:
-                on_job(job)
+            self._notify(on_job, job)
             if job.status == "cancelled":
                 break
         return completed
