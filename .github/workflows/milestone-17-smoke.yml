@@ -1,0 +1,37 @@
+name: Milestone 17 Video Composer
+
+on:
+  pull_request:
+    paths:
+      - "backend/video/**"
+      - "desktop/controllers/video_controller.py"
+      - "desktop/ui/widgets/video_panel.py"
+      - "desktop/ui/workspace.py"
+      - "tests/test_video_composer.py"
+      - "tests/test_video_desktop.py"
+      - "tests/test_video_ffmpeg_live.py"
+      - ".github/workflows/milestone-17-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  video-composer:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1 libgl1
+      - name: Install desktop smoke dependencies
+        run: pip install PySide6 soundfile
+      - name: Compile video modules and tests
+        run: python -m compileall -q backend/video desktop/controllers/video_controller.py desktop/ui/widgets/video_panel.py tests/test_video_composer.py tests/test_video_desktop.py tests/test_video_ffmpeg_live.py
+      - name: Run video composer regressions
+        run: timeout 90s python -u -m unittest -v tests.test_video_composer tests.test_video_desktop
+      - name: Run real FFmpeg render smoke
+        env:
+          AI_STUDIO_RUN_FFMPEG_SMOKE: "1"
+        run: timeout 60s python -u -m unittest -v tests.test_video_ffmpeg_live
