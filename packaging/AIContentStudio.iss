@@ -1,5 +1,7 @@
 #define MyAppName "AI Content Studio"
-#define MyAppVersion "0.19.0"
+#ifndef MyAppVersion
+  #error MyAppVersion must be supplied by the release build.
+#endif
 #define MyAppPublisher "AI Content Studio"
 #define MyAppExeName "AIContentStudio.exe"
 
@@ -20,7 +22,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion=0.19.0.0
+VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductName={#MyAppName}
 VersionInfoDescription={#MyAppName} Installer
 
