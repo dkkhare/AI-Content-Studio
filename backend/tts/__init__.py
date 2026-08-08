@@ -1,10 +1,4 @@
-from .config import TTSConfig
-from .manager import TTSManager
-from .generator import TTSGenerator
-from .pipeline import TTSPipeline
-from .queue import TTSQueue
-from .session import TTSSession
-from .audio_merger import AudioMerger
+from __future__ import annotations
 
 __all__ = [
     "TTSConfig",
@@ -15,3 +9,22 @@ __all__ = [
     "TTSSession",
     "AudioMerger",
 ]
+
+_EXPORTS = {
+    "TTSConfig": (".config", "TTSConfig"),
+    "TTSManager": (".manager", "TTSManager"),
+    "TTSGenerator": (".generator", "TTSGenerator"),
+    "TTSPipeline": (".pipeline", "TTSPipeline"),
+    "TTSQueue": (".queue", "TTSQueue"),
+    "TTSSession": (".session", "TTSSession"),
+    "AudioMerger": (".audio_merger", "AudioMerger"),
+}
+
+
+def __getattr__(name):
+    try:
+        module_name, attribute = _EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(name) from exc
+    from importlib import import_module
+    return getattr(import_module(module_name, __name__), attribute)
